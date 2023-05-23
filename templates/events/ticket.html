@@ -11,15 +11,12 @@
             and present it for registration!
           </h5>
           <br />
-
-          <qrcode
-            :value="'ticket://{{ ticket_id }}'"
-            :options="{width: 500}"
-          ></qrcode>
+          <q-responsive :ratio="1" class="q-mb-md">
+            <qrcode :value="'ticket://{{ ticket_id }}'" :options="{width: 500}"></qrcode>
+          </q-responsive>
           <br />
           <q-btn @click="printWindow" color="grey" class="q-ml-auto">
-            <q-icon left size="3em" name="print"></q-icon> Print</q-btn
-          >
+            <q-icon left size="3em" name="print"></q-icon> Print</q-btn>
         </center>
       </q-card-section>
     </q-card>
