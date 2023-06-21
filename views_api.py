@@ -30,7 +30,7 @@ from .models import CreateEvent, CreateTicket
 
 @events_ext.get("/api/v1/events")
 async def api_events(
-    all_wallets: bool = Query(False), wallet: WalletTypeInfo = Depends(get_key_type)
+    all_wallets: bool = False, wallet: WalletTypeInfo = Depends(get_key_type)
 ):
     wallet_ids = [wallet.wallet.id]
 
@@ -85,7 +85,7 @@ async def api_form_delete(event_id, wallet: WalletTypeInfo = Depends(get_key_typ
 
 @events_ext.get("/api/v1/tickets")
 async def api_tickets(
-    all_wallets: bool, wallet: WalletTypeInfo = Depends(get_key_type)
+    all_wallets: bool = False, wallet: WalletTypeInfo = Depends(get_key_type)
 ):
     wallet_ids = [wallet.wallet.id]
 
