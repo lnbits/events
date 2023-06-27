@@ -28,9 +28,5 @@ async def on_invoice_paid(payment: Payment) -> None:
         await api_ticket_send_ticket(
             payment.memo,
             payment.payment_hash,
-            CreateTicket(
-                name=str(payment.extra.get("name")),
-                email=str(payment.extra.get("email")),
-            ),
         )
     return
