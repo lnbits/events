@@ -3,14 +3,14 @@ from typing import List, Optional, Union
 from lnbits.helpers import urlsafe_short_hash
 
 from . import db
-from .models import CreateEvent, Events, Tickets
+from .models import CreateEvent, Event, Ticket
 
 # TICKETS
 
 
 async def create_ticket(
     payment_hash: str, wallet: str, event: str, name: str, email: str
-) -> Tickets:
+) -> Ticket:
     await db.execute(
         """
         INSERT INTO events.ticket (id, wallet, event, name, email, registered, paid)
@@ -38,12 +38,12 @@ async def create_ticket(
     return ticket
 
 
-async def get_ticket(payment_hash: str) -> Optional[Tickets]:
+async def get_ticket(payment_hash: str) -> Optional[Ticket]:
     row = await db.fetchone("SELECT * FROM events.ticket WHERE id = ?", (payment_hash,))
-    return Tickets(**row) if row else None
+    return Ticket(**row) if row else None
 
 
-async def get_tickets(wallet_ids: Union[str, List[str]]) -> List[Tickets]:
+async def get_tickets(wallet_ids: Union[str, List[str]]) -> List[Ticket]:
     if isinstance(wallet_ids, str):
         wallet_ids = [wallet_ids]
 
@@ -51,7 +51,7 @@ async def get_tickets(wallet_ids: Union[str, List[str]]) -> List[Tickets]:
     rows = await db.fetchall(
         f"SELECT * FROM events.ticket WHERE wallet IN ({q})", (*wallet_ids,)
     )
-    return [Tickets(**row) for row in rows]
+    return [Ticket(**row) for row in rows]
 
 
 async def delete_ticket(payment_hash: str) -> None:
@@ -65,7 +65,7 @@ async def delete_event_tickets(event_id: str) -> None:
 # EVENTS
 
 
-async def create_event(data: CreateEvent) -> Events:
+async def create_event(data: CreateEvent) -> Event:
     event_id = urlsafe_short_hash()
     await db.execute(
         """
@@ -91,7 +91,7 @@ async def create_event(data: CreateEvent) -> Events:
     return event
 
 
-async def update_event(event_id: str, **kwargs) -> Events:
+async def update_event(event_id: str, **kwargs) -> Event:
     q = ", ".join([f"{field[0]} = ?" for field in kwargs.items()])
     await db.execute(
         f"UPDATE events.events SET {q} WHERE id = ?", (*kwargs.values(), event_id)
@@ -101,12 +101,12 @@ async def update_event(event_id: str, **kwargs) -> Events:
     return event
 
 
-async def get_event(event_id: str) -> Optional[Events]:
+async def get_event(event_id: str) -> Optional[Event]:
     row = await db.fetchone("SELECT * FROM events.events WHERE id = ?", (event_id,))
-    return Events(**row) if row else None
+    return Event(**row) if row else None
 
 
-async def get_events(wallet_ids: Union[str, List[str]]) -> List[Events]:
+async def get_events(wallet_ids: Union[str, List[str]]) -> List[Event]:
     if isinstance(wallet_ids, str):
         wallet_ids = [wallet_ids]
 
@@ -115,7 +115,7 @@ async def get_events(wallet_ids: Union[str, List[str]]) -> List[Events]:
         f"SELECT * FROM events.events WHERE wallet IN ({q})", (*wallet_ids,)
     )
 
-    return [Events(**row) for row in rows]
+    return [Event(**row) for row in rows]
 
 
 async def delete_event(event_id: str) -> None:
@@ -125,15 +125,15 @@ async def delete_event(event_id: str) -> None:
 # EVENTTICKETS
 
 
-async def get_event_tickets(event_id: str, wallet_id: str) -> List[Tickets]:
+async def get_event_tickets(event_id: str, wallet_id: str) -> List[Ticket]:
     rows = await db.fetchall(
         "SELECT * FROM events.ticket WHERE wallet = ? AND event = ?",
         (wallet_id, event_id),
     )
-    return [Tickets(**row) for row in rows]
+    return [Ticket(**row) for row in rows]
 
 
-async def reg_ticket(ticket_id: str) -> List[Tickets]:
+async def reg_ticket(ticket_id: str) -> List[Ticket]:
     await db.execute(
         "UPDATE events.ticket SET registered = ? WHERE id = ?", (True, ticket_id)
     )
@@ -141,4 +141,4 @@ async def reg_ticket(ticket_id: str) -> List[Tickets]:
     rows = await db.fetchall(
         "SELECT * FROM events.ticket WHERE event = ?", (ticket[1],)
     )
-    return [Tickets(**row) for row in rows]
+    return [Ticket(**row) for row in rows]

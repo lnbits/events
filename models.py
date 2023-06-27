@@ -1,4 +1,4 @@
-from fastapi.param_functions import Query
+from fastapi import Query
 from pydantic import BaseModel
 
 
@@ -18,7 +18,7 @@ class CreateTicket(BaseModel):
     email: str
 
 
-class Events(BaseModel):
+class Event(BaseModel):
     id: str
     wallet: str
     name: str
@@ -32,7 +32,7 @@ class Events(BaseModel):
     time: int
 
 
-class Tickets(BaseModel):
+class Ticket(BaseModel):
     id: str
     wallet: str
     event: str
