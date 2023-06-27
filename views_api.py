@@ -110,13 +110,14 @@ async def api_ticket_make_ticket(event_id, name, email):
             memo=f"{event_id}",
             extra={"tag": "events", "name": name, "email": email},
         )
+        await create_ticket(payment_hash=payment_hash, wallet=event.wallet, event=event.id, name=name, email=email)
     except Exception as e:
         raise HTTPException(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail=str(e))
     return {"payment_hash": payment_hash, "payment_request": payment_request}
 
 
 @events_ext.post("/api/v1/tickets/{event_id}/{payment_hash}")
-async def api_ticket_send_ticket(event_id, payment_hash, data: CreateTicket):
+async def api_ticket_send_ticket(event_id, payment_hash):
     event = await get_event(event_id)
     if not event:
         raise HTTPException(
@@ -127,23 +128,14 @@ async def api_ticket_send_ticket(event_id, payment_hash, data: CreateTicket):
     status = await api_payment(payment_hash)
     if status["paid"]:
 
-        exists = await get_ticket(payment_hash)
-        if exists:
-            return {"paid": True, "ticket_id": exists.id}
-
-        ticket = await create_ticket(
-            payment_hash=payment_hash,
-            wallet=event.wallet,
-            event=event_id,
-            name=data.name,
-            email=data.email,
-        )
-        if not ticket:
+        ticket = await get_ticket(payment_hash)
+        if ticket:
+            return {"paid": True, "ticket_id": ticket.id}
+        else:
             raise HTTPException(
                 status_code=HTTPStatus.NOT_FOUND,
-                detail="Event could not be fetched.",
+                detail="Ticket could not be fetched.",
             )
-        return {"paid": True, "ticket_id": ticket.id}
     return {"paid": False}
 
 
