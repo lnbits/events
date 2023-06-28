@@ -3,7 +3,7 @@ from http import HTTPStatus
 from fastapi import Depends, Query
 from starlette.exceptions import HTTPException
 
-from lnbits.core.crud import get_user, get_payment
+from lnbits.core.crud import get_user, get_standalone_payment
 from lnbits.core.services import create_invoice
 from lnbits.decorators import WalletTypeInfo, get_key_type
 
@@ -131,7 +131,7 @@ async def api_ticket_send_ticket(event_id, payment_hash):
             detail="Ticket could not be fetched.",
         )
 
-    payment = await get_payment(payment_hash)
+    payment = await get_standalone_payment(payment_hash)
     if not payment["pending"] and event.price_per_ticket == payment["amount"]:
         return {"paid": True, "ticket_id": ticket.id}
 
