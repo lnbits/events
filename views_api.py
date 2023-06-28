@@ -5,7 +5,6 @@ from starlette.exceptions import HTTPException
 
 from lnbits.core.crud import get_user, get_payment
 from lnbits.core.services import create_invoice
-from lnbits.core.views.api import api_payment
 from lnbits.decorators import WalletTypeInfo, get_key_type
 
 from . import events_ext
