@@ -3,9 +3,8 @@ from http import HTTPStatus
 from fastapi import Depends, Query
 from starlette.exceptions import HTTPException
 
-from lnbits.core.crud import get_user
+from lnbits.core.crud import get_user, get_standalone_payment
 from lnbits.core.services import create_invoice
-from lnbits.core.views.api import api_payment
 from lnbits.decorators import WalletTypeInfo, get_key_type
 
 from . import events_ext
@@ -110,13 +109,14 @@ async def api_ticket_make_ticket(event_id, name, email):
             memo=f"{event_id}",
             extra={"tag": "events", "name": name, "email": email},
         )
+        await create_ticket(payment_hash=payment_hash, wallet=event.wallet, event=event.id, name=name, email=email)
     except Exception as e:
         raise HTTPException(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail=str(e))
     return {"payment_hash": payment_hash, "payment_request": payment_request}
 
 
 @events_ext.post("/api/v1/tickets/{event_id}/{payment_hash}")
-async def api_ticket_send_ticket(event_id, payment_hash, data: CreateTicket):
+async def api_ticket_send_ticket(event_id, payment_hash):
     event = await get_event(event_id)
     if not event:
         raise HTTPException(
@@ -124,26 +124,17 @@ async def api_ticket_send_ticket(event_id, payment_hash, data: CreateTicket):
             detail="Event could not be fetched.",
         )
 
-    status = await api_payment(payment_hash)
-    if status["paid"]:
-
-        exists = await get_ticket(payment_hash)
-        if exists:
-            return {"paid": True, "ticket_id": exists.id}
-
-        ticket = await create_ticket(
-            payment_hash=payment_hash,
-            wallet=event.wallet,
-            event=event_id,
-            name=data.name,
-            email=data.email,
+    ticket = await get_ticket(payment_hash)
+    if not ticket:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND,
+            detail="Ticket could not be fetched.",
         )
-        if not ticket:
-            raise HTTPException(
-                status_code=HTTPStatus.NOT_FOUND,
-                detail="Event could not be fetched.",
-            )
+
+    payment = await get_standalone_payment(payment_hash)
+    if not payment.pending and event.price_per_ticket * 1000 == payment.amount:
         return {"paid": True, "ticket_id": ticket.id}
+
     return {"paid": False}
 
 
