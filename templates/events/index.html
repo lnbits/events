@@ -4,9 +4,7 @@
   <div class="col-12 col-md-8 col-lg-7 q-gutter-y-md">
     <q-card>
       <q-card-section>
-        <q-btn unelevated color="primary" @click="formDialog.show = true"
-          >New Event</q-btn
-        >
+        <q-btn unelevated color="primary" @click="formDialog.show = true">New Event</q-btn>
       </q-card-section>
     </q-card>
 
@@ -17,19 +15,11 @@
             <h5 class="text-subtitle1 q-my-none">Events</h5>
           </div>
           <div class="col-auto">
-            <q-btn flat color="grey" @click="exporteventsCSV"
-              >Export to CSV</q-btn
-            >
+            <q-btn flat color="grey" @click="exporteventsCSV">Export to CSV</q-btn>
           </div>
         </div>
-        <q-table
-          dense
-          flat
-          :data="events"
-          row-key="id"
-          :columns="eventsTable.columns"
-          :pagination.sync="eventsTable.pagination"
-        >
+        <q-table dense flat :data="events" row-key="id" :columns="eventsTable.columns"
+          :pagination.sync="eventsTable.pagination">
           {% raw %}
           <template v-slot:header="props">
             <q-tr :props="props">
@@ -45,49 +35,20 @@
           <template v-slot:body="props">
             <q-tr :props="props">
               <q-td auto-width>
-                <q-btn
-                  unelevated
-                  dense
-                  size="xs"
-                  icon="link"
-                  :color="($q.dark.isActive) ? 'grey-7' : 'grey-5'"
-                  type="a"
-                  :href="props.row.displayUrl"
-                  target="_blank"
-                ></q-btn>
-                <q-btn
-                  unelevated
-                  dense
-                  size="xs"
-                  icon="how_to_reg"
-                  :color="($q.dark.isActive) ? 'grey-7' : 'grey-5'"
-                  type="a"
-                  :href="'/events/register/' + props.row.id"
-                  target="_blank"
-                ></q-btn>
+                <q-btn unelevated dense size="xs" icon="link" :color="($q.dark.isActive) ? 'grey-7' : 'grey-5'" type="a"
+                  :href="props.row.displayUrl" target="_blank"></q-btn>
+                <q-btn unelevated dense size="xs" icon="how_to_reg" :color="($q.dark.isActive) ? 'grey-7' : 'grey-5'"
+                  type="a" :href="'/events/register/' + props.row.id" target="_blank"></q-btn>
               </q-td>
               <q-td v-for="col in props.cols" :key="col.name" :props="props">
                 {{ col.value }}
               </q-td>
               <q-td auto-width>
-                <q-btn
-                  flat
-                  dense
-                  size="xs"
-                  @click="updateformDialog(props.row.id)"
-                  icon="edit"
-                  color="light-blue"
-                ></q-btn>
+                <q-btn flat dense size="xs" @click="updateformDialog(props.row.id)" icon="edit"
+                  color="light-blue"></q-btn>
               </q-td>
               <q-td auto-width>
-                <q-btn
-                  flat
-                  dense
-                  size="xs"
-                  @click="deleteEvent(props.row.id)"
-                  icon="cancel"
-                  color="pink"
-                ></q-btn>
+                <q-btn flat dense size="xs" @click="deleteEvent(props.row.id)" icon="cancel" color="pink"></q-btn>
               </q-td>
             </q-tr>
           </template>
@@ -103,19 +64,11 @@
             <h5 class="text-subtitle1 q-my-none">Tickets</h5>
           </div>
           <div class="col-auto">
-            <q-btn flat color="grey" @click="exportticketsCSV"
-              >Export to CSV</q-btn
-            >
+            <q-btn flat color="grey" @click="exportticketsCSV">Export to CSV</q-btn>
           </div>
         </div>
-        <q-table
-          dense
-          flat
-          :data="tickets"
-          row-key="id"
-          :columns="ticketsTable.columns"
-          :pagination.sync="ticketsTable.pagination"
-        >
+        <q-table dense flat :data="tickets" row-key="id" :columns="ticketsTable.columns"
+          :pagination.sync="ticketsTable.pagination">
           {% raw %}
           <template v-slot:header="props">
             <q-tr :props="props">
@@ -128,16 +81,9 @@
           <template v-slot:body="props">
             <q-tr :props="props">
               <q-td auto-width>
-                <q-btn
-                  unelevated
-                  dense
-                  size="xs"
-                  icon="local_activity"
-                  :color="($q.dark.isActive) ? 'grey-7' : 'grey-5'"
-                  type="a"
-                  :href="'/events/ticket/' + props.row.id"
-                  target="_blank"
-                ></q-btn>
+                <q-btn unelevated dense size="xs" icon="local_activity"
+                  :color="($q.dark.isActive) ? 'grey-7' : 'grey-5'" type="a" :href="'/events/ticket/' + props.row.id"
+                  target="_blank"></q-btn>
               </q-td>
 
               <q-td v-for="col in props.cols" :key="col.name" :props="props">
@@ -145,14 +91,7 @@
               </q-td>
 
               <q-td auto-width>
-                <q-btn
-                  flat
-                  dense
-                  size="xs"
-                  @click="deleteTicket(props.row.id)"
-                  icon="cancel"
-                  color="pink"
-                ></q-btn>
+                <q-btn flat dense size="xs" @click="deleteTicket(props.row.id)" icon="cancel" color="pink"></q-btn>
               </q-td>
             </q-tr>
           </template>
@@ -180,110 +119,55 @@
       <q-form @submit="sendEventData" class="q-gutter-md">
         <div class="row">
           <div class="col">
-            <q-input
-              filled
-              dense
-              v-model.trim="formDialog.data.name"
-              type="name"
-              label="Title of event "
-            ></q-input>
+            <q-input filled dense v-model.trim="formDialog.data.name" type="name" label="Title of event "></q-input>
           </div>
           <div class="col q-pl-sm">
-            <q-select
-              filled
-              dense
-              emit-value
-              v-model="formDialog.data.wallet"
-              :options="g.user.walletOptions"
-              label="Wallet *"
-            >
+            <q-select filled dense emit-value v-model="formDialog.data.wallet" :options="g.user.walletOptions"
+              label="Wallet *">
             </q-select>
           </div>
         </div>
 
-        <q-input
-          filled
-          dense
-          v-model.trim="formDialog.data.info"
-          type="textarea"
-          label="Info about the event "
-        ></q-input>
+        <q-input filled dense v-model.trim="formDialog.data.info" type="textarea"
+          label="Info about the event "></q-input>
         <div class="row">
           <div class="col-4">Ticket closing date</div>
           <div class="col-8">
-            <q-input
-              filled
-              dense
-              v-model.trim="formDialog.data.closing_date"
-              type="date"
-            ></q-input>
+            <q-input filled dense v-model.trim="formDialog.data.closing_date" type="date"></q-input>
           </div>
         </div>
 
         <div class="row">
           <div class="col-4">Event begins</div>
           <div class="col-8">
-            <q-input
-              filled
-              dense
-              v-model.trim="formDialog.data.event_start_date"
-              type="date"
-            ></q-input>
+            <q-input filled dense v-model.trim="formDialog.data.event_start_date" type="date"></q-input>
           </div>
         </div>
 
         <div class="row">
           <div class="col-4">Event ends</div>
           <div class="col-8">
-            <q-input
-              filled
-              dense
-              v-model.trim="formDialog.data.event_end_date"
-              type="date"
-            ></q-input>
+            <q-input filled dense v-model.trim="formDialog.data.event_end_date" type="date"></q-input>
           </div>
         </div>
 
         <div class="row">
           <div class="col">
-            <q-input
-              filled
-              dense
-              v-model.number="formDialog.data.amount_tickets"
-              type="number"
-              label="Amount of tickets "
-            ></q-input>
+            <q-input filled dense v-model.number="formDialog.data.amount_tickets" type="number"
+              label="Amount of tickets "></q-input>
           </div>
           <div class="col q-pl-sm">
-            <q-input
-              filled
-              dense
-              v-model.number="formDialog.data.price_per_ticket"
-              type="number"
-              label="Sats per ticket "
-            ></q-input>
+            <q-input filled dense v-model.number="formDialog.data.price_per_ticket" type="number"
+              label="Sats per ticket "></q-input>
           </div>
         </div>
 
         <div class="row q-mt-lg">
-          <q-btn
-            v-if="formDialog.data.id"
-            unelevated
-            color="primary"
-            type="submit"
-            >Update Event</q-btn
-          >
-          <q-btn
-            v-else
-            unelevated
-            color="primary"
+          <q-btn v-if="formDialog.data.id" unelevated color="primary" type="submit">Update Event</q-btn>
+          <q-btn v-else unelevated color="primary"
             :disable="formDialog.data.wallet == null || formDialog.data.name == null || formDialog.data.info == null || formDialog.data.closing_date == null || formDialog.data.event_start_date == null || formDialog.data.event_end_date == null || formDialog.data.amount_tickets == null || formDialog.data.price_per_ticket == null"
-            type="submit"
-            >Create Event</q-btn
-          >
-          <q-btn v-close-popup flat color="grey" class="q-ml-auto"
-            >Cancel</q-btn
-          >
+            type="submit">Create Event</q-btn>
+          <q-btn v-close-popup flat color="grey" class="q-ml-auto">Cancel</q-btn>
         </div>
       </q-form>
     </q-card>
@@ -310,9 +194,9 @@
         tickets: [],
         eventsTable: {
           columns: [
-            {name: 'id', align: 'left', label: 'ID', field: 'id'},
-            {name: 'name', align: 'left', label: 'Name', field: 'name'},
-            {name: 'info', align: 'left', label: 'Info', field: 'info'},
+            { name: 'id', align: 'left', label: 'ID', field: 'id' },
+            { name: 'name', align: 'left', label: 'Name', field: 'name' },
+            { name: 'info', align: 'left', label: 'Info', field: 'info' },
             {
               name: 'event_start_date',
               align: 'left',
@@ -356,10 +240,10 @@
         },
         ticketsTable: {
           columns: [
-            {name: 'id', align: 'left', label: 'ID', field: 'id'},
-            {name: 'event', align: 'left', label: 'Event', field: 'event'},
-            {name: 'name', align: 'left', label: 'Name', field: 'name'},
-            {name: 'email', align: 'left', label: 'Email', field: 'email'},
+            { name: 'id', align: 'left', label: 'ID', field: 'id' },
+            { name: 'event', align: 'left', label: 'Event', field: 'event' },
+            { name: 'name', align: 'left', label: 'Name', field: 'name' },
+            { name: 'email', align: 'left', label: 'Email', field: 'email' },
             {
               name: 'registered',
               align: 'left',
@@ -396,7 +280,7 @@
       },
       deleteTicket: function (ticketId) {
         var self = this
-        var tickets = _.findWhere(this.tickets, {id: ticketId})
+        var tickets = _.findWhere(this.tickets, { id: ticketId })
 
         LNbits.utils
           .confirmDialog('Are you sure you want to delete this ticket')
@@ -405,7 +289,7 @@
               .request(
                 'DELETE',
                 '/events/api/v1/tickets/' + ticketId,
-                _.findWhere(self.g.user.wallets, {id: tickets.wallet}).inkey
+                _.findWhere(self.g.user.wallets, { id: tickets.wallet }).inkey
               )
               .then(function (response) {
                 self.tickets = _.reject(self.tickets, function (obj) {
@@ -463,17 +347,10 @@
           })
       },
       updateformDialog: function (formId) {
-        var link = _.findWhere(this.events, {id: formId})
-        console.log(link.id)
-        this.formDialog.data.id = link.id
-        this.formDialog.data.wallet = link.wallet
-        this.formDialog.data.name = link.name
-        this.formDialog.data.info = link.info
-        this.formDialog.data.closing_date = link.closing_date
-        this.formDialog.data.event_start_date = link.event_start_date
-        this.formDialog.data.event_end_date = link.event_end_date
-        this.formDialog.data.amount_tickets = link.amount_tickets
-        this.formDialog.data.price_per_ticket = link.price_per_ticket
+        var link = _.findWhere(this.events, { id: formId })
+        console.log(link)
+        this.formDialog.data = { ...link }
+
         this.formDialog.show = true
       },
       updateEvent: function (wallet, data) {
@@ -501,7 +378,7 @@
       },
       deleteEvent: function (eventsId) {
         var self = this
-        var events = _.findWhere(this.events, {id: eventsId})
+        var events = _.findWhere(this.events, { id: eventsId })
 
         LNbits.utils
           .confirmDialog('Are you sure you want to delete this form link?')
@@ -510,7 +387,7 @@
               .request(
                 'DELETE',
                 '/events/api/v1/events/' + eventsId,
-                _.findWhere(self.g.user.wallets, {id: events.wallet}).inkey
+                _.findWhere(self.g.user.wallets, { id: events.wallet }).inkey
               )
               .then(function (response) {
                 self.events = _.reject(self.events, function (obj) {
