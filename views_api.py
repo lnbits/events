@@ -3,7 +3,7 @@ from http import HTTPStatus
 from fastapi import Depends, Query
 from starlette.exceptions import HTTPException
 
-from lnbits.core.crud import get_user, get_standalone_payment
+from lnbits.core.crud import get_standalone_payment, get_user
 from lnbits.core.services import create_invoice
 from lnbits.decorators import WalletTypeInfo, get_key_type
 
