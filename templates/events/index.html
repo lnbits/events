@@ -290,6 +290,11 @@
   </q-dialog>
 </div>
 {% endblock %} {% block scripts %} {{ window_vars(user) }}
+<style>
+  .q-field__native span {
+    overflow-x: hidden;
+  }
+</style>
 <script>
   var mapEvents = function (obj) {
     obj.date = Quasar.utils.date.formatDate(
@@ -308,6 +313,7 @@
       return {
         events: [],
         tickets: [],
+        currencies: [],
         eventsTable: {
           columns: [
             {name: 'id', align: 'left', label: 'ID', field: 'id'},
@@ -514,13 +520,28 @@
       },
       exporteventsCSV: function () {
         LNbits.utils.exportCSV(this.eventsTable.columns, this.events)
+      },
+      async getCurrencies() {
+        try {
+          const {data} = await LNbits.api.request(
+            'GET',
+            '/events/api/v1/currencies',
+            this.inkey
+          )
+
+          this.currencies = ['sat', ...data]
+        } catch (error) {
+          LNbits.utils.notifyApiError(error)
+        }
       }
     },
 
-    created: function () {
+    created: async function () {
       if (this.g.user.wallets.length) {
         this.getTickets()
         this.getEvents()
+        await this.getCurrencies()
+        console.log(this.currencies)
       }
     }
   })

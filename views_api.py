@@ -6,6 +6,7 @@ from starlette.exceptions import HTTPException
 from lnbits.core.crud import get_standalone_payment, get_user
 from lnbits.core.services import create_invoice
 from lnbits.decorators import WalletTypeInfo, get_key_type
+from lnbits.utils.exchange_rates import currencies
 
 from . import events_ext
 from .crud import (
@@ -193,3 +194,8 @@ async def api_event_register_ticket(ticket_id):
         )
 
     return [ticket.dict() for ticket in await reg_ticket(ticket_id)]
+
+
+@events_ext.get("/api/v1/currencies")
+async def api_list_currencies_available():
+    return list(currencies.keys())
