@@ -88,3 +88,67 @@ async def m003_add_register_timestamp(db):
     await db.execute(
         "ALTER TABLE events.ticket ADD COLUMN reg_timestamp TIMESTAMP;"
     )  # NULL means not registered, or old ticket
+
+async def m003_add_currency(db):
+    """
+    Add a currency table to allow fiat denomination
+    of tickets. Make price a float.
+    """
+    await db.execute("ALTER TABLE events.events RENAME TO events_old")
+    await db.execute(
+        """
+        CREATE TABLE events.events (
+            id TEXT PRIMARY KEY,
+            wallet TEXT NOT NULL,
+            name TEXT NOT NULL,
+            info TEXT NOT NULL,
+            closing_date TEXT NOT NULL,
+            event_start_date TEXT NOT NULL,
+            event_end_date TEXT NOT NULL,
+            currency TEXT,
+            amount_tickets INTEGER NOT NULL,
+            price_per_ticket REAL NOT NULL,
+            sold INTEGER NOT NULL,
+            time TIMESTAMP NOT NULL DEFAULT """
+        + db.timestamp_now
+        + """
+        );
+    """
+    )
+
+    for row in [
+            list(row) for row in await db.fetchall("SELECT * FROM events.events_old")
+        ]:
+            await db.execute(
+                 """
+                    INSERT INTO events.events (
+                        id,
+                        wallet,
+                        name,
+                        info,
+                        closing_date,
+                        event_start_date,
+                        event_end_date,
+                        currency,
+                        amount_tickets,
+                        price_per_ticket,
+                        sold
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        row[0],
+                        row[1],
+                        row[2],
+                        row[3],
+                        row[4],
+                        row[5],
+                        row[6],
+                        'sat',
+                        row[7],
+                        row[8],
+                        row[9],
+                    ),
+                 )
+    
+    await db.execute("DROP TABLE events.events_old")
