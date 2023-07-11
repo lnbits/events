@@ -5,7 +5,7 @@
       <q-card-section class="q-pa-none">
         <h3 class="q-my-none">{{ event_name }}</h3>
         <br />
-        <h5 class="q-my-none">{{ event_info }}</h5>
+        <div v-html="formatDescription"></div>
         <br />
         <q-form @submit="Invoice()" class="q-gutter-md">
           <q-input
@@ -85,7 +85,13 @@
 </div>
 
 {% endblock %} {% block scripts %}
+<script src="https://unpkg.com/showdown/dist/showdown.min.js"></script>
+
 <script>
+  const converter = new showdown.Converter()
+  converter.setFlavor('github')
+  converter.setOption('simpleLineBreaks', true)
+
   Vue.component(VueQrcode.name, VueQrcode)
 
   new Vue({
@@ -115,7 +121,15 @@
         }
       }
     },
-
+    created() {
+      this.info = '{{ event_info | tojson }}'
+      this.info = this.info.substring(1, this.info.length - 1)
+    },
+    computed: {
+      formatDescription() {
+        return converter.makeHtml(this.info)
+      }
+    },
     methods: {
       resetForm: function (e) {
         e.preventDefault()
