@@ -27,7 +27,7 @@
             <q-btn
               unelevated
               color="primary"
-              :disable="formDialog.data.name == '' || formDialog.data.email == '' || paymentReq"
+              :disable="formDialog.data.name == '' || formDialog.data.email == '' || Boolean(paymentReq)"
               type="submit"
               >Submit</q-btn
             >
