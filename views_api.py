@@ -6,7 +6,11 @@ from starlette.exceptions import HTTPException
 from lnbits.core.crud import get_standalone_payment, get_user
 from lnbits.core.services import create_invoice
 from lnbits.decorators import WalletTypeInfo, get_key_type
-from lnbits.utils.exchange_rates import currencies
+from lnbits.utils.exchange_rates import (
+    currencies,
+    fiat_amount_as_satoshis,
+    get_fiat_rate_satoshis,
+)
 
 from . import events_ext
 from .crud import (
@@ -104,12 +108,24 @@ async def api_ticket_make_ticket(event_id, name, email):
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND, detail="Event does not exist."
         )
+    
+    price = event.price_per_ticket
+    extra = {"tag": "events", "name": name, "email": email}
+    
+    if event.currency != "sat":
+        price = await fiat_amount_as_satoshis(event.price_per_ticket, event.currency)
+        
+        extra["fiat"] = True
+        extra["currency"] = event.currency
+        extra["fiatAmount"] = event.price_per_ticket
+        extra["rate"] = await get_fiat_rate_satoshis(event.currency)
+
     try:
         payment_hash, payment_request = await create_invoice(
             wallet_id=event.wallet,
-            amount=event.price_per_ticket,
+            amount=price, #type: ignore
             memo=f"{event_id}",
-            extra={"tag": "events", "name": name, "email": email},
+            extra=extra,
         )
         await create_ticket(
             payment_hash=payment_hash,
