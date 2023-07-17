@@ -16,7 +16,7 @@ async def create_ticket(
         INSERT INTO events.ticket (id, wallet, event, name, email, registered, paid)
         VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
-        (payment_hash, wallet, event, name, email, False, True),
+        (payment_hash, wallet, event, name, email, False, False),
     )
 
     # UPDATE EVENT DATA ON SOLD TICKET
