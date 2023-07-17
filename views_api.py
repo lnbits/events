@@ -20,6 +20,7 @@ from .crud import (
     get_ticket,
     get_tickets,
     reg_ticket,
+    set_ticket_paid,
     update_event,
 )
 from .models import CreateEvent, CreateTicket
@@ -132,7 +133,9 @@ async def api_ticket_send_ticket(event_id, payment_hash):
         )
 
     payment = await get_standalone_payment(payment_hash)
+    assert payment
     if not payment.pending and event.price_per_ticket * 1000 == payment.amount:
+        await set_ticket_paid(payment_hash)
         return {"paid": True, "ticket_id": ticket.id}
 
     return {"paid": False}

@@ -9,34 +9,51 @@ from .models import CreateEvent, Event, Ticket
 
 
 async def create_ticket(
-    payment_hash: str, wallet: str, event: str, name: str, email: str
+    payment_hash: str, wallet: str, event: str, name: str, email: str, paid: bool = False
 ) -> Ticket:
     await db.execute(
         """
         INSERT INTO events.ticket (id, wallet, event, name, email, registered, paid)
         VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
-        (payment_hash, wallet, event, name, email, False, True),
-    )
-
-    # UPDATE EVENT DATA ON SOLD TICKET
-    eventdata = await get_event(event)
-    assert eventdata, "Couldn't get event from ticket being paid"
-    sold = eventdata.sold + 1
-    amount_tickets = eventdata.amount_tickets - 1
-    await db.execute(
-        """
-        UPDATE events.events
-        SET sold = ?, amount_tickets = ?
-        WHERE id = ?
-        """,
-        (sold, amount_tickets, event),
+        (payment_hash, wallet, event, name, email, False, paid),
     )
 
     ticket = await get_ticket(payment_hash)
     assert ticket, "Newly created ticket couldn't be retrieved"
     return ticket
 
+async def set_ticket_paid(payment_hash: str) -> Ticket:
+    await db.execute(
+        """
+        UPDATE events.ticket
+        SET paid = ?
+        WHERE id = ?
+        """,
+        (True, payment_hash),
+    )
+    ticket = await get_ticket(payment_hash)
+    assert ticket, "Ticket couldn't be retrieved"
+    await update_event_sold(ticket.event)
+
+    return ticket
+
+async def update_event_sold(event_id: str):
+    event = await get_event(event_id)
+    assert event, "Couldn't get event from ticket being paid"
+    sold = event.sold + 1
+    amount_tickets = event.amount_tickets - 1
+    await db.execute(
+        """
+        UPDATE events.events
+        SET sold = ?, amount_tickets = ?
+        WHERE id = ?
+        """,
+        (sold, amount_tickets, event_id),
+    )
+    
+    return
+    
 
 async def get_ticket(payment_hash: str) -> Optional[Ticket]:
     row = await db.fetchone("SELECT * FROM events.ticket WHERE id = ?", (payment_hash,))
