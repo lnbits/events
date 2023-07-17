@@ -24,16 +24,18 @@ async def create_ticket(
     return ticket
 
 async def set_ticket_paid(payment_hash: str) -> Ticket:
+    ticket = await get_ticket(payment_hash)
+    assert ticket, "Ticket couldn't be retrieved"
+
     await db.execute(
         """
         UPDATE events.ticket
         SET paid = ?
         WHERE id = ?
         """,
-        (True, payment_hash),
+        (True, ticket.id),
     )
-    ticket = await get_ticket(payment_hash)
-    assert ticket, "Ticket couldn't be retrieved"
+    
     await update_event_sold(ticket.event)
 
     return ticket
@@ -51,7 +53,7 @@ async def update_event_sold(event_id: str):
         """,
         (sold, amount_tickets, event_id),
     )
-    
+
     return
     
 
