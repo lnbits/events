@@ -9,14 +9,13 @@ from .models import CreateEvent, Event, Ticket
 
 
 async def create_ticket(
-    payment_hash: str, wallet: str, event: str, name: str, email: str, paid: bool = False
-) -> Ticket:
+    payment_hash: str, wallet: str, event: str, name: str, email: str) -> Ticket:
     await db.execute(
         """
         INSERT INTO events.ticket (id, wallet, event, name, email, registered, paid)
         VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
-        (payment_hash, wallet, event, name, email, False, paid),
+        (payment_hash, wallet, event, name, email, False, False),
     )
 
     ticket = await get_ticket(payment_hash)
