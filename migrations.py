@@ -1,5 +1,4 @@
 async def m001_initial(db):
-
     await db.execute(
         """
         CREATE TABLE events.events (
@@ -38,7 +37,6 @@ async def m001_initial(db):
 
 
 async def m002_changed(db):
-
     await db.execute(
         """
         CREATE TABLE events.ticket (
@@ -82,10 +80,11 @@ async def m002_changed(db):
         )
     await db.execute("DROP TABLE events.tickets")
 
+
 async def m003_add_register_timestamp(db):
     """
     Add a column to register the timestamp of ticket register
     """
     await db.execute(
         "ALTER TABLE events.ticket ADD COLUMN reg_timestamp TIMESTAMP;"
-    ) # NULL means not registered, or old ticket
+    )  # NULL means not registered, or old ticket
