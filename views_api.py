@@ -28,7 +28,7 @@ from .crud import (
     set_ticket_paid,
     update_event,
 )
-from .models import CreateEvent, CreateTicket
+from .models import CreateEvent
 
 # Events
 
@@ -108,13 +108,13 @@ async def api_ticket_make_ticket(event_id, name, email):
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND, detail="Event does not exist."
         )
-    
+
     price = event.price_per_ticket
     extra = {"tag": "events", "name": name, "email": email}
-    
+
     if event.currency != "sat":
         price = await fiat_amount_as_satoshis(event.price_per_ticket, event.currency)
-        
+
         extra["fiat"] = True
         extra["currency"] = event.currency
         extra["fiatAmount"] = event.price_per_ticket
@@ -123,7 +123,7 @@ async def api_ticket_make_ticket(event_id, name, email):
     try:
         payment_hash, payment_request = await create_invoice(
             wallet_id=event.wallet,
-            amount=price, #type: ignore
+            amount=price,  # type: ignore
             memo=f"{event_id}",
             extra=extra,
         )
