@@ -109,7 +109,13 @@ async def api_ticket_make_ticket(event_id, name, email):
             memo=f"{event_id}",
             extra={"tag": "events", "name": name, "email": email},
         )
-        await create_ticket(payment_hash=payment_hash, wallet=event.wallet, event=event.id, name=name, email=email)
+        await create_ticket(
+            payment_hash=payment_hash,
+            wallet=event.wallet,
+            event=event.id,
+            name=name,
+            email=email,
+        )
     except Exception as e:
         raise HTTPException(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail=str(e))
     return {"payment_hash": payment_hash, "payment_request": payment_request}
@@ -167,6 +173,7 @@ async def api_event_tickets(wallet_id, event_id):
 @events_ext.get("/api/v1/register/ticket/{ticket_id}")
 async def api_event_register_ticket(ticket_id):
     ticket = await get_ticket(ticket_id)
+
     if not ticket:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND, detail="Ticket does not exist."

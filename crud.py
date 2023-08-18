@@ -135,7 +135,8 @@ async def get_event_tickets(event_id: str, wallet_id: str) -> List[Ticket]:
 
 async def reg_ticket(ticket_id: str) -> List[Ticket]:
     await db.execute(
-        "UPDATE events.ticket SET registered = ? WHERE id = ?", (True, ticket_id)
+        f"UPDATE events.ticket SET registered = ?, reg_timestamp = {db.timestamp_now} WHERE id = ?",
+        (True, ticket_id),
     )
     ticket = await db.fetchone("SELECT * FROM events.ticket WHERE id = ?", (ticket_id,))
     rows = await db.fetchall(

@@ -1,5 +1,6 @@
 from fastapi import Query
 from pydantic import BaseModel
+from typing import Optional
 
 
 class CreateEvent(BaseModel):
@@ -39,5 +40,6 @@ class Ticket(BaseModel):
     name: str
     email: str
     registered: bool
+    reg_timestamp: Optional[int]
     paid: bool
     time: int
