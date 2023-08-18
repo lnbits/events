@@ -27,6 +27,8 @@ async def create_ticket(
 async def set_ticket_paid(payment_hash: str) -> Ticket:
     ticket = await get_ticket(payment_hash)
     assert ticket, "Ticket couldn't be retrieved"
+    if ticket.paid:
+        return ticket
 
     await db.execute(
         """
