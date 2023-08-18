@@ -154,10 +154,17 @@ async def api_ticket_send_ticket(event_id, payment_hash):
             status_code=HTTPStatus.NOT_FOUND,
             detail="Ticket could not be fetched.",
         )
-
     payment = await get_standalone_payment(payment_hash)
     assert payment
-    if not payment.pending and event.price_per_ticket * 1000 == payment.amount:
+    price = (
+        event.price_per_ticket * 1000
+        if event.currency == "sat"
+        else await fiat_amount_as_satoshis(event.price_per_ticket, event.currency)
+        * 1000
+    )
+    if (
+        not payment.pending and abs(price - payment.amount) < price * 0.01
+    ):  # allow 1% error
         await set_ticket_paid(payment_hash)
         return {"paid": True, "ticket_id": ticket.id}
 
