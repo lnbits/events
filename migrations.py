@@ -106,7 +106,7 @@ async def m004_add_currency(db):
             closing_date TEXT NOT NULL,
             event_start_date TEXT NOT NULL,
             event_end_date TEXT NOT NULL,
-            currency TEXT DEFAULT 'sat' NOT NULL,
+            currency TEXT NOT NULL,
             amount_tickets INTEGER NOT NULL,
             price_per_ticket REAL NOT NULL,
             sold INTEGER NOT NULL,
