@@ -9,7 +9,8 @@ from .models import CreateEvent, Event, Ticket
 
 
 async def create_ticket(
-    payment_hash: str, wallet: str, event: str, name: str, email: str) -> Ticket:
+    payment_hash: str, wallet: str, event: str, name: str, email: str
+) -> Ticket:
     await db.execute(
         """
         INSERT INTO events.ticket (id, wallet, event, name, email, registered, paid)
@@ -22,9 +23,12 @@ async def create_ticket(
     assert ticket, "Newly created ticket couldn't be retrieved"
     return ticket
 
+
 async def set_ticket_paid(payment_hash: str) -> Ticket:
     ticket = await get_ticket(payment_hash)
     assert ticket, "Ticket couldn't be retrieved"
+    if ticket.paid:
+        return ticket
 
     await db.execute(
         """
@@ -34,10 +38,11 @@ async def set_ticket_paid(payment_hash: str) -> Ticket:
         """,
         (True, ticket.id),
     )
-    
+
     await update_event_sold(ticket.event)
 
     return ticket
+
 
 async def update_event_sold(event_id: str):
     event = await get_event(event_id)
@@ -54,7 +59,7 @@ async def update_event_sold(event_id: str):
     )
 
     return
-    
+
 
 async def get_ticket(payment_hash: str) -> Optional[Ticket]:
     row = await db.fetchone("SELECT * FROM events.ticket WHERE id = ?", (payment_hash,))
@@ -87,8 +92,8 @@ async def create_event(data: CreateEvent) -> Event:
     event_id = urlsafe_short_hash()
     await db.execute(
         """
-        INSERT INTO events.events (id, wallet, name, info, closing_date, event_start_date, event_end_date, amount_tickets, price_per_ticket, sold)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO events.events (id, wallet, name, info, closing_date, event_start_date, event_end_date, currency, amount_tickets, price_per_ticket, sold)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             event_id,
@@ -98,6 +103,7 @@ async def create_event(data: CreateEvent) -> Event:
             data.closing_date,
             data.event_start_date,
             data.event_end_date,
+            data.currency,
             data.amount_tickets,
             data.price_per_ticket,
             0,

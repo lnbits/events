@@ -24,6 +24,5 @@ async def on_invoice_paid(payment: Payment) -> None:
         and payment.extra.get("name")
         and payment.extra.get("email")
     ):
-    
         await set_ticket_paid(payment.payment_hash)
     return

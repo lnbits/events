@@ -6,6 +6,11 @@ from starlette.exceptions import HTTPException
 from lnbits.core.crud import get_standalone_payment, get_user
 from lnbits.core.services import create_invoice
 from lnbits.decorators import WalletTypeInfo, get_key_type
+from lnbits.utils.exchange_rates import (
+    currencies,
+    fiat_amount_as_satoshis,
+    get_fiat_rate_satoshis,
+)
 
 from . import events_ext
 from .crud import (
@@ -23,7 +28,7 @@ from .crud import (
     set_ticket_paid,
     update_event,
 )
-from .models import CreateEvent, CreateTicket
+from .models import CreateEvent
 
 # Events
 
@@ -103,12 +108,24 @@ async def api_ticket_make_ticket(event_id, name, email):
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND, detail="Event does not exist."
         )
+
+    price = event.price_per_ticket
+    extra = {"tag": "events", "name": name, "email": email}
+
+    if event.currency != "sat":
+        price = await fiat_amount_as_satoshis(event.price_per_ticket, event.currency)
+
+        extra["fiat"] = True
+        extra["currency"] = event.currency
+        extra["fiatAmount"] = event.price_per_ticket
+        extra["rate"] = await get_fiat_rate_satoshis(event.currency)
+
     try:
         payment_hash, payment_request = await create_invoice(
             wallet_id=event.wallet,
-            amount=event.price_per_ticket,
+            amount=price,  # type: ignore
             memo=f"{event_id}",
-            extra={"tag": "events", "name": name, "email": email},
+            extra=extra,
         )
         await create_ticket(
             payment_hash=payment_hash,
@@ -137,10 +154,17 @@ async def api_ticket_send_ticket(event_id, payment_hash):
             status_code=HTTPStatus.NOT_FOUND,
             detail="Ticket could not be fetched.",
         )
-
     payment = await get_standalone_payment(payment_hash)
     assert payment
-    if not payment.pending and event.price_per_ticket * 1000 == payment.amount:
+    price = (
+        event.price_per_ticket * 1000
+        if event.currency == "sat"
+        else await fiat_amount_as_satoshis(event.price_per_ticket, event.currency)
+        * 1000
+    )
+    if (
+        not payment.pending and abs(price - payment.amount) < price * 0.01
+    ):  # allow 1% error
         await set_ticket_paid(payment_hash)
         return {"paid": True, "ticket_id": ticket.id}
 
@@ -193,3 +217,8 @@ async def api_event_register_ticket(ticket_id):
         )
 
     return [ticket.dict() for ticket in await reg_ticket(ticket_id)]
+
+
+@events_ext.get("/api/v1/currencies")
+async def api_list_currencies_available():
+    return list(currencies.keys())

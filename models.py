@@ -10,8 +10,9 @@ class CreateEvent(BaseModel):
     closing_date: str
     event_start_date: str
     event_end_date: str
+    currency: str = "sat"
     amount_tickets: int = Query(..., ge=0)
-    price_per_ticket: int = Query(..., ge=0)
+    price_per_ticket: float = Query(..., ge=0)
 
 
 class CreateTicket(BaseModel):
@@ -27,8 +28,9 @@ class Event(BaseModel):
     closing_date: str
     event_start_date: str
     event_end_date: str
+    currency: str
     amount_tickets: int
-    price_per_ticket: int
+    price_per_ticket: float
     sold: int
     time: int
 
