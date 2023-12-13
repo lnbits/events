@@ -1,5 +1,5 @@
 from fastapi import Query
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from typing import Optional
 
 
@@ -17,7 +17,7 @@ class CreateEvent(BaseModel):
 
 class CreateTicket(BaseModel):
     name: str
-    email: str
+    email: EmailStr
 
 
 class Event(BaseModel):
