@@ -17,7 +17,6 @@
             filled
             dense
             v-model.trim="formDialog.data.name"
-            type="name"
             label="Your name "
             :rules="[val => nameValidation(val)]"
           ></q-input>
@@ -27,6 +26,7 @@
             v-model.trim="formDialog.data.email"
             type="email"
             label="Your email "
+            :rules="[val => emailValidation(val)]"
           ></q-input>
 
           <div class="row q-mt-lg">
@@ -145,11 +145,15 @@
         setTimeout(function () {}, 10000)
       },
       nameValidation(val) {
-        let regex = new RegExp(/[`!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~]/)
+        let regex = /[`!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~]/g
         return (
           !regex.test(val) ||
           'Please enter valid name. No special character allowed.'
         )
+      },
+      emailValidation(val) {
+        let regex = /\//g
+        return !regex.test(val) || 'Please enter valid email.'
       },
 
       Invoice: function () {
