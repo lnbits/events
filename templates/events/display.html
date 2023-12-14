@@ -180,9 +180,7 @@
             paymentChecker = setInterval(function () {
               axios
                 .post(
-                  '/events/api/v1/tickets/' +
-                    '{{ event_id }}/' +
-                    self.paymentCheck,
+                  `/events/api/v1/tickets/{{ event_id }}/${self.paymentCheck}`,
                   {
                     event: '{{ event_id }}',
                     event_name: '{{ event_name }}',
@@ -211,12 +209,11 @@
                     self.ticketLink = {
                       show: true,
                       data: {
-                        link: '/events/ticket/' + res.data.ticket_id
+                        link: `/events/ticket/${res.data.ticket_id}`
                       }
                     }
                     setTimeout(function () {
-                      window.location.href =
-                        '/events/ticket/' + res.data.ticket_id
+                      window.location.href = `/events/ticket/${res.data.ticket_id}`
                     }, 5000)
                   }
                 })
