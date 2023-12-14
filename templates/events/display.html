@@ -145,7 +145,7 @@
         setTimeout(function () {}, 10000)
       },
       nameValidation(val) {
-        let regex = /[`!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~]/g
+        const regex = /[`!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~]/g
         return (
           !regex.test(val) ||
           'Please enter valid name. No special character allowed.'
