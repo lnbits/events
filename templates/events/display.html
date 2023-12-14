@@ -159,9 +159,10 @@
       Invoice: function () {
         var self = this
         axios
-          .get(
-            `/events/api/v1/tickets/{{ event_id }}/${self.formDialog.data.name}/${self.formDialog.data.email}`
-          )
+          .post(`/events/api/v1/tickets/{{ event_id }}`, {
+            name: self.formDialog.data.name,
+            email: self.formDialog.data.email
+          })
           .then(function (response) {
             self.paymentReq = response.data.payment_request
             self.paymentCheck = response.data.payment_hash
