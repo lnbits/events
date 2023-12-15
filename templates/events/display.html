@@ -26,7 +26,7 @@
             v-model.trim="formDialog.data.email"
             type="email"
             label="Your email "
-            :rules="[val => emailValidation(val)]"
+            :rules="[val => queryParamValidation(val)]"
           ></q-input>
 
           <div class="row q-mt-lg">
@@ -151,8 +151,8 @@
           'Please enter valid name. No special character allowed.'
         )
       },
-      emailValidation(val) {
-        let regex = /\//g
+      queryParamValidation(val) {
+        let regex = /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/g
         return !regex.test(val) || 'Please enter valid email.'
       },
 
