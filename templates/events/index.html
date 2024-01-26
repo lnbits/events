@@ -416,9 +416,11 @@
             this.g.user.wallets[0].inkey
           )
           .then(function (response) {
-            self.tickets = response.data.map(function (obj) {
-              return mapEvents(obj)
-            })
+            self.tickets = response.data
+              .map(function (obj) {
+                return mapEvents(obj)
+              })
+              .filter(e => e.paid)
           })
       },
       deleteTicket: function (ticketId) {
@@ -461,7 +463,6 @@
             self.events = response.data.map(function (obj) {
               return mapEvents(obj)
             })
-            console.log(self.events)
           })
       },
       sendEventData: function () {
