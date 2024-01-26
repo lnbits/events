@@ -480,7 +480,7 @@
       createEvent: function (wallet, data) {
         var self = this
         LNbits.api
-          .request('POST', '/events/api/v1/events', wallet.inkey, data)
+          .request('POST', '/events/api/v1/events', wallet.adminkey, data)
           .then(function (response) {
             self.events.push(mapEvents(response.data))
             self.formDialog.show = false
@@ -504,7 +504,7 @@
           .request(
             'PUT',
             '/events/api/v1/events/' + data.id,
-            wallet.inkey,
+            wallet.adminkey,
             data
           )
           .then(function (response) {
@@ -530,7 +530,7 @@
               .request(
                 'DELETE',
                 '/events/api/v1/events/' + eventsId,
-                _.findWhere(self.g.user.wallets, {id: events.wallet}).inkey
+                _.findWhere(self.g.user.wallets, {id: events.wallet}).adminkey
               )
               .then(function (response) {
                 self.events = _.reject(self.events, function (obj) {

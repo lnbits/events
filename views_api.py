@@ -5,7 +5,12 @@ from starlette.exceptions import HTTPException
 
 from lnbits.core.crud import get_standalone_payment, get_user
 from lnbits.core.services import create_invoice
-from lnbits.decorators import WalletTypeInfo, get_key_type
+from lnbits.decorators import (
+    WalletTypeInfo,
+    get_key_type,
+    require_admin_key,
+    require_invoice_key,
+)
 from lnbits.utils.exchange_rates import (
     currencies,
     fiat_amount_as_satoshis,
@@ -49,7 +54,9 @@ async def api_events(
 @events_ext.post("/api/v1/events")
 @events_ext.put("/api/v1/events/{event_id}")
 async def api_event_create(
-    data: CreateEvent, event_id=None, wallet: WalletTypeInfo = Depends(get_key_type)
+    data: CreateEvent,
+    event_id=None,
+    wallet: WalletTypeInfo = Depends(require_admin_key),
 ):
     if event_id:
         event = await get_event(event_id)
@@ -70,7 +77,9 @@ async def api_event_create(
 
 
 @events_ext.delete("/api/v1/events/{event_id}")
-async def api_form_delete(event_id, wallet: WalletTypeInfo = Depends(get_key_type)):
+async def api_form_delete(
+    event_id, wallet: WalletTypeInfo = Depends(require_admin_key)
+):
     event = await get_event(event_id)
     if not event:
         raise HTTPException(
