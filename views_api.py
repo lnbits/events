@@ -28,7 +28,7 @@ from .crud import (
     set_ticket_paid,
     update_event,
 )
-from .models import CreateEvent
+from .models import CreateEvent, CreateTicket
 
 # Events
 
@@ -99,6 +99,13 @@ async def api_tickets(
         wallet_ids = user.wallet_ids if user else []
 
     return [ticket.dict() for ticket in await get_tickets(wallet_ids)]
+
+
+@events_ext.post("/api/v1/tickets/{event_id}")
+async def api_ticket_create(event_id: str, data: CreateTicket):
+    name = data.name
+    email = data.email
+    return await api_ticket_make_ticket(event_id, name, email)
 
 
 @events_ext.get("/api/v1/tickets/{event_id}/{name}/{email}")

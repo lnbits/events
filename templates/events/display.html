@@ -13,14 +13,33 @@
       <q-card-section class="q-pa-none">
         <h5 class="q-mt-none">Buy Ticket</h5>
         <q-form @submit="Invoice()" class="q-gutter-md">
-          <q-input filled dense v-model.trim="formDialog.data.name" type="name" label="Your name "></q-input>
-          <q-input filled dense v-model.trim="formDialog.data.email" type="email" label="Your email "></q-input>
+          <q-input
+            filled
+            dense
+            v-model.trim="formDialog.data.name"
+            label="Your name "
+            :rules="[val => nameValidation(val)]"
+          ></q-input>
+          <q-input
+            filled
+            dense
+            v-model.trim="formDialog.data.email"
+            type="email"
+            label="Your email "
+            :rules="[val => emailValidation(val)]"
+          ></q-input>
 
           <div class="row q-mt-lg">
-            <q-btn unelevated color="primary"
+            <q-btn
+              unelevated
+              color="primary"
               :disable="formDialog.data.name == '' || formDialog.data.email == '' || Boolean(paymentReq)"
-              type="submit">Submit</q-btn>
-            <q-btn @click="resetForm" flat color="grey" class="q-ml-auto">Cancel</q-btn>
+              type="submit"
+              >Submit</q-btn
+            >
+            <q-btn @click="resetForm" flat color="grey" class="q-ml-auto"
+              >Cancel</q-btn
+            >
           </div>
         </q-form>
       </q-card-section>
@@ -28,8 +47,15 @@
 
     <q-card v-show="ticketLink.show" class="q-pa-lg">
       <div class="text-center q-mb-lg">
-        <q-btn unelevated size="xl" :href="ticketLink.data.link" target="_blank" color="primary" type="a">Link to your
-          ticket!</q-btn>
+        <q-btn
+          unelevated
+          size="xl"
+          :href="ticketLink.data.link"
+          target="_blank"
+          color="primary"
+          type="a"
+          >Link to your ticket!</q-btn
+        >
         <br /><br />
         <p>You'll be redirected in a few moments...</p>
       </div>
@@ -37,19 +63,27 @@
   </div>
 
   <q-dialog v-model="receive.show" position="top" @hide="closeReceiveDialog">
-    <q-card v-if="!receive.paymentReq" class="q-pa-lg q-pt-xl lnbits__dialog-card">
+    <q-card
+      v-if="!receive.paymentReq"
+      class="q-pa-lg q-pt-xl lnbits__dialog-card"
+    >
     </q-card>
     <q-card v-else class="q-pa-lg q-pt-xl lnbits__dialog-card">
       <div class="text-center q-mb-lg">
         <a class="text-secondary" :href="'lightning:' + receive.paymentReq">
           <q-responsive :ratio="1" class="q-mx-xl">
-            <qrcode :value="'lightning:' + receive.paymentReq.toUpperCase()" :options="{width: 340}"
-              class="rounded-borders"></qrcode>
+            <qrcode
+              :value="'lightning:' + receive.paymentReq.toUpperCase()"
+              :options="{width: 340}"
+              class="rounded-borders"
+            ></qrcode>
           </q-responsive>
         </a>
       </div>
       <div class="row q-mt-lg">
-        <q-btn outline color="grey" @click="copyText(receive.paymentReq)">Copy invoice</q-btn>
+        <q-btn outline color="grey" @click="copyText(receive.paymentReq)"
+          >Copy invoice</q-btn
+        >
         <q-btn v-close-popup flat color="grey" class="q-ml-auto">Close</q-btn>
       </div>
     </q-card>
@@ -108,20 +142,27 @@
         dismissMsg()
 
         clearInterval(paymentChecker)
-        setTimeout(function () { }, 10000)
+        setTimeout(function () {}, 10000)
       },
+      nameValidation(val) {
+        const regex = /[`!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~]/g
+        return (
+          !regex.test(val) ||
+          'Please enter valid name. No special character allowed.'
+        )
+      },
+      emailValidation(val) {
+        let regex = /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/g
+        return !regex.test(val) || 'Please enter valid email.'
+      },
+
       Invoice: function () {
         var self = this
         axios
-
-          .get(
-            '/events/api/v1/tickets/' +
-            '{{ event_id }}' +
-            '/' +
-            self.formDialog.data.name +
-            '/' +
-            self.formDialog.data.email
-          )
+          .post(`/events/api/v1/tickets/{{ event_id }}`, {
+            name: self.formDialog.data.name,
+            email: self.formDialog.data.email
+          })
           .then(function (response) {
             self.paymentReq = response.data.payment_request
             self.paymentCheck = response.data.payment_hash
@@ -140,9 +181,7 @@
             paymentChecker = setInterval(function () {
               axios
                 .post(
-                  '/events/api/v1/tickets/' +
-                  '{{ event_id }}/' +
-                  self.paymentCheck,
+                  `/events/api/v1/tickets/{{ event_id }}/${self.paymentCheck}`,
                   {
                     event: '{{ event_id }}',
                     event_name: '{{ event_name }}',
@@ -171,12 +210,11 @@
                     self.ticketLink = {
                       show: true,
                       data: {
-                        link: '/events/ticket/' + res.data.ticket_id
+                        link: `/events/ticket/${res.data.ticket_id}`
                       }
                     }
                     setTimeout(function () {
-                      window.location.href =
-                        '/events/ticket/' + res.data.ticket_id
+                      window.location.href = `/events/ticket/${res.data.ticket_id}`
                     }, 5000)
                   }
                 })
