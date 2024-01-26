@@ -32,6 +32,7 @@ from .crud import (
     reg_ticket,
     set_ticket_paid,
     update_event,
+    purge_unpaid_tickets,
 )
 from .models import CreateEvent, CreateTicket
 
@@ -200,6 +201,16 @@ async def api_ticket_delete(ticket_id, wallet: WalletTypeInfo = Depends(get_key_
 
     await delete_ticket(ticket_id)
     return "", HTTPStatus.NO_CONTENT
+
+
+@events_ext.get("/api/v1/purge/{event_id}")
+async def api_event_purge_tickets(event_id):
+    event = await get_event(event_id)
+    if not event:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail="Event does not exist."
+        )
+    return await purge_unpaid_tickets(event_id)
 
 
 # Event Tickets

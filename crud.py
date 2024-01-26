@@ -1,4 +1,5 @@
 from typing import List, Optional, Union
+from datetime import datetime, timedelta
 
 from lnbits.helpers import urlsafe_short_hash
 
@@ -83,6 +84,19 @@ async def delete_ticket(payment_hash: str) -> None:
 
 async def delete_event_tickets(event_id: str) -> None:
     await db.execute("DELETE FROM events.ticket WHERE event = ?", (event_id,))
+
+
+async def purge_unpaid_tickets(event_id: str) -> None:
+    time_diff = datetime.now() - timedelta(hours=24)
+    await db.execute(
+        """
+        DELETE FROM events.ticket WHERE event = ? AND paid = false AND time < ?
+        """,
+        (
+            event_id,
+            time_diff,
+        ),
+    )
 
 
 # EVENTS
