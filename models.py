@@ -7,6 +7,7 @@ class CreateEvent(BaseModel):
     wallet: str
     name: str
     info: str
+    banner: Optional[str]
     closing_date: str
     event_start_date: str
     event_end_date: str
@@ -25,6 +26,7 @@ class Event(BaseModel):
     wallet: str
     name: str
     info: str
+    banner: Optional[str]
     closing_date: str
     event_start_date: str
     event_end_date: str

@@ -1,9 +1,10 @@
 {% extends "public.html" %} {% block page %}
 <div class="row q-col-gutter-md justify-center">
   <div class="col-12 col-md-7 col-lg-6 q-gutter-y-md">
-    <q-card class="q-pa-lg">
+    <q-card>
+      <q-img v-if="banner" :src="banner" transition="slide-up"></q-img>
       <q-card-section class="q-pa-none">
-        <h3 class="q-my-none">{{ event_name }}</h3>
+        <h3 class="q-my-none q-pa-lg">{{ event_name }}</h3>
         <br />
         <div v-html="formatDescription"></div>
         <br />
@@ -124,6 +125,7 @@
     created() {
       this.info = '{{ event_info | tojson }}'
       this.info = this.info.substring(1, this.info.length - 1)
+      this.banner = JSON.parse('{{ event_banner | tojson |safe }}')
     },
     computed: {
       formatDescription() {
