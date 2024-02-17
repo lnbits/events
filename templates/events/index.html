@@ -425,9 +425,11 @@
             this.g.user.wallets[0].inkey
           )
           .then(function (response) {
-            self.tickets = response.data.map(function (obj) {
-              return mapEvents(obj)
-            })
+            self.tickets = response.data
+              .map(function (obj) {
+                return mapEvents(obj)
+              })
+              .filter(e => e.paid)
           })
       },
       deleteTicket: function (ticketId) {
@@ -469,7 +471,6 @@
             self.events = response.data.map(function (obj) {
               return mapEvents(obj)
             })
-            console.log(self.events)
           })
       },
       sendEventData: function () {
@@ -488,7 +489,7 @@
       createEvent: function (wallet, data) {
         var self = this
         LNbits.api
-          .request('POST', '/events/api/v1/events', wallet.inkey, data)
+          .request('POST', '/events/api/v1/events', wallet.adminkey, data)
           .then(function (response) {
             self.events.push(mapEvents(response.data))
             self.formDialog.show = false
@@ -512,7 +513,7 @@
           .request(
             'PUT',
             '/events/api/v1/events/' + data.id,
-            wallet.inkey,
+            wallet.adminkey,
             data
           )
           .then(function (response) {
@@ -538,7 +539,7 @@
               .request(
                 'DELETE',
                 '/events/api/v1/events/' + eventsId,
-                _.findWhere(self.g.user.wallets, {id: events.wallet}).inkey
+                _.findWhere(self.g.user.wallets, {id: events.wallet}).adminkey
               )
               .then(function (response) {
                 self.events = _.reject(self.events, function (obj) {

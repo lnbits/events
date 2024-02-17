@@ -5,7 +5,12 @@ from starlette.exceptions import HTTPException
 
 from lnbits.core.crud import get_standalone_payment, get_user
 from lnbits.core.services import create_invoice
-from lnbits.decorators import WalletTypeInfo, get_key_type
+from lnbits.decorators import (
+    WalletTypeInfo,
+    get_key_type,
+    require_admin_key,
+    require_invoice_key,
+)
 from lnbits.utils.exchange_rates import (
     currencies,
     fiat_amount_as_satoshis,
@@ -27,6 +32,7 @@ from .crud import (
     reg_ticket,
     set_ticket_paid,
     update_event,
+    purge_unpaid_tickets,
 )
 from .models import CreateEvent, CreateTicket
 
@@ -49,7 +55,9 @@ async def api_events(
 @events_ext.post("/api/v1/events")
 @events_ext.put("/api/v1/events/{event_id}")
 async def api_event_create(
-    data: CreateEvent, event_id=None, wallet: WalletTypeInfo = Depends(get_key_type)
+    data: CreateEvent,
+    event_id=None,
+    wallet: WalletTypeInfo = Depends(require_admin_key),
 ):
     if event_id:
         event = await get_event(event_id)
@@ -70,7 +78,9 @@ async def api_event_create(
 
 
 @events_ext.delete("/api/v1/events/{event_id}")
-async def api_form_delete(event_id, wallet: WalletTypeInfo = Depends(get_key_type)):
+async def api_form_delete(
+    event_id, wallet: WalletTypeInfo = Depends(require_admin_key)
+):
     event = await get_event(event_id)
     if not event:
         raise HTTPException(
@@ -191,6 +201,16 @@ async def api_ticket_delete(ticket_id, wallet: WalletTypeInfo = Depends(get_key_
 
     await delete_ticket(ticket_id)
     return "", HTTPStatus.NO_CONTENT
+
+
+@events_ext.get("/api/v1/purge/{event_id}")
+async def api_event_purge_tickets(event_id):
+    event = await get_event(event_id)
+    if not event:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail="Event does not exist."
+        )
+    return await purge_unpaid_tickets(event_id)
 
 
 # Event Tickets

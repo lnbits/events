@@ -27,7 +27,8 @@
             v-model.trim="formDialog.data.email"
             type="email"
             label="Your email "
-            :rules="[val => emailValidation(val)]"
+            :rules="[val => !!val || '* Required', val => emailValidation(val)]"
+            lazy-rules
           ></q-input>
 
           <div class="row q-mt-lg">
@@ -122,10 +123,11 @@
         }
       }
     },
-    created() {
+    async created() {
       this.info = '{{ event_info | tojson }}'
       this.info = this.info.substring(1, this.info.length - 1)
       this.banner = JSON.parse('{{ event_banner | tojson |safe }}')
+      await this.purgeUnpaidTickets()
     },
     computed: {
       formatDescription() {
@@ -154,8 +156,8 @@
         )
       },
       emailValidation(val) {
-        let regex = /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/g
-        return !regex.test(val) || 'Please enter valid email.'
+        let regex = /^[\w\.-]+@[a-zA-Z\d\.-]+\.[a-zA-Z]{2,}$/
+        return regex.test(val) || 'Please enter valid email.'
       },
 
       Invoice: function () {
@@ -228,6 +230,14 @@
           .catch(function (error) {
             LNbits.utils.notifyApiError(error)
           })
+      },
+      async purgeUnpaidTickets() {
+        try {
+          await LNbits.api.request('GET', `/events/api/v1/purge/{{ event_id }}`)
+        } catch (error) {
+          console.warn(error)
+          LNbits.utils.notifyApiError(error)
+        }
       }
     }
   })
