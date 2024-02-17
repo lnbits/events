@@ -153,3 +153,10 @@ async def m004_add_currency(db):
         )
 
     await db.execute("DROP TABLE events.events_old")
+
+
+async def m005_add_image_banner(db):
+    """
+    Add a column to allow an image banner for the event
+    """
+    await db.execute("ALTER TABLE events.events ADD COLUMN banner TEXT;")

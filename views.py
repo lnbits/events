@@ -58,6 +58,7 @@ async def display(request: Request, event_id):
             "event_name": event.name,
             "event_info": event.info,
             "event_price": event.price_per_ticket,
+            "event_banner": event.banner,
         },
     )
 

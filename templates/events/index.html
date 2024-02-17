@@ -209,7 +209,15 @@
           label="Info about the event"
           hint="Markdown supported"
         ></q-input>
-        <div class="row">
+        <q-input
+          filled
+          dense
+          v-model.trim="formDialog.data.banner"
+          type="url"
+          label="Image URL"
+          hint="Optional banner image to display on the event page"
+        ></q-input>
+        <div class="row q-mt-lg">
           <div class="col-4">Ticket closing date</div>
           <div class="col-8">
             <q-input
@@ -334,6 +342,7 @@
             {name: 'id', align: 'left', label: 'ID', field: 'id'},
             {name: 'name', align: 'left', label: 'Name', field: 'name'},
             {name: 'info', align: 'left', label: 'Info', field: 'info'},
+            {name: 'banner', align: 'left', label: 'Banner', field: 'banner'},
             {
               name: 'event_start_date',
               align: 'left',
@@ -449,7 +458,6 @@
       exportticketsCSV: function () {
         LNbits.utils.exportCSV(this.ticketsTable.columns, this.tickets)
       },
-
       getEvents: function () {
         var self = this
 

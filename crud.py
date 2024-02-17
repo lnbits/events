@@ -106,14 +106,15 @@ async def create_event(data: CreateEvent) -> Event:
     event_id = urlsafe_short_hash()
     await db.execute(
         """
-        INSERT INTO events.events (id, wallet, name, info, closing_date, event_start_date, event_end_date, currency, amount_tickets, price_per_ticket, sold)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO events.events (id, wallet, name, info, banner, closing_date, event_start_date, event_end_date, currency, amount_tickets, price_per_ticket, sold)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             event_id,
             data.wallet,
             data.name,
             data.info,
+            data.banner,
             data.closing_date,
             data.event_start_date,
             data.event_end_date,
