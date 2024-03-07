@@ -89,12 +89,12 @@ async def delete_event_tickets(event_id: str) -> None:
 async def purge_unpaid_tickets(event_id: str) -> None:
     time_diff = datetime.now() - timedelta(hours=24)
     await db.execute(
-        """
-        DELETE FROM events.ticket WHERE event = ? AND paid = false AND time < ?
+        f"""
+        DELETE FROM events.ticket WHERE event = ? AND paid = false AND time < {db.timestamp_placeholder}
         """,
         (
             event_id,
-            time_diff,
+            time_diff.timestamp(),
         ),
     )
 
