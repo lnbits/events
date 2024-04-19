@@ -179,9 +179,10 @@ async def api_ticket_send_ticket(event_id, payment_hash):
         else await fiat_amount_as_satoshis(event.price_per_ticket, event.currency)
         * 1000
     )
-    if (
-        not payment.pending and abs(price - payment.amount) < price * 0.01
-    ):  # allow 1% error
+    # check if price is equal to payment.amount
+    lower_bound = price * 0.99  # 1% decrease
+
+    if not payment.pending and abs(payment.amount) >= lower_bound:  # allow 1% error
         await set_ticket_paid(payment_hash)
         return {"paid": True, "ticket_id": ticket.id}
 
