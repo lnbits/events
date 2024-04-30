@@ -2,6 +2,49 @@
   "name": "Events",
   "short_description": "Sell and register event tickets",
   "tile": "/events/static/image/events.png",
-  "contributors": ["benarc"],
-  "min_lnbits_version": "0.11.0"
+  "min_lnbits_version": "0.11.0",
+  "contributors": [
+    {
+      "name": "talvasconcelos",
+      "uri": "https://github.com/talvasconcelos",
+      "role": "Developer"
+    },
+    {
+      "name": "DNI",
+      "uri": "https://github.com/dni",
+      "role": "Developer"
+    },
+    {
+      "name": "prusnak",
+      "uri": "https://github.com/prusnak",
+      "role": "Developer"
+    },
+    {
+      "name": "Ben Arc",
+      "uri": "https://github.com/arcbtc",
+      "role": "Developer"
+    },
+    {
+      "name": "motorina0",
+      "uri": "https://github.com/motorina0",
+      "role": "Developer"
+    }
+  ],
+  "images": [
+    {
+      "uri": "https://raw.githubusercontent.com/lnbits/events/main/static/image/1.png"
+    },
+    {
+      "uri": "https://raw.githubusercontent.com/lnbits/events/main/static/image/2.jpeg"
+    },
+    {
+      "uri": "https://raw.githubusercontent.com/lnbits/events/main/static/image/3.png"
+    },
+    {
+      "uri": "https://raw.githubusercontent.com/lnbits/events/main/static/image/4.png"
+    }
+  ],
+  "description_md": "https://raw.githubusercontent.com/lnbits/events/main/description.md",
+  "terms_and_conditions_md": "https://raw.githubusercontent.com/lnbits/events/main/toc.md",
+  "license": "MIT"
 }
