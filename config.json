@@ -2,7 +2,7 @@
   "name": "Events",
   "short_description": "Sell and register event tickets",
   "tile": "/events/static/image/events.png",
-  "min_lnbits_version": "0.11.0",
+  "min_lnbits_version": "0.12.5",
   "contributors": [
     {
       "name": "talvasconcelos",
