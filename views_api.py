@@ -1,23 +1,20 @@
 from http import HTTPStatus
 
-from fastapi import Depends, Query
-from starlette.exceptions import HTTPException
-
+from fastapi import APIRouter, Depends, Query
 from lnbits.core.crud import get_standalone_payment, get_user
+from lnbits.core.models import WalletTypeInfo
 from lnbits.core.services import create_invoice
 from lnbits.decorators import (
-    WalletTypeInfo,
     get_key_type,
     require_admin_key,
-    require_invoice_key,
 )
 from lnbits.utils.exchange_rates import (
     currencies,
     fiat_amount_as_satoshis,
     get_fiat_rate_satoshis,
 )
+from starlette.exceptions import HTTPException
 
-from . import events_ext
 from .crud import (
     create_event,
     create_ticket,
@@ -29,17 +26,17 @@ from .crud import (
     get_events,
     get_ticket,
     get_tickets,
+    purge_unpaid_tickets,
     reg_ticket,
     set_ticket_paid,
     update_event,
-    purge_unpaid_tickets,
 )
 from .models import CreateEvent, CreateTicket
 
-# Events
+events_api_router = APIRouter()
 
 
-@events_ext.get("/api/v1/events")
+@events_api_router.get("/api/v1/events")
 async def api_events(
     all_wallets: bool = Query(False), wallet: WalletTypeInfo = Depends(get_key_type)
 ):
@@ -52,8 +49,8 @@ async def api_events(
     return [event.dict() for event in await get_events(wallet_ids)]
 
 
-@events_ext.post("/api/v1/events")
-@events_ext.put("/api/v1/events/{event_id}")
+@events_api_router.post("/api/v1/events")
+@events_api_router.put("/api/v1/events/{event_id}")
 async def api_event_create(
     data: CreateEvent,
     event_id=None,
@@ -77,7 +74,7 @@ async def api_event_create(
     return event.dict()
 
 
-@events_ext.delete("/api/v1/events/{event_id}")
+@events_api_router.delete("/api/v1/events/{event_id}")
 async def api_form_delete(
     event_id, wallet: WalletTypeInfo = Depends(require_admin_key)
 ):
@@ -98,7 +95,7 @@ async def api_form_delete(
 #########Tickets##########
 
 
-@events_ext.get("/api/v1/tickets")
+@events_api_router.get("/api/v1/tickets")
 async def api_tickets(
     all_wallets: bool = Query(False), wallet: WalletTypeInfo = Depends(get_key_type)
 ):
@@ -111,14 +108,14 @@ async def api_tickets(
     return [ticket.dict() for ticket in await get_tickets(wallet_ids)]
 
 
-@events_ext.post("/api/v1/tickets/{event_id}")
+@events_api_router.post("/api/v1/tickets/{event_id}")
 async def api_ticket_create(event_id: str, data: CreateTicket):
     name = data.name
     email = data.email
     return await api_ticket_make_ticket(event_id, name, email)
 
 
-@events_ext.get("/api/v1/tickets/{event_id}/{name}/{email}")
+@events_api_router.get("/api/v1/tickets/{event_id}/{name}/{email}")
 async def api_ticket_make_ticket(event_id, name, email):
     event = await get_event(event_id)
     if not event:
@@ -151,12 +148,14 @@ async def api_ticket_make_ticket(event_id, name, email):
             name=name,
             email=email,
         )
-    except Exception as e:
-        raise HTTPException(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail=str(e))
+    except Exception as exc:
+        raise HTTPException(
+            status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail=str(exc)
+        ) from exc
     return {"payment_hash": payment_hash, "payment_request": payment_request}
 
 
-@events_ext.post("/api/v1/tickets/{event_id}/{payment_hash}")
+@events_api_router.post("/api/v1/tickets/{event_id}/{payment_hash}")
 async def api_ticket_send_ticket(event_id, payment_hash):
     event = await get_event(event_id)
     if not event:
@@ -189,7 +188,7 @@ async def api_ticket_send_ticket(event_id, payment_hash):
     return {"paid": False}
 
 
-@events_ext.delete("/api/v1/tickets/{ticket_id}")
+@events_api_router.delete("/api/v1/tickets/{ticket_id}")
 async def api_ticket_delete(ticket_id, wallet: WalletTypeInfo = Depends(get_key_type)):
     ticket = await get_ticket(ticket_id)
     if not ticket:
@@ -204,7 +203,7 @@ async def api_ticket_delete(ticket_id, wallet: WalletTypeInfo = Depends(get_key_
     return "", HTTPStatus.NO_CONTENT
 
 
-@events_ext.get("/api/v1/purge/{event_id}")
+@events_api_router.get("/api/v1/purge/{event_id}")
 async def api_event_purge_tickets(event_id):
     event = await get_event(event_id)
     if not event:
@@ -217,7 +216,7 @@ async def api_event_purge_tickets(event_id):
 # Event Tickets
 
 
-@events_ext.get("/api/v1/eventtickets/{wallet_id}/{event_id}")
+@events_api_router.get("/api/v1/eventtickets/{wallet_id}/{event_id}")
 async def api_event_tickets(wallet_id, event_id):
     return [
         ticket.dict()
@@ -225,7 +224,7 @@ async def api_event_tickets(wallet_id, event_id):
     ]
 
 
-@events_ext.get("/api/v1/register/ticket/{ticket_id}")
+@events_api_router.get("/api/v1/register/ticket/{ticket_id}")
 async def api_event_register_ticket(ticket_id):
     ticket = await get_ticket(ticket_id)
 
@@ -247,6 +246,6 @@ async def api_event_register_ticket(ticket_id):
     return [ticket.dict() for ticket in await reg_ticket(ticket_id)]
 
 
-@events_ext.get("/api/v1/currencies")
+@events_api_router.get("/api/v1/currencies")
 async def api_list_currencies_available():
     return list(currencies.keys())
