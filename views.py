@@ -1,28 +1,32 @@
 from datetime import date, datetime
 from http import HTTPStatus
 
-from fastapi import Depends, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.templating import Jinja2Templates
+from lnbits.core.models import User
+from lnbits.decorators import check_user_exists
+from lnbits.helpers import template_renderer
 from starlette.exceptions import HTTPException
 from starlette.responses import HTMLResponse
 
-from lnbits.core.models import User
-from lnbits.decorators import check_user_exists
-
-from . import events_ext, events_renderer
 from .crud import get_event, get_ticket
 
+events_generic_router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
 
-@events_ext.get("/", response_class=HTMLResponse)
+def events_renderer():
+    return template_renderer(["events/templates"])
+
+
+@events_generic_router.get("/", response_class=HTMLResponse)
 async def index(request: Request, user: User = Depends(check_user_exists)):
     return events_renderer().TemplateResponse(
         "events/index.html", {"request": request, "user": user.dict()}
     )
 
 
-@events_ext.get("/{event_id}", response_class=HTMLResponse)
+@events_generic_router.get("/{event_id}", response_class=HTMLResponse)
 async def display(request: Request, event_id):
     event = await get_event(event_id)
     if not event:
@@ -63,7 +67,7 @@ async def display(request: Request, event_id):
     )
 
 
-@events_ext.get("/ticket/{ticket_id}", response_class=HTMLResponse)
+@events_generic_router.get("/ticket/{ticket_id}", response_class=HTMLResponse)
 async def ticket(request: Request, ticket_id):
     ticket = await get_ticket(ticket_id)
     if not ticket:
@@ -88,7 +92,7 @@ async def ticket(request: Request, ticket_id):
     )
 
 
-@events_ext.get("/register/{event_id}", response_class=HTMLResponse)
+@events_generic_router.get("/register/{event_id}", response_class=HTMLResponse)
 async def register(request: Request, event_id):
     event = await get_event(event_id)
     if not event:

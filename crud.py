@@ -1,12 +1,12 @@
-from typing import List, Optional, Union
 from datetime import datetime, timedelta
+from typing import List, Optional, Union
 
+from lnbits.db import Database
 from lnbits.helpers import urlsafe_short_hash
 
-from . import db
 from .models import CreateEvent, Event, Ticket
 
-# TICKETS
+db = Database("ext_events")
 
 
 async def create_ticket(
@@ -90,7 +90,8 @@ async def purge_unpaid_tickets(event_id: str) -> None:
     time_diff = datetime.now() - timedelta(hours=24)
     await db.execute(
         f"""
-        DELETE FROM events.ticket WHERE event = ? AND paid = false AND time < {db.timestamp_placeholder}
+        DELETE FROM events.ticket WHERE event = ? AND paid = false
+        AND time < {db.timestamp_placeholder}
         """,
         (
             event_id,
@@ -99,14 +100,14 @@ async def purge_unpaid_tickets(event_id: str) -> None:
     )
 
 
-# EVENTS
-
-
 async def create_event(data: CreateEvent) -> Event:
     event_id = urlsafe_short_hash()
     await db.execute(
         """
-        INSERT INTO events.events (id, wallet, name, info, banner, closing_date, event_start_date, event_end_date, currency, amount_tickets, price_per_ticket, sold)
+        INSERT INTO events.events (
+            id, wallet, name, info, banner, closing_date, event_start_date,
+            event_end_date, currency, amount_tickets, price_per_ticket, sold
+        )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
@@ -174,7 +175,10 @@ async def get_event_tickets(event_id: str, wallet_id: str) -> List[Ticket]:
 
 async def reg_ticket(ticket_id: str) -> List[Ticket]:
     await db.execute(
-        f"UPDATE events.ticket SET registered = ?, reg_timestamp = {db.timestamp_now} WHERE id = ?",
+        f"""
+        UPDATE events.ticket SET registered = ?,
+        reg_timestamp = {db.timestamp_now} WHERE id = ?
+        """,
         (True, ticket_id),
     )
     ticket = await db.fetchone("SELECT * FROM events.ticket WHERE id = ?", (ticket_id,))
