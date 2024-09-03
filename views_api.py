@@ -170,7 +170,7 @@ async def api_ticket_send_ticket(event_id, payment_hash):
             status_code=HTTPStatus.NOT_FOUND,
             detail="Ticket could not be fetched.",
         )
-    payment = await get_standalone_payment(payment_hash)
+    payment = await get_standalone_payment(payment_hash, incoming=True)
     assert payment
     price = (
         event.price_per_ticket * 1000
