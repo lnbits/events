@@ -2,7 +2,6 @@ from datetime import date, datetime
 from http import HTTPStatus
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.templating import Jinja2Templates
 from lnbits.core.models import User
 from lnbits.decorators import check_user_exists
 from lnbits.helpers import template_renderer
@@ -12,7 +11,6 @@ from starlette.responses import HTMLResponse
 from .crud import get_event, get_ticket
 
 events_generic_router = APIRouter()
-templates = Jinja2Templates(directory="templates")
 
 
 def events_renderer():
