@@ -1,4 +1,5 @@
 from http import HTTPStatus
+from time import time
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
@@ -10,7 +11,6 @@ from lnbits.decorators import (
     require_invoice_key,
 )
 from lnbits.utils.exchange_rates import (
-    currencies,
     fiat_amount_as_satoshis,
     get_fiat_rate_satoshis,
 )
@@ -28,11 +28,11 @@ from .crud import (
     get_ticket,
     get_tickets,
     purge_unpaid_tickets,
-    reg_ticket,
-    set_ticket_paid,
     update_event,
+    update_ticket,
 )
 from .models import CreateEvent, CreateTicket, Ticket
+from .services import set_ticket_paid
 
 events_api_router = APIRouter()
 
@@ -185,7 +185,7 @@ async def api_ticket_send_ticket(event_id, payment_hash):
     lower_bound = price * 0.99  # 1% decrease
 
     if not payment.pending and abs(payment.amount) >= lower_bound:  # allow 1% error
-        await set_ticket_paid(payment_hash)
+        await set_ticket_paid(ticket)
         return {"paid": True, "ticket_id": ticket.id}
 
     return {"paid": False}
@@ -207,6 +207,7 @@ async def api_ticket_delete(
     await delete_ticket(ticket_id)
 
 
+# TODO: DELETE, updates db! @tal
 @events_api_router.get("/api/v1/purge/{event_id}")
 async def api_event_purge_tickets(event_id: str):
     event = await get_event(event_id)
@@ -217,11 +218,13 @@ async def api_event_purge_tickets(event_id: str):
     return await purge_unpaid_tickets(event_id)
 
 
+# TODO: event id is already unique and wallet_id is not needed @tal
 @events_api_router.get("/api/v1/eventtickets/{wallet_id}/{event_id}")
 async def api_event_tickets(wallet_id: str, event_id: str) -> list[Ticket]:
-    return await get_event_tickets(wallet_id=wallet_id, event_id=event_id)
+    return await get_event_tickets(event_id)
 
 
+# TODO: PUT, updates db! @tal
 @events_api_router.get("/api/v1/register/ticket/{ticket_id}")
 async def api_event_register_ticket(ticket_id) -> list[Ticket]:
     ticket = await get_ticket(ticket_id)
@@ -241,9 +244,7 @@ async def api_event_register_ticket(ticket_id) -> list[Ticket]:
             status_code=HTTPStatus.FORBIDDEN, detail="Ticket already registered"
         )
 
-    return await reg_ticket(ticket_id)
-
-
-@events_api_router.get("/api/v1/currencies")
-async def api_list_currencies_available():
-    return list(currencies.keys())
+    ticket.registered = True
+    ticket.reg_timestamp = int(time())
+    await update_ticket(ticket)
+    return await get_event_tickets(ticket.event)
