@@ -12,7 +12,7 @@ db = Database("ext_events")
 async def create_ticket(
     payment_hash: str, wallet: str, event: str, name: str, email: str
 ) -> Ticket:
-    now = int(datetime.now(timezone.utc).timestamp())
+    now = datetime.now(timezone.utc)
     ticket = Ticket(
         id=payment_hash,
         wallet=wallet,
@@ -74,7 +74,7 @@ async def purge_unpaid_tickets(event_id: str) -> None:
 
 async def create_event(data: CreateEvent) -> Event:
     event_id = urlsafe_short_hash()
-    event = Event(id=event_id, time=int(datetime.now().timestamp()), **data.dict())
+    event = Event(id=event_id, time=datetime.now(timezone.utc), **data.dict())
     await db.insert("events.events", event)
     return event
 

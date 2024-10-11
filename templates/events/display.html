@@ -73,13 +73,9 @@
     <q-card v-else class="q-pa-lg q-pt-xl lnbits__dialog-card">
       <div class="text-center q-mb-lg">
         <a class="text-secondary" :href="'lightning:' + receive.paymentReq">
-          <q-responsive :ratio="1" class="q-mx-xl">
-            <qrcode
-              :value="'lightning:' + receive.paymentReq.toUpperCase()"
-              :options="{width: 340}"
-              class="rounded-borders"
-            ></qrcode>
-          </q-responsive>
+          <lnbits-qrcode
+            :value="'lightning:' + receive.paymentReq.toUpperCase()"
+          ></lnbits-qrcode>
         </a>
       </div>
       <div class="row q-mt-lg">
@@ -94,152 +90,10 @@
 
 {% endblock %} {% block scripts %}
 <script>
-  Vue.component(VueQrcode.name, VueQrcode)
-
-  new Vue({
-    el: '#vue',
-    mixins: [windowMixin],
-    data: function () {
-      return {
-        paymentReq: null,
-        redirectUrl: null,
-        formDialog: {
-          show: false,
-          data: {
-            name: '',
-            email: ''
-          }
-        },
-        ticketLink: {
-          show: false,
-          data: {
-            link: ''
-          }
-        },
-        receive: {
-          show: false,
-          status: 'pending',
-          paymentReq: null
-        }
-      }
-    },
-    async created() {
-      this.info = '{{ event_info | tojson }}'
-      this.info = this.info.substring(1, this.info.length - 1)
-      this.banner = JSON.parse('{{ event_banner | tojson |safe }}')
-      await this.purgeUnpaidTickets()
-    },
-    computed: {
-      formatDescription() {
-        return LNbits.utils.convertMarkdown(this.info)
-      }
-    },
-    methods: {
-      resetForm: function (e) {
-        e.preventDefault()
-        this.formDialog.data.name = ''
-        this.formDialog.data.email = ''
-      },
-
-      closeReceiveDialog: function () {
-        var checker = this.receive.paymentChecker
-        dismissMsg()
-
-        clearInterval(paymentChecker)
-        setTimeout(function () {}, 10000)
-      },
-      nameValidation(val) {
-        const regex = /[`!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~]/g
-        return (
-          !regex.test(val) ||
-          'Please enter valid name. No special character allowed.'
-        )
-      },
-      emailValidation(val) {
-        let regex = /^[\w\.-]+@[a-zA-Z\d\.-]+\.[a-zA-Z]{2,}$/
-        return regex.test(val) || 'Please enter valid email.'
-      },
-
-      Invoice: function () {
-        var self = this
-        axios
-          .post(`/events/api/v1/tickets/{{ event_id }}`, {
-            name: self.formDialog.data.name,
-            email: self.formDialog.data.email
-          })
-          .then(function (response) {
-            self.paymentReq = response.data.payment_request
-            self.paymentCheck = response.data.payment_hash
-
-            dismissMsg = self.$q.notify({
-              timeout: 0,
-              message: 'Waiting for payment...'
-            })
-
-            self.receive = {
-              show: true,
-              status: 'pending',
-              paymentReq: self.paymentReq
-            }
-
-            paymentChecker = setInterval(function () {
-              axios
-                .post(
-                  `/events/api/v1/tickets/{{ event_id }}/${self.paymentCheck}`,
-                  {
-                    event: '{{ event_id }}',
-                    event_name: '{{ event_name }}',
-                    name: self.formDialog.data.name,
-                    email: self.formDialog.data.email
-                  }
-                )
-                .then(function (res) {
-                  if (res.data.paid) {
-                    clearInterval(paymentChecker)
-                    dismissMsg()
-                    self.formDialog.data.name = ''
-                    self.formDialog.data.email = ''
-
-                    self.$q.notify({
-                      type: 'positive',
-                      message: 'Sent, thank you!',
-                      icon: null
-                    })
-                    self.receive = {
-                      show: false,
-                      status: 'complete',
-                      paymentReq: null
-                    }
-
-                    self.ticketLink = {
-                      show: true,
-                      data: {
-                        link: `/events/ticket/${res.data.ticket_id}`
-                      }
-                    }
-                    setTimeout(function () {
-                      window.location.href = `/events/ticket/${res.data.ticket_id}`
-                    }, 5000)
-                  }
-                })
-                .catch(function (error) {
-                  LNbits.utils.notifyApiError(error)
-                })
-            }, 2000)
-          })
-          .catch(function (error) {
-            LNbits.utils.notifyApiError(error)
-          })
-      },
-      async purgeUnpaidTickets() {
-        try {
-          await LNbits.api.request('GET', `/events/api/v1/purge/{{ event_id }}`)
-        } catch (error) {
-          console.warn(error)
-          LNbits.utils.notifyApiError(error)
-        }
-      }
-    }
-  })
+  const event_id = '{{ event_id }}'
+  const event_name = '{{ event_name }}'
+  const event_info = '{{ event_info | tojson }}'
+  const event_banner = JSON.parse('{{ event_banner | tojson | safe }}')
 </script>
+<script src="{{ static_url_for('events/static', path='js/display.js') }}"></script>
 {% endblock %}

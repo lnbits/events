@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Optional
 
 from fastapi import Query
@@ -8,13 +9,13 @@ class CreateEvent(BaseModel):
     wallet: str
     name: str
     info: str
-    banner: Optional[str]
     closing_date: str
     event_start_date: str
     event_end_date: str
     currency: str = "sat"
     amount_tickets: int = Query(..., ge=0)
     price_per_ticket: float = Query(..., ge=0)
+    banner: Optional[str] = None
 
 
 class CreateTicket(BaseModel):
@@ -27,15 +28,15 @@ class Event(BaseModel):
     wallet: str
     name: str
     info: str
-    banner: Optional[str]
     closing_date: str
     event_start_date: str
     event_end_date: str
     currency: str
     amount_tickets: int
     price_per_ticket: float
-    sold: int
-    time: int
+    time: datetime
+    sold: int = 0
+    banner: Optional[str] = None
 
 
 class Ticket(BaseModel):
@@ -45,6 +46,6 @@ class Ticket(BaseModel):
     name: str
     email: str
     registered: bool
-    reg_timestamp: Optional[int]
     paid: bool
-    time: int
+    time: datetime
+    reg_timestamp: datetime

@@ -1,5 +1,5 @@
+from datetime import datetime, timezone
 from http import HTTPStatus
-from time import time
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
@@ -218,9 +218,8 @@ async def api_event_purge_tickets(event_id: str):
     return await purge_unpaid_tickets(event_id)
 
 
-# TODO: event id is already unique and wallet_id is not needed @tal
-@events_api_router.get("/api/v1/eventtickets/{wallet_id}/{event_id}")
-async def api_event_tickets(wallet_id: str, event_id: str) -> list[Ticket]:
+@events_api_router.get("/api/v1/eventtickets/{event_id}")
+async def api_event_tickets(event_id: str) -> list[Ticket]:
     return await get_event_tickets(event_id)
 
 
@@ -245,6 +244,6 @@ async def api_event_register_ticket(ticket_id) -> list[Ticket]:
         )
 
     ticket.registered = True
-    ticket.reg_timestamp = int(time())
+    ticket.reg_timestamp = datetime.now(timezone.utc)
     await update_ticket(ticket)
     return await get_event_tickets(ticket.event)

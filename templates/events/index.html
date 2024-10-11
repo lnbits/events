@@ -25,18 +25,17 @@
         <q-table
           dense
           flat
-          :data="events"
+          :rows="events"
           row-key="id"
           :columns="eventsTable.columns"
-          :pagination.sync="eventsTable.pagination"
+          v-model:pagination="eventsTable.pagination"
         >
-          {% raw %}
           <template v-slot:header="props">
             <q-tr :props="props">
               <q-th auto-width></q-th>
 
               <q-th v-for="col in props.cols" :key="col.name" :props="props">
-                {{ col.label }}
+                <span v-text="col.label"></span>
               </q-th>
 
               <q-th auto-width></q-th>
@@ -67,7 +66,7 @@
                 ></q-btn>
               </q-td>
               <q-td v-for="col in props.cols" :key="col.name" :props="props">
-                {{ col.value }}
+                <span v-text="col.value"></span>
               </q-td>
               <q-td auto-width>
                 <q-btn
@@ -91,7 +90,6 @@
               </q-td>
             </q-tr>
           </template>
-          {% endraw %}
         </q-table>
       </q-card-section>
     </q-card>
@@ -111,17 +109,16 @@
         <q-table
           dense
           flat
-          :data="tickets"
+          :rows="tickets"
           row-key="id"
           :columns="ticketsTable.columns"
-          :pagination.sync="ticketsTable.pagination"
+          v-model:pagination="ticketsTable.pagination"
         >
-          {% raw %}
           <template v-slot:header="props">
             <q-tr :props="props">
               <q-th auto-width></q-th>
               <q-th v-for="col in props.cols" :key="col.name" :props="props">
-                {{ col.label }}
+                <span v-text="col.label"></span>
               </q-th>
             </q-tr>
           </template>
@@ -141,7 +138,7 @@
               </q-td>
 
               <q-td v-for="col in props.cols" :key="col.name" :props="props">
-                {{ col.value }}
+                <span v-text="col.value"></span>
               </q-td>
 
               <q-td auto-width>
@@ -156,7 +153,6 @@
               </q-td>
             </q-tr>
           </template>
-          {% endraw %}
         </q-table>
       </q-card-section>
     </q-card>
@@ -318,264 +314,5 @@
     overflow-x: hidden;
   }
 </style>
-<script>
-  var mapEvents = function (obj) {
-    obj.date = Quasar.utils.date.formatDate(
-      new Date(obj.time * 1000),
-      'YYYY-MM-DD HH:mm'
-    )
-    obj.fsat = new Intl.NumberFormat(LOCALE).format(obj.amount)
-    obj.displayUrl = ['/events/', obj.id].join('')
-    return obj
-  }
-
-  new Vue({
-    el: '#vue',
-    mixins: [windowMixin],
-    data: function () {
-      return {
-        events: [],
-        tickets: [],
-        currencies: [],
-        eventsTable: {
-          columns: [
-            {name: 'id', align: 'left', label: 'ID', field: 'id'},
-            {name: 'name', align: 'left', label: 'Name', field: 'name'},
-            {name: 'info', align: 'left', label: 'Info', field: 'info'},
-            {name: 'banner', align: 'left', label: 'Banner', field: 'banner'},
-            {
-              name: 'event_start_date',
-              align: 'left',
-              label: 'Start date',
-              field: 'event_start_date'
-            },
-            {
-              name: 'event_end_date',
-              align: 'left',
-              label: 'End date',
-              field: 'event_end_date'
-            },
-            {
-              name: 'closing_date',
-              align: 'left',
-              label: 'Ticket close',
-              field: 'closing_date'
-            },
-            {
-              name: 'price_per_ticket',
-              align: 'left',
-              label: 'Price',
-              field: row => {
-                if (row.currency != 'sat') {
-                  return LNbits.utils.formatCurrency(
-                    row.price_per_ticket.toFixed(2),
-                    row.currency
-                  )
-                }
-                return row.price_per_ticket
-              }
-            },
-            {
-              name: 'amount_tickets',
-              align: 'left',
-              label: 'No tickets',
-              field: 'amount_tickets'
-            },
-            {
-              name: 'sold',
-              align: 'left',
-              label: 'Sold',
-              field: 'sold'
-            }
-          ],
-          pagination: {
-            rowsPerPage: 10
-          }
-        },
-        ticketsTable: {
-          columns: [
-            {name: 'id', align: 'left', label: 'ID', field: 'id'},
-            {name: 'event', align: 'left', label: 'Event', field: 'event'},
-            {name: 'name', align: 'left', label: 'Name', field: 'name'},
-            {name: 'email', align: 'left', label: 'Email', field: 'email'},
-            {
-              name: 'registered',
-              align: 'left',
-              label: 'Registered',
-              field: 'registered'
-            }
-          ],
-          pagination: {
-            rowsPerPage: 10
-          }
-        },
-        formDialog: {
-          show: false,
-          data: {}
-        }
-      }
-    },
-    methods: {
-      getTickets: function () {
-        var self = this
-        LNbits.api
-          .request(
-            'GET',
-            '/events/api/v1/tickets?all_wallets=true',
-            this.g.user.wallets[0].inkey
-          )
-          .then(function (response) {
-            self.tickets = response.data
-              .map(function (obj) {
-                return mapEvents(obj)
-              })
-              .filter(e => e.paid)
-          })
-      },
-      deleteTicket: function (ticketId) {
-        var self = this
-        var tickets = _.findWhere(this.tickets, {id: ticketId})
-
-        LNbits.utils
-          .confirmDialog('Are you sure you want to delete this ticket')
-          .onOk(function () {
-            LNbits.api
-              .request(
-                'DELETE',
-                '/events/api/v1/tickets/' + ticketId,
-                _.findWhere(self.g.user.wallets, {id: tickets.wallet}).inkey
-              )
-              .then(function (response) {
-                self.tickets = _.reject(self.tickets, function (obj) {
-                  return obj.id == ticketId
-                })
-              })
-              .catch(function (error) {
-                LNbits.utils.notifyApiError(error)
-              })
-          })
-      },
-      exportticketsCSV: function () {
-        LNbits.utils.exportCSV(this.ticketsTable.columns, this.tickets)
-      },
-      getEvents: function () {
-        var self = this
-
-        LNbits.api
-          .request(
-            'GET',
-            '/events/api/v1/events?all_wallets=true',
-            this.g.user.wallets[0].inkey
-          )
-          .then(function (response) {
-            self.events = response.data.map(function (obj) {
-              return mapEvents(obj)
-            })
-          })
-      },
-      sendEventData: function () {
-        var wallet = _.findWhere(this.g.user.wallets, {
-          id: this.formDialog.data.wallet
-        })
-        var data = this.formDialog.data
-
-        if (data.id) {
-          this.updateEvent(wallet, data)
-        } else {
-          this.createEvent(wallet, data)
-        }
-      },
-
-      createEvent: function (wallet, data) {
-        var self = this
-        LNbits.api
-          .request('POST', '/events/api/v1/events', wallet.adminkey, data)
-          .then(function (response) {
-            self.events.push(mapEvents(response.data))
-            self.formDialog.show = false
-            self.formDialog.data = {}
-          })
-          .catch(function (error) {
-            LNbits.utils.notifyApiError(error)
-          })
-      },
-      updateformDialog: function (formId) {
-        var link = _.findWhere(this.events, {id: formId})
-
-        this.formDialog.data = {...link}
-
-        this.formDialog.show = true
-      },
-      updateEvent: function (wallet, data) {
-        var self = this
-
-        LNbits.api
-          .request(
-            'PUT',
-            '/events/api/v1/events/' + data.id,
-            wallet.adminkey,
-            data
-          )
-          .then(function (response) {
-            self.events = _.reject(self.events, function (obj) {
-              return obj.id == data.id
-            })
-            self.events.push(mapEvents(response.data))
-            self.formDialog.show = false
-            self.formDialog.data = {}
-          })
-          .catch(function (error) {
-            LNbits.utils.notifyApiError(error)
-          })
-      },
-      deleteEvent: function (eventsId) {
-        var self = this
-        var events = _.findWhere(this.events, {id: eventsId})
-
-        LNbits.utils
-          .confirmDialog('Are you sure you want to delete this form link?')
-          .onOk(function () {
-            LNbits.api
-              .request(
-                'DELETE',
-                '/events/api/v1/events/' + eventsId,
-                _.findWhere(self.g.user.wallets, {id: events.wallet}).adminkey
-              )
-              .then(function (response) {
-                self.events = _.reject(self.events, function (obj) {
-                  return obj.id == eventsId
-                })
-              })
-              .catch(function (error) {
-                LNbits.utils.notifyApiError(error)
-              })
-          })
-      },
-      exporteventsCSV: function () {
-        LNbits.utils.exportCSV(this.eventsTable.columns, this.events)
-      },
-      async getCurrencies() {
-        try {
-          const {data} = await LNbits.api.request(
-            'GET',
-            '/events/api/v1/currencies',
-            this.inkey
-          )
-
-          this.currencies = ['sat', ...data]
-        } catch (error) {
-          LNbits.utils.notifyApiError(error)
-        }
-      }
-    },
-
-    created: async function () {
-      if (this.g.user.wallets.length) {
-        this.getTickets()
-        this.getEvents()
-        await this.getCurrencies()
-      }
-    }
-  })
-</script>
+<script src="{{ static_url_for('events/static', path='js/index.js') }}"></script>
 {% endblock %}

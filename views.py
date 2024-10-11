@@ -20,7 +20,7 @@ def events_renderer():
 @events_generic_router.get("/", response_class=HTMLResponse)
 async def index(request: Request, user: User = Depends(check_user_exists)):
     return events_renderer().TemplateResponse(
-        "events/index.html", {"request": request, "user": user.dict()}
+        "events/index.html", {"request": request, "user": user.json()}
     )
 
 
