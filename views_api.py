@@ -1,15 +1,16 @@
+from datetime import datetime, timezone
 from http import HTTPStatus
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
 from lnbits.core.crud import get_standalone_payment, get_user
 from lnbits.core.models import WalletTypeInfo
 from lnbits.core.services import create_invoice
 from lnbits.decorators import (
-    get_key_type,
     require_admin_key,
+    require_invoice_key,
 )
 from lnbits.utils.exchange_rates import (
-    currencies,
     fiat_amount_as_satoshis,
     get_fiat_rate_satoshis,
 )
@@ -27,18 +28,19 @@ from .crud import (
     get_ticket,
     get_tickets,
     purge_unpaid_tickets,
-    reg_ticket,
-    set_ticket_paid,
     update_event,
+    update_ticket,
 )
-from .models import CreateEvent, CreateTicket
+from .models import CreateEvent, CreateTicket, Ticket
+from .services import set_ticket_paid
 
 events_api_router = APIRouter()
 
 
 @events_api_router.get("/api/v1/events")
 async def api_events(
-    all_wallets: bool = Query(False), wallet: WalletTypeInfo = Depends(get_key_type)
+    all_wallets: bool = Query(False),
+    wallet: WalletTypeInfo = Depends(require_invoice_key),
 ):
     wallet_ids = [wallet.wallet.id]
 
@@ -53,8 +55,8 @@ async def api_events(
 @events_api_router.put("/api/v1/events/{event_id}")
 async def api_event_create(
     data: CreateEvent,
-    event_id=None,
     wallet: WalletTypeInfo = Depends(require_admin_key),
+    event_id: Optional[str] = None,
 ):
     if event_id:
         event = await get_event(event_id)
@@ -67,16 +69,18 @@ async def api_event_create(
             raise HTTPException(
                 status_code=HTTPStatus.FORBIDDEN, detail="Not your event."
             )
-        event = await update_event(event_id, **data.dict())
+        for k, v in data.dict().items():
+            setattr(event, k, v)
+        event = await update_event(event)
     else:
-        event = await create_event(data=data)
+        event = await create_event(data)
 
     return event.dict()
 
 
 @events_api_router.delete("/api/v1/events/{event_id}")
 async def api_form_delete(
-    event_id, wallet: WalletTypeInfo = Depends(require_admin_key)
+    event_id: str, wallet: WalletTypeInfo = Depends(require_admin_key)
 ):
     event = await get_event(event_id)
     if not event:
@@ -97,15 +101,16 @@ async def api_form_delete(
 
 @events_api_router.get("/api/v1/tickets")
 async def api_tickets(
-    all_wallets: bool = Query(False), wallet: WalletTypeInfo = Depends(get_key_type)
-):
+    all_wallets: bool = Query(False),
+    wallet: WalletTypeInfo = Depends(require_invoice_key),
+) -> list[Ticket]:
     wallet_ids = [wallet.wallet.id]
 
     if all_wallets:
         user = await get_user(wallet.wallet.user)
         wallet_ids = user.wallet_ids if user else []
 
-    return [ticket.dict() for ticket in await get_tickets(wallet_ids)]
+    return await get_tickets(wallet_ids)
 
 
 @events_api_router.post("/api/v1/tickets/{event_id}")
@@ -126,7 +131,7 @@ async def api_ticket_make_ticket(event_id, name, email):
     price = event.price_per_ticket
     extra = {"tag": "events", "name": name, "email": email}
 
-    if event.currency != "sat":
+    if event.currency != "sats":
         price = await fiat_amount_as_satoshis(event.price_per_ticket, event.currency)
 
         extra["fiat"] = True
@@ -174,7 +179,7 @@ async def api_ticket_send_ticket(event_id, payment_hash):
     assert payment
     price = (
         event.price_per_ticket * 1000
-        if event.currency == "sat"
+        if event.currency == "sats"
         else await fiat_amount_as_satoshis(event.price_per_ticket, event.currency)
         * 1000
     )
@@ -182,14 +187,16 @@ async def api_ticket_send_ticket(event_id, payment_hash):
     lower_bound = price * 0.99  # 1% decrease
 
     if not payment.pending and abs(payment.amount) >= lower_bound:  # allow 1% error
-        await set_ticket_paid(payment_hash)
+        await set_ticket_paid(ticket)
         return {"paid": True, "ticket_id": ticket.id}
 
     return {"paid": False}
 
 
 @events_api_router.delete("/api/v1/tickets/{ticket_id}")
-async def api_ticket_delete(ticket_id, wallet: WalletTypeInfo = Depends(get_key_type)):
+async def api_ticket_delete(
+    ticket_id: str, wallet: WalletTypeInfo = Depends(require_invoice_key)
+):
     ticket = await get_ticket(ticket_id)
     if not ticket:
         raise HTTPException(
@@ -200,11 +207,11 @@ async def api_ticket_delete(ticket_id, wallet: WalletTypeInfo = Depends(get_key_
         raise HTTPException(status_code=HTTPStatus.FORBIDDEN, detail="Not your ticket.")
 
     await delete_ticket(ticket_id)
-    return "", HTTPStatus.NO_CONTENT
 
 
+# TODO: DELETE, updates db! @tal
 @events_api_router.get("/api/v1/purge/{event_id}")
-async def api_event_purge_tickets(event_id):
+async def api_event_purge_tickets(event_id: str):
     event = await get_event(event_id)
     if not event:
         raise HTTPException(
@@ -213,19 +220,14 @@ async def api_event_purge_tickets(event_id):
     return await purge_unpaid_tickets(event_id)
 
 
-# Event Tickets
+@events_api_router.get("/api/v1/eventtickets/{event_id}")
+async def api_event_tickets(event_id: str) -> list[Ticket]:
+    return await get_event_tickets(event_id)
 
 
-@events_api_router.get("/api/v1/eventtickets/{wallet_id}/{event_id}")
-async def api_event_tickets(wallet_id, event_id):
-    return [
-        ticket.dict()
-        for ticket in await get_event_tickets(wallet_id=wallet_id, event_id=event_id)
-    ]
-
-
+# TODO: PUT, updates db! @tal
 @events_api_router.get("/api/v1/register/ticket/{ticket_id}")
-async def api_event_register_ticket(ticket_id):
+async def api_event_register_ticket(ticket_id) -> list[Ticket]:
     ticket = await get_ticket(ticket_id)
 
     if not ticket:
@@ -243,9 +245,7 @@ async def api_event_register_ticket(ticket_id):
             status_code=HTTPStatus.FORBIDDEN, detail="Ticket already registered"
         )
 
-    return [ticket.dict() for ticket in await reg_ticket(ticket_id)]
-
-
-@events_api_router.get("/api/v1/currencies")
-async def api_list_currencies_available():
-    return list(currencies.keys())
+    ticket.registered = True
+    ticket.reg_timestamp = datetime.now(timezone.utc)
+    await update_ticket(ticket)
+    return await get_event_tickets(ticket.event)
