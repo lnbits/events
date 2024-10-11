@@ -47,10 +47,11 @@ window.app = Vue.createApp({
     },
     decodeQR(res) {
       this.sendCamera.show = false
+      const value = res[0].rawValue.split('//')[1]
       LNbits.api
-        .request('GET', '/events/api/v1/register/ticket/' + res.split('//')[1])
-        .then(response => {
-          this.$q.notify({
+        .request('GET', `/events/api/v1/register/ticket/${value}`)
+        .then(() => {
+          Quasar.Notify.create({
             type: 'positive',
             message: 'Registered!'
           })
