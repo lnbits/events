@@ -276,8 +276,8 @@
               v-model.number="formDialog.data.price_per_ticket"
               type="number"
               :label="'Price (' + formDialog.data.currency + ') *'"
-              :step="formDialog.data.currency != 'sat' ? '0.01' : '1'"
-              :mask="formDialog.data.currency != 'sat' ? '#.##' : '#'"
+              :step="formDialog.data.currency != 'sats' ? '0.01' : '1'"
+              :mask="formDialog.data.currency != 'sats' ? '#.##' : '#'"
               fill-mask="0"
               reverse-fill-mask
             ></q-input>

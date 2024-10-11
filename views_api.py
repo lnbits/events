@@ -131,7 +131,7 @@ async def api_ticket_make_ticket(event_id, name, email):
     price = event.price_per_ticket
     extra = {"tag": "events", "name": name, "email": email}
 
-    if event.currency != "sat":
+    if event.currency != "sats":
         price = await fiat_amount_as_satoshis(event.price_per_ticket, event.currency)
 
         extra["fiat"] = True
@@ -179,7 +179,7 @@ async def api_ticket_send_ticket(event_id, payment_hash):
     assert payment
     price = (
         event.price_per_ticket * 1000
-        if event.currency == "sat"
+        if event.currency == "sats"
         else await fiat_amount_as_satoshis(event.price_per_ticket, event.currency)
         * 1000
     )

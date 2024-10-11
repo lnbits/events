@@ -33,8 +33,6 @@ window.app = Vue.createApp({
   },
   computed: {
     formatDescription() {
-        console.log(this.info)
-        debugger
       return LNbits.utils.convertMarkdown(this.info)
     }
   },

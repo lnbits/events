@@ -3,7 +3,7 @@ const mapEvents = function (obj) {
     new Date(obj.time * 1000),
     'YYYY-MM-DD HH:mm'
   )
-  obj.fsat = new Intl.NumberFormat(LOCALE).format(obj.amount)
+  obj.fsat = new Intl.NumberFormat(LOCALE).format(obj.price_per_ticket)
   obj.displayUrl = ['/events/', obj.id].join('')
   return obj
 }
@@ -45,7 +45,7 @@ window.app = Vue.createApp({
             align: 'left',
             label: 'Price',
             field: row => {
-              if (row.currency != 'sat') {
+              if (row.currency != 'sats') {
                 return LNbits.utils.formatCurrency(
                   row.price_per_ticket.toFixed(2),
                   row.currency
