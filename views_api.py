@@ -140,14 +140,14 @@ async def api_ticket_make_ticket(event_id, name, email):
         extra["rate"] = await get_fiat_rate_satoshis(event.currency)
 
     try:
-        payment_hash, payment_request = await create_invoice(
+        payment = await create_invoice(
             wallet_id=event.wallet,
-            amount=price,  # type: ignore
+            amount=price,
             memo=f"{event_id}",
             extra=extra,
         )
         await create_ticket(
-            payment_hash=payment_hash,
+            payment_hash=payment.payment_hash,
             wallet=event.wallet,
             event=event.id,
             name=name,
@@ -157,7 +157,7 @@ async def api_ticket_make_ticket(event_id, name, email):
         raise HTTPException(
             status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail=str(exc)
         ) from exc
-    return {"payment_hash": payment_hash, "payment_request": payment_request}
+    return {"payment_hash": payment.payment_hash, "payment_request": payment.bolt11}
 
 
 @events_api_router.post("/api/v1/tickets/{event_id}/{payment_hash}")
