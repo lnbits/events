@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from fastapi import Query
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, validator
 
 
 class PromoCode(BaseModel):
@@ -9,7 +9,7 @@ class PromoCode(BaseModel):
     discount_percent: float = 0
     description: Optional[str] = None
 
-    @field_validator("discount_percent")
+    @validator("discount_percent")
     def validate_discount_percent(cls, v):
         assert 0 <= v <= 100, "Discount must be between 0 and 100."
         return v

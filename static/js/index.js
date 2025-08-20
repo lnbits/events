@@ -161,20 +161,36 @@ window.app = Vue.createApp({
       }
     },
 
+    openEventDialog(data = false) {
+      if (data && data.id) {
+        this.formDialog.data = {...data}
+      } else {
+        this.formDialog.data = {
+          extra: {
+            conditional: false,
+            min_tickets: 1
+          }
+        }
+      }
+      this.formDialog.show = true
+    },
+    resetEventDialog() {
+      this.formDialog.show = false
+      this.formDialog.data = {}
+    },
+
     createEvent(wallet, data) {
       LNbits.api
         .request('POST', '/events/api/v1/events', wallet.adminkey, data)
         .then(response => {
           this.events.push(mapEvents(response.data))
-          this.formDialog.show = false
-          this.formDialog.data = {}
+          this.openEventDialog()
         })
         .catch(LNbits.utils.notifyApiError)
     },
     updateformDialog(formId) {
       const link = _.findWhere(this.events, {id: formId})
-      this.formDialog.data = {...link}
-      this.formDialog.show = true
+      this.openEventDialog(link)
     },
     updateEvent(wallet, data) {
       LNbits.api
@@ -189,8 +205,7 @@ window.app = Vue.createApp({
             return obj.id == data.id
           })
           this.events.push(mapEvents(response.data))
-          this.formDialog.show = false
-          this.formDialog.data = {}
+          this.resetEventDialog()
         })
         .catch(LNbits.utils.notifyApiError)
     },

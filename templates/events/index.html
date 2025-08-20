@@ -4,7 +4,7 @@
   <div class="col-12 col-md-8 col-lg-7 q-gutter-y-md">
     <q-card>
       <q-card-section>
-        <q-btn unelevated color="primary" @click="formDialog.show = true"
+        <q-btn unelevated color="primary" @click="openEventDialog"
           >New Event</q-btn
         >
       </q-card-section>
@@ -224,7 +224,6 @@
             ></q-input>
           </div>
         </div>
-
         <div class="row">
           <div class="col-4">Event begins</div>
           <div class="col-8">
@@ -248,6 +247,32 @@
             ></q-input>
           </div>
         </div>
+        <!-- CONDITIONAL -->
+        <!-- <q-separator class="q-my-md"></q-separator>
+        <div class="row">
+          <p>
+            Make this event conditional if <strong>minimum tickets</strong> are
+            sold
+          </p>
+          <div class="col-8">
+            <q-toggle
+              v-model="formDialog.data.extra.conditional"
+              label="Conditional Event"
+              left-label
+            ></q-toggle>
+          </div>
+          <div class="col-4">
+            <q-input
+              filled
+              dense
+              v-model.number="formDialog.data.extra.min_tickets"
+              type="number"
+              label="Minimum Tickets"
+              :disable="!formDialog.data.extra.conditional"
+            ></q-input>
+          </div>
+        </div>
+        <q-separator class="q-my-md"></q-separator> -->
 
         <div class="row q-col-gutter-sm">
           <div class="col">
@@ -283,6 +308,36 @@
             ></q-input>
           </div>
         </div>
+        <q-expansion-item
+          group="advanced"
+          icon="settings"
+          label="Advanced options"
+        >
+          <div class="row q-mt-lg">
+            <p>
+              Make this event conditional if
+              <strong>minimum tickets</strong> are sold. User will be asked to
+              provide a Lightning Address or LNURL pay for refunds.
+            </p>
+            <div class="col-8">
+              <q-toggle
+                v-model="formDialog.data.extra.conditional"
+                label="Conditional Event"
+                left-label
+              ></q-toggle>
+            </div>
+            <div class="col-4">
+              <q-input
+                filled
+                dense
+                v-model.number="formDialog.data.extra.min_tickets"
+                type="number"
+                label="Minimum Tickets"
+                :disable="!formDialog.data.extra.conditional"
+              ></q-input>
+            </div>
+          </div>
+        </q-expansion-item>
 
         <div class="row q-mt-lg">
           <q-btn
