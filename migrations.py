@@ -160,3 +160,14 @@ async def m005_add_image_banner(db):
     Add a column to allow an image banner for the event
     """
     await db.execute("ALTER TABLE events.events ADD COLUMN banner TEXT;")
+
+
+async def m006_add_extra_fields(db):
+    """
+    Add an 'extra' column to events and ticket tables to support promo codes and ticket metadata.
+    """
+    # Add 'extra' column to events table
+    await db.execute("ALTER TABLE events.events ADD COLUMN extra TEXT;")
+
+    # Add 'extra' column to ticket table
+    await db.execute("ALTER TABLE events.ticket ADD COLUMN extra TEXT;")
