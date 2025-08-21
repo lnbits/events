@@ -2,6 +2,8 @@ from datetime import datetime, timezone
 from http import HTTPStatus
 
 from fastapi import APIRouter, Depends, Query
+from starlette.exceptions import HTTPException
+
 from lnbits.core.crud import get_standalone_payment, get_user
 from lnbits.core.models import WalletTypeInfo
 from lnbits.core.services import create_invoice
@@ -13,7 +15,6 @@ from lnbits.utils.exchange_rates import (
     fiat_amount_as_satoshis,
     get_fiat_rate_satoshis,
 )
-from starlette.exceptions import HTTPException
 
 from .crud import (
     create_event,
@@ -116,11 +117,15 @@ async def api_tickets(
 async def api_ticket_create(event_id: str, data: CreateTicket):
     name = data.name
     email = data.email
-    return await api_ticket_make_ticket(event_id, name, email)
+    promo_code = data.promo_code
+    refund_address = data.refund_address
+    return await api_ticket_make_ticket(
+        event_id, name, email, promo_code, refund_address
+    )
 
 
 @events_api_router.get("/api/v1/tickets/{event_id}/{name}/{email}")
-async def api_ticket_make_ticket(event_id, name, email):
+async def api_ticket_make_ticket(event_id, name, email, promo_code, refund_address):
     event = await get_event(event_id)
     if not event:
         raise HTTPException(
@@ -130,13 +135,24 @@ async def api_ticket_make_ticket(event_id, name, email):
     price = event.price_per_ticket
     extra = {"tag": "events", "name": name, "email": email}
 
-    if event.currency != "sats":
-        price = await fiat_amount_as_satoshis(event.price_per_ticket, event.currency)
+    if promo_code:
+        # check if promo_code exists in event.extra.promo_codes
+        if promo_code not in [pc.code for pc in event.extra.promo_codes]:
+            raise HTTPException(
+                status_code=HTTPStatus.BAD_REQUEST, detail="Invalid promo code."
+            )
+        # get the promocode
+        promo = next(pc for pc in event.extra.promo_codes if pc.code == promo_code)
+        extra["promo_code"] = promo.code
+        price = event.price_per_ticket * (1 - promo.discount_percent / 100)
 
+    if event.currency != "sats":
         extra["fiat"] = True
         extra["currency"] = event.currency
-        extra["fiatAmount"] = event.price_per_ticket
+        extra["fiatAmount"] = price
         extra["rate"] = await get_fiat_rate_satoshis(event.currency)
+
+        price = await fiat_amount_as_satoshis(price, event.currency)
 
     try:
         payment = await create_invoice(
@@ -151,6 +167,11 @@ async def api_ticket_make_ticket(event_id, name, email):
             event=event.id,
             name=name,
             email=email,
+            extra={
+                "applied_promo_code": promo_code,
+                "refund_address": refund_address,
+                "sats_paid": int(price),
+            },
         )
     except Exception as exc:
         raise HTTPException(
@@ -176,16 +197,31 @@ async def api_ticket_send_ticket(event_id, payment_hash):
         )
     payment = await get_standalone_payment(payment_hash, incoming=True)
     assert payment
+
+    if ticket.extra.applied_promo_code:
+        promo = next(
+            (
+                pc
+                for pc in event.extra.promo_codes
+                if pc.code == ticket.extra.applied_promo_code
+            ),
+            None,
+        )
+        if promo:
+            event.price_per_ticket *= 1 - promo.discount_percent / 100
+
     price = (
         event.price_per_ticket * 1000
         if event.currency == "sats"
         else await fiat_amount_as_satoshis(event.price_per_ticket, event.currency)
         * 1000
     )
+
     # check if price is equal to payment.amount
     lower_bound = price * 0.99  # 1% decrease
 
     if not payment.pending and abs(payment.amount) >= lower_bound:  # allow 1% error
+        ticket.extra.sats_paid = int(payment.amount / 1000)
         await set_ticket_paid(ticket)
         return {"paid": True, "ticket_id": ticket.id}
 

@@ -35,11 +35,6 @@ class CreateEvent(BaseModel):
     extra: EventExtra = Field(default_factory=EventExtra)
 
 
-class CreateTicket(BaseModel):
-    name: str
-    email: EmailStr
-
-
 class Event(BaseModel):
     id: str
     wallet: str
@@ -59,7 +54,15 @@ class Event(BaseModel):
 
 class TicketExtra(BaseModel):
     applied_promo_code: str | None = None
-    discount_applied: float | None = None
+    sats_paid: int | None = None
+    refund_address: str | None = None
+    refunded: bool = False
+
+
+class CreateTicket(BaseModel):
+    name: str
+    email: EmailStr
+    promo_code: str | None = None
     refund_address: str | None = None
 
 

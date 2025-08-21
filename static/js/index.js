@@ -146,6 +146,7 @@ window.app = Vue.createApp({
           this.events = response.data.map(function (obj) {
             return mapEvents(obj)
           })
+          console.log(this.events)
         })
     },
     sendEventData() {
@@ -184,7 +185,7 @@ window.app = Vue.createApp({
         .request('POST', '/events/api/v1/events', wallet.adminkey, data)
         .then(response => {
           this.events.push(mapEvents(response.data))
-          this.openEventDialog()
+          this.resetEventDialog()
         })
         .catch(LNbits.utils.notifyApiError)
     },

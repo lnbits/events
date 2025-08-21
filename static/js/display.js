@@ -29,7 +29,9 @@ window.app = Vue.createApp({
     this.info = event_info
     this.info = this.info.substring(1, this.info.length - 1)
     this.banner = event_banner
+    this.extra = event_extra
     await this.purgeUnpaidTickets()
+    console.log(event_extra)
   },
   computed: {
     formatDescription() {
