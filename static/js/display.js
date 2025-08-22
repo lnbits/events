@@ -9,7 +9,8 @@ window.app = Vue.createApp({
         show: false,
         data: {
           name: '',
-          email: ''
+          email: '',
+          refund: ''
         }
       },
       ticketLink: {
@@ -43,6 +44,7 @@ window.app = Vue.createApp({
       e.preventDefault()
       this.formDialog.data.name = ''
       this.formDialog.data.email = ''
+      this.formDialog.data.refund = ''
     },
 
     closeReceiveDialog() {
