@@ -1,4 +1,4 @@
-from lnurl import execute, execute_pay_request, handle
+from lnurl import execute
 from loguru import logger
 
 from .crud import (

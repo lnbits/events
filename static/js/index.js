@@ -20,8 +20,6 @@ window.app = Vue.createApp({
         columns: [
           {name: 'id', align: 'left', label: 'ID', field: 'id'},
           {name: 'name', align: 'left', label: 'Name', field: 'name'},
-          {name: 'info', align: 'left', label: 'Info', field: 'info'},
-          {name: 'banner', align: 'left', label: 'Banner', field: 'banner'},
           {
             name: 'event_start_date',
             align: 'left',
@@ -65,7 +63,9 @@ window.app = Vue.createApp({
             align: 'left',
             label: 'Sold',
             field: 'sold'
-          }
+          },
+          {name: 'info', align: 'left', label: 'Info', field: 'info'},
+          {name: 'banner', align: 'left', label: 'Banner', field: 'banner'}
         ],
         pagination: {
           rowsPerPage: 10

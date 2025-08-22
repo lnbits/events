@@ -7,7 +7,7 @@ from pydantic import BaseModel, EmailStr, Field, validator
 class PromoCode(BaseModel):
     code: str
     discount_percent: float = 0
-    description: Optional[str] = None
+    description: str | None = None
 
     @validator("discount_percent")
     def validate_discount_percent(cls, v):
