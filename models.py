@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Optional
 
 from fastapi import Query
 from pydantic import BaseModel, EmailStr
@@ -15,7 +14,7 @@ class CreateEvent(BaseModel):
     currency: str = "sat"
     amount_tickets: int = Query(..., ge=0)
     price_per_ticket: float = Query(..., ge=0)
-    banner: Optional[str] = None
+    banner: str | None = None
 
 
 class CreateTicket(BaseModel):
@@ -36,7 +35,7 @@ class Event(BaseModel):
     price_per_ticket: float
     time: datetime
     sold: int = 0
-    banner: Optional[str] = None
+    banner: str | None = None
 
 
 class Ticket(BaseModel):

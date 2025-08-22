@@ -3,7 +3,7 @@ name = "lnbits-events"
 version = "0.0.0"
 requires-python = ">=3.10,<3.13"
 description = "LNbits, free and open-source Lightning wallet and accounts system."
-authors = ["Alan Bits <alan@lnbits.com>"]
+authors = [{ name = "Alan Bits", email = "alan@lnbits.com" }]
 urls = { Homepage = "https://lnbits.com", Repository = "https://github.com/lnbits/events" }
 
 dependencies = [ "lnbits>1" ]

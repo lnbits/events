@@ -37,4 +37,4 @@ def events_start():
     scheduled_tasks.append(task)
 
 
-__all__ = ["db", "events_ext", "events_static_files", "events_start", "events_stop"]
+__all__ = ["db", "events_ext", "events_start", "events_static_files", "events_stop"]
