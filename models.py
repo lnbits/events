@@ -41,6 +41,7 @@ class Event(BaseModel):
     name: str
     info: str
     closing_date: str
+    canceled: bool = False
     event_start_date: str
     event_end_date: str
     currency: str

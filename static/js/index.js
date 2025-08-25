@@ -1,8 +1,5 @@
 const mapEvents = function (obj) {
-  obj.date = Quasar.date.formatDate(
-    new Date(obj.time * 1000),
-    'YYYY-MM-DD HH:mm'
-  )
+  obj.date = Quasar.date.formatDate(new Date(obj.time), 'YYYY-MM-DD HH:mm')
   obj.fsat = new Intl.NumberFormat(LOCALE).format(obj.price_per_ticket)
   obj.displayUrl = ['/events/', obj.id].join('')
   return obj
@@ -37,6 +34,17 @@ window.app = Vue.createApp({
             align: 'left',
             label: 'Ticket close',
             field: 'closing_date'
+          },
+          {
+            name: 'canceled',
+            align: 'left',
+            label: 'Canceled',
+            field: row => {
+              if (row.extra.conditional && row.canceled) {
+                return 'Yes'
+              }
+              return 'No'
+            }
           },
           {
             name: 'price_per_ticket',
@@ -147,6 +155,7 @@ window.app = Vue.createApp({
             return mapEvents(obj)
           })
           console.log(this.events)
+          this.checkCanceledEvents()
         })
     },
     sendEventData() {
@@ -232,6 +241,30 @@ window.app = Vue.createApp({
     },
     exporteventsCSV() {
       LNbits.utils.exportCSV(this.eventsTable.columns, this.events)
+    },
+    async checkCanceledEvents() {
+      const events = this.events
+        .filter(event => event.extra.conditional)
+        .filter(e => !e.canceled)
+      if (!events.length) return
+      const now = new Date()
+      events.forEach(async ev => {
+        if (new Date(ev.closing_date) < now && ev.sold < ev.extra.min_tickets) {
+          const {data} = await LNbits.api.request(
+            'PUT',
+            '/events/api/v1/events/' + ev.id + '/cancel',
+            _.findWhere(this.g.user.wallets, {id: ev.wallet}).adminkey
+          )
+          Quasar.Notify.create({
+            type: 'warning',
+            message: `Event ${ev.name} has been canceled and refunds have been issued.`,
+            icon: null
+          })
+          this.events = this.events.map(e =>
+            e.id === ev.id ? mapEvents(data) : e
+          )
+        }
+      })
     }
   },
   async created() {
@@ -242,3 +275,30 @@ window.app = Vue.createApp({
     }
   }
 })
+
+/* 
+{
+  "id": "agNkaiTXbxa8KShW4grZUQ",
+  "wallet": "12f58510dc5a46ffb8e95e7fc336c3da",
+  "name": "test conditional",
+  "info": "## Conditional Event\n\nMust sell 5 tickets\n\nAsks for refund lnaddress",
+  "closing_date": "2025-08-22",
+  "canceled": false,
+  "event_start_date": "2025-08-23",
+  "event_end_date": "2025-08-31",
+  "currency": "EUR",
+  "amount_tickets": 10,
+  "price_per_ticket": 0.10000000149011612,
+  "time": "2025-08-21T09:22:26.863944",
+  "sold": 0,
+  "banner": null,
+  "extra": {
+    "promo_codes": [],
+    "conditional": true,
+    "min_tickets": 5
+  },
+  "date": "2025-08-21 09:22",
+  "fsat": "0.1",
+  "displayUrl": "/events/agNkaiTXbxa8KShW4grZUQ"
+}
+*/

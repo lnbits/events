@@ -2,13 +2,14 @@ from datetime import date, datetime
 from http import HTTPStatus
 
 from fastapi import APIRouter, Depends, Request
-from lnbits.core.models import User
-from lnbits.decorators import check_user_exists
-from lnbits.helpers import template_renderer
 from starlette.exceptions import HTTPException
 from starlette.responses import HTMLResponse
 
-from .crud import get_event, get_ticket
+from lnbits.core.models import User
+from lnbits.decorators import check_user_exists
+from lnbits.helpers import template_renderer
+
+from .crud import get_event, get_ticket, purge_unpaid_tickets, update_event
 from .services import refund_tickets
 
 events_generic_router = APIRouter()
@@ -33,6 +34,8 @@ async def display(request: Request, event_id):
             status_code=HTTPStatus.NOT_FOUND, detail="Event does not exist."
         )
 
+    await purge_unpaid_tickets(event_id)
+
     is_window_open = (
         date.today() < datetime.strptime(event.closing_date, "%Y-%m-%d").date()
     )
@@ -49,16 +52,9 @@ async def display(request: Request, event_id):
                 "event_error": "Sorry, tickets are sold out :(",
             },
         )
-    if not is_window_open:
-        return events_renderer().TemplateResponse(
-            "events/error.html",
-            {
-                "request": request,
-                "event_name": event.name,
-                "event_error": "Sorry, ticket closing date has passed :(",
-            },
-        )
     if event.extra.conditional and not is_min_tickets_met and not is_window_open:
+        event.canceled = True
+        await update_event(event)
         await refund_tickets(event_id)
 
         return events_renderer().TemplateResponse(
@@ -66,7 +62,16 @@ async def display(request: Request, event_id):
             {
                 "request": request,
                 "event_name": event.name,
-                "event_error": "Sorry, minimum ticket requirement not met.",
+                "event_error": "Sorry, event was cancelled.",
+            },
+        )
+    if not is_window_open:
+        return events_renderer().TemplateResponse(
+            "events/error.html",
+            {
+                "request": request,
+                "event_name": event.name,
+                "event_error": "Sorry, ticket closing date has passed :(",
             },
         )
     return events_renderer().TemplateResponse(

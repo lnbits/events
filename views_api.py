@@ -2,6 +2,8 @@ from datetime import datetime, timezone
 from http import HTTPStatus
 
 from fastapi import APIRouter, Depends, Query
+from starlette.exceptions import HTTPException
+
 from lnbits.core.crud import get_standalone_payment, get_user
 from lnbits.core.models import WalletTypeInfo
 from lnbits.core.services import create_invoice
@@ -13,7 +15,6 @@ from lnbits.utils.exchange_rates import (
     fiat_amount_as_satoshis,
     get_fiat_rate_satoshis,
 )
-from starlette.exceptions import HTTPException
 
 from .crud import (
     create_event,
@@ -26,12 +27,11 @@ from .crud import (
     get_events,
     get_ticket,
     get_tickets,
-    purge_unpaid_tickets,
     update_event,
     update_ticket,
 )
 from .models import CreateEvent, CreateTicket, Ticket
-from .services import set_ticket_paid
+from .services import refund_tickets, set_ticket_paid
 
 events_api_router = APIRouter()
 
@@ -73,6 +73,26 @@ async def api_event_create(
         event = await update_event(event)
     else:
         event = await create_event(data)
+
+    return event.dict()
+
+
+@events_api_router.put("/api/v1/events/{event_id}/cancel")
+async def api_event_cancel(
+    event_id: str,
+    wallet: WalletTypeInfo = Depends(require_admin_key),
+):
+    event = await get_event(event_id)
+    if not event:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail="Event does not exist."
+        )
+
+    if event.wallet != wallet.wallet.id:
+        raise HTTPException(status_code=HTTPStatus.FORBIDDEN, detail="Not your event.")
+    event.canceled = True
+    event = await update_event(event)
+    await refund_tickets(event.id)
 
     return event.dict()
 
@@ -241,17 +261,6 @@ async def api_ticket_delete(
         raise HTTPException(status_code=HTTPStatus.FORBIDDEN, detail="Not your ticket.")
 
     await delete_ticket(ticket_id)
-
-
-# TODO: DELETE, updates db! @tal
-@events_api_router.get("/api/v1/purge/{event_id}")
-async def api_event_purge_tickets(event_id: str):
-    event = await get_event(event_id)
-    if not event:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail="Event does not exist."
-        )
-    return await purge_unpaid_tickets(event_id)
 
 
 @events_api_router.get("/api/v1/eventtickets/{event_id}")

@@ -31,8 +31,6 @@ window.app = Vue.createApp({
     this.info = this.info.substring(1, this.info.length - 1)
     this.banner = event_banner
     this.extra = event_extra
-    await this.purgeUnpaidTickets()
-    console.log(event_extra)
   },
   computed: {
     formatDescription() {
@@ -64,7 +62,6 @@ window.app = Vue.createApp({
       const regex = /^[\w\.-]+@[a-zA-Z\d\.-]+\.[a-zA-Z]{2,}$/
       return regex.test(val) || 'Please enter valid email.'
     },
-
     Invoice() {
       axios
         .post(`/events/api/v1/tickets/${event_id}`, {
@@ -126,13 +123,6 @@ window.app = Vue.createApp({
           }, 2000)
         })
         .catch(LNbits.utils.notifyApiError)
-    },
-    async purgeUnpaidTickets() {
-      try {
-        await LNbits.api.request('GET', `/events/api/v1/purge/${event_id}`)
-      } catch (error) {
-        LNbits.utils.notifyApiError(error)
-      }
     }
   }
 })

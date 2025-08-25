@@ -164,11 +164,17 @@ async def m005_add_image_banner(db):
 
 async def m006_add_extra_fields(db):
     """
-    Add an 'extra' column to events and ticket tables
+    Add a canceled and 'extra' column to events and ticket tables
     to support promo codes and ticket metadata.
     """
-    # Add 'extra' column to events table
-    await db.execute("ALTER TABLE events.events ADD COLUMN extra TEXT;")
+    # Add canceled and 'extra' columns to events table
+    await db.execute(
+        """
+        ALTER TABLE events.events
+        ADD COLUMN canceled BOOLEAN NOT NULL DEFAULT FALSE,
+        ADD COLUMN extra TEXT;
+        """
+    )
 
     # Add 'extra' column to ticket table
     await db.execute("ALTER TABLE events.ticket ADD COLUMN extra TEXT;")

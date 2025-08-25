@@ -33,10 +33,6 @@ async def refund_tickets(event_id: str):
     This function should be called when the event is closed and the minimum ticket
     condition is not met.
     """
-    event = await get_event(event_id)
-    if not event:
-        return
-
     await purge_unpaid_tickets(event_id)
     tickets = await get_event_tickets(event_id)
 

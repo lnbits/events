@@ -247,33 +247,6 @@
             ></q-input>
           </div>
         </div>
-        <!-- CONDITIONAL -->
-        <!-- <q-separator class="q-my-md"></q-separator>
-        <div class="row">
-          <p>
-            Make this event conditional if <strong>minimum tickets</strong> are
-            sold
-          </p>
-          <div class="col-8">
-            <q-toggle
-              v-model="formDialog.data.extra.conditional"
-              label="Conditional Event"
-              left-label
-            ></q-toggle>
-          </div>
-          <div class="col-4">
-            <q-input
-              filled
-              dense
-              v-model.number="formDialog.data.extra.min_tickets"
-              type="number"
-              label="Minimum Tickets"
-              :disable="!formDialog.data.extra.conditional"
-            ></q-input>
-          </div>
-        </div>
-        <q-separator class="q-my-md"></q-separator> -->
-
         <div class="row q-col-gutter-sm">
           <div class="col">
             <q-select
@@ -314,6 +287,7 @@
           label="Advanced options"
         >
           <div class="row q-mt-lg">
+            <div class="text-h6 q-mb-md">Conditional Events</div>
             <p>
               Make this event conditional if
               <strong>minimum tickets</strong> are sold. User will be asked to
