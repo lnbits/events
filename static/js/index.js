@@ -178,7 +178,8 @@ window.app = Vue.createApp({
         this.formDialog.data = {
           extra: {
             conditional: false,
-            min_tickets: 1
+            min_tickets: 1,
+            promo_codes: []
           }
         }
       }

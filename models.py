@@ -8,6 +8,7 @@ class PromoCode(BaseModel):
     code: str
     discount_percent: float = 0
     description: str | None = None
+    active: bool = True
 
     @validator("discount_percent")
     def validate_discount_percent(cls, v):

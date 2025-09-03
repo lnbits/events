@@ -33,7 +33,7 @@
           <template v-slot:header="props">
             <q-tr :props="props">
               <q-th auto-width></q-th>
-
+              <q-th auto-width></q-th>
               <q-th v-for="col in props.cols" :key="col.name" :props="props">
                 <span v-text="col.label"></span>
               </q-th>
@@ -43,6 +43,16 @@
           </template>
           <template v-slot:body="props">
             <q-tr :props="props">
+              <q-td auto-width>
+                <q-btn
+                  size="sm"
+                  color="accent"
+                  round
+                  dense
+                  @click="props.expand = !props.expand"
+                  :icon="props.expand ? 'expand_less' : 'expand_more'"
+                />
+              </q-td>
               <q-td auto-width>
                 <q-btn
                   unelevated
@@ -87,6 +97,48 @@
                   icon="cancel"
                   color="pink"
                 ></q-btn>
+              </q-td>
+            </q-tr>
+            <q-tr v-show="props.expand" :props="props">
+              <q-td>
+                <q-card class="q-my-md">
+                  <div class="row">
+                    <div class="col-12 text-h6 q-mb-md">Promo Codes</div>
+                    <p class="col-12">
+                      Allow users to enter a promo code for discounts.
+                    </p>
+                    <template
+                      v-if="formDialog.data.extra.promo_codes.length === 0"
+                    >
+                      <div
+                        v-for="(code, index) in formDialog.data.extra.promo_codes"
+                        :key="index"
+                      >
+                        <q-input
+                          class="col-12 col-sm-4"
+                          filled
+                          dense
+                          v-model.trim="formDialog.data.extra.promo_codes[index].code"
+                          type="text"
+                          label="Promo Code"
+                        ></q-input>
+                        <q-input
+                          class="col-12 col-sm-4"
+                          filled
+                          dense
+                          v-model.number="formDialog.data.extra.promo_codes[index].discount_percent"
+                          type="number"
+                          label="Discount (%)"
+                          min="0"
+                          max="100"
+                        ></q-input>
+                      </div>
+                    </template>
+                  </div>
+                  <q-card-actions>
+                    <q-btn flat>Action 1</q-btn>
+                  </q-card-actions>
+                </q-card>
               </q-td>
             </q-tr>
           </template>
@@ -311,7 +363,38 @@
               ></q-input>
             </div>
           </div>
-          <q-separator class="q-my-md"></q-separator>
+          <!-- <q-separator class="q-my-md"></q-separator>
+          <div class="row">
+            <div class="col-12 text-h6 q-mb-md">Promo Codes</div>
+            <p class="col-12">
+              Allow users to enter a promo code for discounts.
+            </p>
+            <template v-if="formDialog.data.extra.promo_codes.length === 0">
+              <div
+                v-for="(code, index) in formDialog.data.extra.promo_codes"
+                :key="index"
+              >
+                <q-input
+                  class="col-12 col-sm-4"
+                  filled
+                  dense
+                  v-model.trim="formDialog.data.extra.promo_codes[index].code"
+                  type="text"
+                  label="Promo Code"
+                ></q-input>
+                <q-input
+                  class="col-12 col-sm-4"
+                  filled
+                  dense
+                  v-model.number="formDialog.data.extra.promo_codes[index].discount_percent"
+                  type="number"
+                  label="Discount (%)"
+                  min="0"
+                  max="100"
+                ></q-input>
+              </div>
+            </template>
+          </div> -->
         </q-expansion-item>
 
         <div class="row q-mt-lg">
