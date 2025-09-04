@@ -5,8 +5,10 @@ requires-python = ">=3.10,<3.13"
 description = "LNbits, free and open-source Lightning wallet and accounts system."
 authors = [{ name = "Alan Bits", email = "alan@lnbits.com" }]
 urls = { Homepage = "https://lnbits.com", Repository = "https://github.com/lnbits/events" }
-
 dependencies = [ "lnbits>1" ]
+
+[tool.poetry]
+package-mode = false
 
 [tool.uv]
 dev-dependencies = [
@@ -27,19 +29,6 @@ init_forbid_extra = true
 init_typed = true
 warn_required_dynamic_aliases = true
 warn_untyped_fields = true
-
-[[tool.mypy.overrides]]
-module = [
-  "lnbits.*",
-  "lnurl.*",
-  "loguru.*",
-  "fastapi.*",
-  "pydantic.*",
-  "pyqrcode.*",
-  "shortuuid.*",
-  "httpx.*",
-]
-ignore_missing_imports = "True"
 
 [tool.pytest.ini_options]
 log_cli = false
