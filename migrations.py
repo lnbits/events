@@ -160,3 +160,17 @@ async def m005_add_image_banner(db):
     Add a column to allow an image banner for the event
     """
     await db.execute("ALTER TABLE events.events ADD COLUMN banner TEXT;")
+
+
+async def m006_add_user_id_support(db):
+    """
+    Add user_id column to tickets table to support LNbits user-id as identifier
+    Make name and email optional when user_id is provided
+    """
+    await db.execute("ALTER TABLE events.ticket ADD COLUMN user_id TEXT;")
+    
+    # Since SQLite doesn't support changing column constraints directly,
+    # we'll work around this by allowing the application logic to handle
+    # the validation that either (name AND email) OR user_id is provided
+    # The database will continue to expect name and email as NOT NULL
+    # but we'll insert empty strings for user_id tickets

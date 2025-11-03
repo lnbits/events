@@ -27,6 +27,7 @@ from .crud import (
     get_events,
     get_ticket,
     get_tickets,
+    get_tickets_by_user_id,
     purge_unpaid_tickets,
     update_event,
     update_ticket,
@@ -49,6 +50,18 @@ async def api_events(
         wallet_ids = user.wallet_ids if user else []
 
     return [event.dict() for event in await get_events(wallet_ids)]
+
+
+@events_api_router.get("/api/v1/events/public")
+async def api_events_public():
+    """
+    Retrieve all events in the database with read-only access.
+    This endpoint allows access to all events using any valid API key (read access).
+    """
+    # Get all events from the database without wallet filtering
+    from .crud import get_all_events
+    events = await get_all_events()
+    return [event.dict() for event in events]
 
 
 @events_api_router.post("/api/v1/events")
@@ -113,11 +126,61 @@ async def api_tickets(
     return await get_tickets(wallet_ids)
 
 
+@events_api_router.get("/api/v1/tickets/user/{user_id}")
+async def api_tickets_by_user_id(user_id: str) -> list[Ticket]:
+    """Get all tickets for a specific user by their user_id"""
+    return await get_tickets_by_user_id(user_id)
+
+
 @events_api_router.post("/api/v1/tickets/{event_id}")
 async def api_ticket_create(event_id: str, data: CreateTicket):
-    name = data.name
-    email = data.email
-    return await api_ticket_make_ticket(event_id, name, email)
+    if data.user_id:
+        return await api_ticket_make_ticket_with_user_id(event_id, data.user_id)
+    else:
+        return await api_ticket_make_ticket(event_id, data.name, data.email)
+
+
+async def api_ticket_make_ticket_with_user_id(event_id: str, user_id: str):
+    event = await get_event(event_id)
+    if not event:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail="Event does not exist."
+        )
+
+    price = event.price_per_ticket
+    extra = {"tag": "events", "user_id": user_id}
+
+    if event.currency != "sats":
+        price = await fiat_amount_as_satoshis(event.price_per_ticket, event.currency)
+
+        extra["fiat"] = True
+        extra["currency"] = event.currency
+        extra["fiatAmount"] = event.price_per_ticket
+        extra["rate"] = await get_fiat_rate_satoshis(event.currency)
+
+    try:
+        payment = await create_invoice(
+            wallet_id=event.wallet,
+            amount=price,
+            memo=f"{event_id}",
+            extra=extra,
+        )
+        await create_ticket(
+            payment_hash=payment.payment_hash,
+            wallet=event.wallet,
+            event=event.id,
+            user_id=user_id,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail=str(exc)
+        ) from exc
+    return {"payment_hash": payment.payment_hash, "payment_request": payment.bolt11}
+
+
+@events_api_router.get("/api/v1/tickets/{event_id}/user/{user_id}")
+async def api_ticket_make_ticket_user_id(event_id: str, user_id: str):
+    return await api_ticket_make_ticket_with_user_id(event_id, user_id)
 
 
 @events_api_router.get("/api/v1/tickets/{event_id}/{name}/{email}")

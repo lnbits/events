@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional
 
 from fastapi import Query
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, root_validator
 
 
 class CreateEvent(BaseModel):
@@ -19,8 +19,22 @@ class CreateEvent(BaseModel):
 
 
 class CreateTicket(BaseModel):
-    name: str
-    email: EmailStr
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    user_id: Optional[str] = None
+    
+    @root_validator
+    def validate_identifiers(cls, values):
+        # Ensure either (name AND email) OR user_id is provided
+        name = values.get('name')
+        email = values.get('email')
+        user_id = values.get('user_id')
+        
+        if not user_id and not (name and email):
+            raise ValueError("Either user_id or both name and email must be provided")
+        if user_id and (name or email):
+            raise ValueError("Cannot provide both user_id and name/email")
+        return values
 
 
 class Event(BaseModel):
@@ -43,8 +57,9 @@ class Ticket(BaseModel):
     id: str
     wallet: str
     event: str
-    name: str
-    email: str
+    name: Optional[str] = None
+    email: Optional[str] = None
+    user_id: Optional[str] = None
     registered: bool
     paid: bool
     time: datetime

@@ -21,8 +21,12 @@ async def on_invoice_paid(payment: Payment) -> None:
     if not payment.extra or "events" != payment.extra.get("tag"):
         return
 
-    if not payment.extra.get("name") or not payment.extra.get("email"):
-        logger.warning(f"Ticket {payment.payment_hash} missing name or email.")
+    # Check if ticket has either name/email or user_id
+    has_name_email = payment.extra.get("name") and payment.extra.get("email")
+    has_user_id = payment.extra.get("user_id")
+    
+    if not has_name_email and not has_user_id:
+        logger.warning(f"Ticket {payment.payment_hash} missing name/email or user_id.")
         return
 
     ticket = await get_ticket(payment.payment_hash)
