@@ -37,7 +37,7 @@ class CreateEvent(BaseModel):
     currency: str = "sat"
     amount_tickets: int = Query(..., ge=0)
     price_per_ticket: float = Query(..., ge=0)
-    banner: str | None = None
+    banner: Optional[str] = None
     extra: EventExtra = Field(default_factory=EventExtra)
 
 

@@ -19,7 +19,7 @@ async def create_ticket(
     extra: Optional[dict] = None,
 ) -> Ticket:
     now = datetime.now(timezone.utc)
-    
+
     # Handle database constraints: if user_id is provided, use empty strings for name/email
     if user_id:
         db_name = ""
@@ -27,7 +27,7 @@ async def create_ticket(
     else:
         db_name = name or ""
         db_email = email or ""
-    
+
     ticket = Ticket(
         id=payment_hash,
         wallet=wallet,
@@ -41,12 +41,12 @@ async def create_ticket(
         time=now,
         extra=TicketExtra(**extra) if extra else TicketExtra(),
     )
-    
+
     # Create a dict for database insertion with proper handling of constraints
     ticket_dict = ticket.dict()
     ticket_dict["name"] = db_name
     ticket_dict["email"] = db_email
-    
+
     await db.execute(
         """
         INSERT INTO events.ticket (id, wallet, event, name, email, user_id, registered, paid, time, reg_timestamp, extra)
@@ -60,16 +60,16 @@ async def create_ticket(
 async def update_ticket(ticket: Ticket) -> Ticket:
     # Create a new Ticket object with corrected values for database constraints
     ticket_dict = ticket.dict()
-    
+
     # Convert None values to empty strings for database constraints
     if ticket_dict.get("name") is None:
         ticket_dict["name"] = ""
     if ticket_dict.get("email") is None:
         ticket_dict["email"] = ""
-    
+
     # Create a new Ticket object with the corrected values
     corrected_ticket = Ticket(**ticket_dict)
-    
+
     await db.update("events.ticket", corrected_ticket)
     return ticket
 
@@ -97,7 +97,7 @@ async def get_tickets(wallet_ids: str | list[str]) -> list[Ticket]:
         wallet_ids = [wallet_ids]
     q = ",".join([f"'{wallet_id}'" for wallet_id in wallet_ids])
     rows = await db.fetchall(f"SELECT * FROM events.ticket WHERE wallet IN ({q})")
-    
+
     tickets = []
     for row in rows:
         # Convert empty strings back to None for the model
@@ -107,7 +107,7 @@ async def get_tickets(wallet_ids: str | list[str]) -> list[Ticket]:
         if ticket_data.get("email") == "":
             ticket_data["email"] = None
         tickets.append(Ticket(**ticket_data))
-    
+
     return tickets
 
 
@@ -117,7 +117,7 @@ async def get_tickets_by_user_id(user_id: str) -> list[Ticket]:
         "SELECT * FROM events.ticket WHERE user_id = :user_id ORDER BY time DESC",
         {"user_id": user_id}
     )
-    
+
     tickets = []
     for row in rows:
         # Convert empty strings back to None for the model
@@ -127,7 +127,7 @@ async def get_tickets_by_user_id(user_id: str) -> list[Ticket]:
         if ticket_data.get("email") == "":
             ticket_data["email"] = None
         tickets.append(Ticket(**ticket_data))
-    
+
     return tickets
 
 
@@ -199,7 +199,7 @@ async def get_event_tickets(event_id: str) -> list[Ticket]:
         "SELECT * FROM events.ticket WHERE event = :event",
         {"event": event_id},
     )
-    
+
     tickets = []
     for row in rows:
         # Convert empty strings back to None for the model
@@ -209,5 +209,5 @@ async def get_event_tickets(event_id: str) -> list[Ticket]:
         if ticket_data.get("email") == "":
             ticket_data["email"] = None
         tickets.append(Ticket(**ticket_data))
-    
+
     return tickets
