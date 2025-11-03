@@ -72,11 +72,10 @@
     </q-card>
     <q-card v-else class="q-pa-lg q-pt-xl lnbits__dialog-card">
       <div class="text-center q-mb-lg">
-        <a class="text-secondary" :href="'lightning:' + receive.paymentReq">
-          <lnbits-qrcode
-            :value="'lightning:' + receive.paymentReq.toUpperCase()"
-          ></lnbits-qrcode>
-        </a>
+        <lnbits-qrcode
+          :href="'lightning:' + receive.paymentReq"
+          :value="'lightning:' + receive.paymentReq.toUpperCase()"
+        ></lnbits-qrcode>
       </div>
       <div class="row q-mt-lg">
         <q-btn outline color="grey" @click="copyText(receive.paymentReq)"

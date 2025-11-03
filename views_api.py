@@ -1,6 +1,5 @@
 from datetime import datetime, timezone
 from http import HTTPStatus
-from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
 from lnbits.core.crud import get_standalone_payment, get_user
@@ -69,7 +68,7 @@ async def api_events_public():
 async def api_event_create(
     data: CreateEvent,
     wallet: WalletTypeInfo = Depends(require_admin_key),
-    event_id: Optional[str] = None,
+    event_id: str | None = None,
 ):
     if event_id:
         event = await get_event(event_id)

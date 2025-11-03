@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Union
 
 from lnbits.db import Database
 from lnbits.helpers import urlsafe_short_hash
@@ -72,8 +71,8 @@ async def update_ticket(ticket: Ticket) -> Ticket:
     return ticket
 
 
-async def get_ticket(payment_hash: str) -> Optional[Ticket]:
-    row = await db.fetchone(
+async def get_ticket(payment_hash: str) -> Ticket | None:
+    return await db.fetchone(
         "SELECT * FROM events.ticket WHERE id = :id",
         {"id": payment_hash},
     )
@@ -90,7 +89,7 @@ async def get_ticket(payment_hash: str) -> Optional[Ticket]:
     return Ticket(**ticket_data)
 
 
-async def get_tickets(wallet_ids: Union[str, list[str]]) -> list[Ticket]:
+async def get_tickets(wallet_ids: str | list[str]) -> list[Ticket]:
     if isinstance(wallet_ids, str):
         wallet_ids = [wallet_ids]
     q = ",".join([f"'{wallet_id}'" for wallet_id in wallet_ids])
@@ -162,7 +161,7 @@ async def update_event(event: Event) -> Event:
     return event
 
 
-async def get_event(event_id: str) -> Optional[Event]:
+async def get_event(event_id: str) -> Event | None:
     return await db.fetchone(
         "SELECT * FROM events.events WHERE id = :id",
         {"id": event_id},
@@ -170,7 +169,7 @@ async def get_event(event_id: str) -> Optional[Event]:
     )
 
 
-async def get_events(wallet_ids: Union[str, list[str]]) -> list[Event]:
+async def get_events(wallet_ids: str | list[str]) -> list[Event]:
     if isinstance(wallet_ids, str):
         wallet_ids = [wallet_ids]
     q = ",".join([f"'{wallet_id}'" for wallet_id in wallet_ids])
