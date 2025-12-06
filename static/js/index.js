@@ -1,6 +1,8 @@
 const mapEvents = function (obj) {
   obj.date = Quasar.date.formatDate(new Date(obj.time), 'YYYY-MM-DD HH:mm')
-  obj.fsat = new Intl.NumberFormat(LOCALE).format(obj.price_per_ticket)
+  obj.fsat = new Intl.NumberFormat(navigator.language).format(
+    obj.price_per_ticket
+  )
   obj.displayUrl = ['/events/', obj.id].join('')
   return obj
 }
@@ -81,7 +83,6 @@ window.app = Vue.createApp({
       },
       ticketsTable: {
         columns: [
-          {name: 'id', align: 'left', label: 'ID', field: 'id'},
           {name: 'event', align: 'left', label: 'Event', field: 'event'},
           {name: 'name', align: 'left', label: 'Name', field: 'name'},
           {name: 'email', align: 'left', label: 'Email', field: 'email'},
@@ -90,7 +91,14 @@ window.app = Vue.createApp({
             align: 'left',
             label: 'Registered',
             field: 'registered'
-          }
+          },
+          {
+            name: 'promo_code',
+            align: 'left',
+            label: 'Promo Code',
+            field: row => row.extra.applied_promo_code || ''
+          },
+          {name: 'id', align: 'left', label: 'ID', field: 'id'}
         ],
         pagination: {
           rowsPerPage: 10
@@ -98,7 +106,11 @@ window.app = Vue.createApp({
       },
       formDialog: {
         show: false,
-        data: {}
+        data: {
+          extra: {
+            promo_codes: []
+          }
+        }
       }
     }
   },
@@ -116,6 +128,7 @@ window.app = Vue.createApp({
               return mapEvents(obj)
             })
             .filter(e => e.paid)
+          console.log('Tickets: ', this.tickets)
         })
     },
     deleteTicket(ticketId) {
@@ -151,7 +164,8 @@ window.app = Vue.createApp({
           this.g.user.wallets[0].inkey
         )
         .then(response => {
-          this.events = response.data.map(function (obj) {
+          console.log(response.data)
+          this.events = response.data.map(obj => {
             return mapEvents(obj)
           })
           console.log(this.events)
@@ -163,6 +177,11 @@ window.app = Vue.createApp({
         id: this.formDialog.data.wallet
       })
       const data = this.formDialog.data
+      if (data.extra && !data.extra.promo_codes) {
+        data.extra.promo_codes = data.extra.promo_codes
+          .filter(code => code.trim() !== '')
+          .map(code => code.trim().toUpperCase())
+      }
 
       if (data.id) {
         this.updateEvent(wallet, data)
@@ -187,7 +206,11 @@ window.app = Vue.createApp({
     },
     resetEventDialog() {
       this.formDialog.show = false
-      this.formDialog.data = {}
+      this.formDialog.data = {
+        extra: {
+          promo_codes: []
+        }
+      }
     },
 
     createEvent(wallet, data) {
@@ -276,30 +299,3 @@ window.app = Vue.createApp({
     }
   }
 })
-
-/* 
-{
-  "id": "agNkaiTXbxa8KShW4grZUQ",
-  "wallet": "12f58510dc5a46ffb8e95e7fc336c3da",
-  "name": "test conditional",
-  "info": "## Conditional Event\n\nMust sell 5 tickets\n\nAsks for refund lnaddress",
-  "closing_date": "2025-08-22",
-  "canceled": false,
-  "event_start_date": "2025-08-23",
-  "event_end_date": "2025-08-31",
-  "currency": "EUR",
-  "amount_tickets": 10,
-  "price_per_ticket": 0.10000000149011612,
-  "time": "2025-08-21T09:22:26.863944",
-  "sold": 0,
-  "banner": null,
-  "extra": {
-    "promo_codes": [],
-    "conditional": true,
-    "min_tickets": 5
-  },
-  "date": "2025-08-21 09:22",
-  "fsat": "0.1",
-  "displayUrl": "/events/agNkaiTXbxa8KShW4grZUQ"
-}
-*/

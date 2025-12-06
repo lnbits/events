@@ -40,6 +40,13 @@
             lazy-rules
             :hint="`If minimum tickets (${this.extra?.min_tickets}) are not met, refund will be sent.`"
           ></q-input>
+          <q-input
+            v-if="hasPromoCodes"
+            filled
+            dense
+            v-model.trim="formDialog.data.promo_code"
+            label="Apply Promo Code "
+          ></q-input>
           <div class="row q-mt-lg">
             <q-btn
               unelevated
@@ -104,6 +111,7 @@
   const event_info = '{{ event_info | tojson }}'
   const event_banner = JSON.parse('{{ event_banner | tojson | safe }}')
   const event_extra = JSON.parse('{{ event_extra | safe }}')
+  const has_promoCodes = {{ has_promo_codes | tojson }}
 </script>
 <script src="{{ static_url_for('events/static', path='js/display.js') }}"></script>
 {% endblock %}

@@ -136,7 +136,7 @@ async def api_tickets(
 async def api_ticket_create(event_id: str, data: CreateTicket):
     name = data.name
     email = data.email
-    promo_code = data.promo_code
+    promo_code = data.promo_code.upper() if data.promo_code else None
     refund_address = data.refund_address
     return await api_ticket_make_ticket(
         event_id, name, email, promo_code, refund_address

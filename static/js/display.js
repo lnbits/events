@@ -31,6 +31,7 @@ window.app = Vue.createApp({
     this.info = this.info.substring(1, this.info.length - 1)
     this.banner = event_banner
     this.extra = event_extra
+    this.hasPromoCodes = has_promoCodes
   },
   computed: {
     formatDescription() {
@@ -66,7 +67,8 @@ window.app = Vue.createApp({
       axios
         .post(`/events/api/v1/tickets/${event_id}`, {
           name: this.formDialog.data.name,
-          email: this.formDialog.data.email
+          email: this.formDialog.data.email,
+          promo_code: this.formDialog.data.promo_code || null
         })
         .then(response => {
           this.paymentReq = response.data.payment_request

@@ -74,6 +74,13 @@ async def display(request: Request, event_id):
                 "event_error": "Sorry, ticket closing date has passed :(",
             },
         )
+
+    if len(event.extra.promo_codes) > 0:
+        has_promo_codes = True
+    else:
+        has_promo_codes = False
+
+    event.extra.promo_codes = []
     return events_renderer().TemplateResponse(
         "events/display.html",
         {
@@ -84,6 +91,7 @@ async def display(request: Request, event_id):
             "event_price": event.price_per_ticket,
             "event_banner": event.banner,
             "event_extra": event.extra.json(),
+            "has_promo_codes": has_promo_codes,
         },
     )
 

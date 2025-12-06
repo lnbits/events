@@ -6,9 +6,13 @@ from pydantic import BaseModel, EmailStr, Field, validator
 
 class PromoCode(BaseModel):
     code: str
-    discount_percent: float = 0
-    description: str | None = None
+    discount_percent: float = 0.0
     active: bool = True
+
+    # make the promo code uppercase
+    @validator("code")
+    def uppercase_code(cls, v):
+        return v.upper()
 
     @validator("discount_percent")
     def validate_discount_percent(cls, v):
