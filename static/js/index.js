@@ -1,5 +1,5 @@
 const mapEvents = function (obj) {
-  obj.date = Quasar.date.formatDate(new Date(obj.time), 'YYYY-MM-DD HH:mm')
+  obj.date = LNbits.utils.formatTimestamp(obj.time)
   obj.fsat = new Intl.NumberFormat(window.g.locale).format(
     obj.price_per_ticket
   )
