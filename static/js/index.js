@@ -1,8 +1,6 @@
 const mapEvents = function (obj) {
   obj.date = LNbits.utils.formatTimestamp(obj.time)
-  obj.fsat = new Intl.NumberFormat(window.g.locale).format(
-    obj.price_per_ticket
-  )
+  obj.fsat = new Intl.NumberFormat(window.g.locale).format(obj.price_per_ticket)
   obj.displayUrl = ['/events/', obj.id].join('')
   return obj
 }
@@ -128,7 +126,6 @@ window.app = Vue.createApp({
               return mapEvents(obj)
             })
             .filter(e => e.paid)
-          console.log('Tickets: ', this.tickets)
         })
     },
     deleteTicket(ticketId) {
@@ -164,11 +161,9 @@ window.app = Vue.createApp({
           this.g.user.wallets[0].inkey
         )
         .then(response => {
-          console.log(response.data)
           this.events = response.data.map(obj => {
             return mapEvents(obj)
           })
-          console.log(this.events)
           this.checkCanceledEvents()
         })
     },
