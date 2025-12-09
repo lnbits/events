@@ -4,18 +4,19 @@ from typing import Optional
 from lnbits.db import Database
 from lnbits.helpers import urlsafe_short_hash
 
-from .models import CreateEvent, Event, Ticket
+from .models import CreateEvent, Event, Ticket, TicketExtra
 
 db = Database("ext_events")
 
 
 async def create_ticket(
-    payment_hash: str, 
-    wallet: str, 
-    event: str, 
-    name: Optional[str] = None, 
+    payment_hash: str,
+    wallet: str,
+    event: str,
+    name: Optional[str] = None,
     email: Optional[str] = None,
-    user_id: Optional[str] = None
+    user_id: Optional[str] = None,
+    extra: Optional[dict] = None,
 ) -> Ticket:
     now = datetime.now(timezone.utc)
     
@@ -38,6 +39,7 @@ async def create_ticket(
         paid=False,
         reg_timestamp=now,
         time=now,
+        extra=TicketExtra(**extra) if extra else TicketExtra(),
     )
     
     # Create a dict for database insertion with proper handling of constraints
@@ -47,8 +49,8 @@ async def create_ticket(
     
     await db.execute(
         """
-        INSERT INTO events.ticket (id, wallet, event, name, email, user_id, registered, paid, time, reg_timestamp)
-        VALUES (:id, :wallet, :event, :name, :email, :user_id, :registered, :paid, :time, :reg_timestamp)
+        INSERT INTO events.ticket (id, wallet, event, name, email, user_id, registered, paid, time, reg_timestamp, extra)
+        VALUES (:id, :wallet, :event, :name, :email, :user_id, :registered, :paid, :time, :reg_timestamp, :extra)
         """,
         ticket_dict
     )
@@ -72,21 +74,21 @@ async def update_ticket(ticket: Ticket) -> Ticket:
     return ticket
 
 
-async def get_ticket(payment_hash: str) -> Ticket | None:
-    return await db.fetchone(
+async def get_ticket(payment_hash: str) -> Optional[Ticket]:
+    row = await db.fetchone(
         "SELECT * FROM events.ticket WHERE id = :id",
         {"id": payment_hash},
     )
     if not row:
         return None
-    
+
     # Convert empty strings back to None for the model
     ticket_data = dict(row)
     if ticket_data.get("name") == "":
         ticket_data["name"] = None
     if ticket_data.get("email") == "":
         ticket_data["email"] = None
-    
+
     return Ticket(**ticket_data)
 
 

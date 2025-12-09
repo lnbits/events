@@ -8,7 +8,8 @@ from lnbits.helpers import template_renderer
 from starlette.exceptions import HTTPException
 from starlette.responses import HTMLResponse
 
-from .crud import get_event, get_ticket
+from .crud import get_event, get_ticket, purge_unpaid_tickets, update_event
+from .services import refund_tickets
 
 events_generic_router = APIRouter()
 
@@ -32,6 +33,15 @@ async def display(request: Request, event_id):
             status_code=HTTPStatus.NOT_FOUND, detail="Event does not exist."
         )
 
+    await purge_unpaid_tickets(event_id)
+
+    is_window_open = (
+        date.today() < datetime.strptime(event.closing_date, "%Y-%m-%d").date()
+    )
+    is_min_tickets_met = (
+        event.sold >= event.extra.min_tickets if event.extra.conditional else True
+    )
+
     if event.amount_tickets < 1:
         return events_renderer().TemplateResponse(
             "events/error.html",
@@ -41,8 +51,20 @@ async def display(request: Request, event_id):
                 "event_error": "Sorry, tickets are sold out :(",
             },
         )
-    datetime_object = datetime.strptime(event.closing_date, "%Y-%m-%d").date()
-    if date.today() > datetime_object:
+    if event.extra.conditional and not is_min_tickets_met and not is_window_open:
+        event.canceled = True
+        await update_event(event)
+        await refund_tickets(event_id)
+
+        return events_renderer().TemplateResponse(
+            "events/error.html",
+            {
+                "request": request,
+                "event_name": event.name,
+                "event_error": "Sorry, event was cancelled.",
+            },
+        )
+    if not is_window_open:
         return events_renderer().TemplateResponse(
             "events/error.html",
             {
@@ -52,6 +74,12 @@ async def display(request: Request, event_id):
             },
         )
 
+    if len(event.extra.promo_codes) > 0:
+        has_promo_codes = True
+    else:
+        has_promo_codes = False
+
+    event.extra.promo_codes = []
     return events_renderer().TemplateResponse(
         "events/display.html",
         {
@@ -61,6 +89,8 @@ async def display(request: Request, event_id):
             "event_info": event.info,
             "event_price": event.price_per_ticket,
             "event_banner": event.banner,
+            "event_extra": event.extra.json(),
+            "has_promo_codes": has_promo_codes,
         },
     )
 

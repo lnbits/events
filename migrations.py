@@ -174,3 +174,20 @@ async def m006_add_user_id_support(db):
     # the validation that either (name AND email) OR user_id is provided
     # The database will continue to expect name and email as NOT NULL
     # but we'll insert empty strings for user_id tickets
+
+async def m007_add_extra_fields(db):
+    """
+    Add a canceled and 'extra' column to events and ticket tables
+    to support promo codes and ticket metadata.
+    """
+    # Add canceled and 'extra' columns to events table
+    await db.execute(
+        """
+        ALTER TABLE events.events
+        ADD COLUMN canceled BOOLEAN NOT NULL DEFAULT FALSE,
+        ADD COLUMN extra TEXT;
+        """
+    )
+
+    # Add 'extra' column to ticket table
+    await db.execute("ALTER TABLE events.ticket ADD COLUMN extra TEXT;")

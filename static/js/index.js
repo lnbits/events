@@ -1,9 +1,6 @@
 const mapEvents = function (obj) {
-  obj.date = Quasar.date.formatDate(
-    new Date(obj.time * 1000),
-    'YYYY-MM-DD HH:mm'
-  )
-  obj.fsat = new Intl.NumberFormat(LOCALE).format(obj.price_per_ticket)
+  obj.date = LNbits.utils.formatTimestamp(obj.time)
+  obj.fsat = new Intl.NumberFormat(window.g.locale).format(obj.price_per_ticket)
   obj.displayUrl = ['/events/', obj.id].join('')
   return obj
 }
@@ -20,8 +17,6 @@ window.app = Vue.createApp({
         columns: [
           {name: 'id', align: 'left', label: 'ID', field: 'id'},
           {name: 'name', align: 'left', label: 'Name', field: 'name'},
-          {name: 'info', align: 'left', label: 'Info', field: 'info'},
-          {name: 'banner', align: 'left', label: 'Banner', field: 'banner'},
           {
             name: 'event_start_date',
             align: 'left',
@@ -39,6 +34,17 @@ window.app = Vue.createApp({
             align: 'left',
             label: 'Ticket close',
             field: 'closing_date'
+          },
+          {
+            name: 'canceled',
+            align: 'left',
+            label: 'Canceled',
+            field: row => {
+              if (row.extra.conditional && row.canceled) {
+                return 'Yes'
+              }
+              return 'No'
+            }
           },
           {
             name: 'price_per_ticket',
@@ -65,7 +71,9 @@ window.app = Vue.createApp({
             align: 'left',
             label: 'Sold',
             field: 'sold'
-          }
+          },
+          {name: 'info', align: 'left', label: 'Info', field: 'info'},
+          {name: 'banner', align: 'left', label: 'Banner', field: 'banner'}
         ],
         pagination: {
           rowsPerPage: 10
@@ -73,7 +81,6 @@ window.app = Vue.createApp({
       },
       ticketsTable: {
         columns: [
-          {name: 'id', align: 'left', label: 'ID', field: 'id'},
           {name: 'event', align: 'left', label: 'Event', field: 'event'},
           {name: 'name', align: 'left', label: 'Name', field: 'name'},
           {name: 'email', align: 'left', label: 'Email', field: 'email'},
@@ -82,7 +89,14 @@ window.app = Vue.createApp({
             align: 'left',
             label: 'Registered',
             field: 'registered'
-          }
+          },
+          {
+            name: 'promo_code',
+            align: 'left',
+            label: 'Promo Code',
+            field: row => row.extra.applied_promo_code || ''
+          },
+          {name: 'id', align: 'left', label: 'ID', field: 'id'}
         ],
         pagination: {
           rowsPerPage: 10
@@ -90,7 +104,11 @@ window.app = Vue.createApp({
       },
       formDialog: {
         show: false,
-        data: {}
+        data: {
+          extra: {
+            promo_codes: []
+          }
+        }
       }
     }
   },
@@ -143,9 +161,10 @@ window.app = Vue.createApp({
           this.g.user.wallets[0].inkey
         )
         .then(response => {
-          this.events = response.data.map(function (obj) {
+          this.events = response.data.map(obj => {
             return mapEvents(obj)
           })
+          this.checkCanceledEvents()
         })
     },
     sendEventData() {
@@ -153,6 +172,11 @@ window.app = Vue.createApp({
         id: this.formDialog.data.wallet
       })
       const data = this.formDialog.data
+      if (data.extra && !data.extra.promo_codes) {
+        data.extra.promo_codes = data.extra.promo_codes
+          .filter(code => code.trim() !== '')
+          .map(code => code.trim().toUpperCase())
+      }
 
       if (data.id) {
         this.updateEvent(wallet, data)
@@ -161,20 +185,41 @@ window.app = Vue.createApp({
       }
     },
 
+    openEventDialog(data = false) {
+      if (data && data.id) {
+        this.formDialog.data = {...data}
+      } else {
+        this.formDialog.data = {
+          extra: {
+            conditional: false,
+            min_tickets: 1,
+            promo_codes: []
+          }
+        }
+      }
+      this.formDialog.show = true
+    },
+    resetEventDialog() {
+      this.formDialog.show = false
+      this.formDialog.data = {
+        extra: {
+          promo_codes: []
+        }
+      }
+    },
+
     createEvent(wallet, data) {
       LNbits.api
         .request('POST', '/events/api/v1/events', wallet.adminkey, data)
         .then(response => {
           this.events.push(mapEvents(response.data))
-          this.formDialog.show = false
-          this.formDialog.data = {}
+          this.resetEventDialog()
         })
         .catch(LNbits.utils.notifyApiError)
     },
     updateformDialog(formId) {
       const link = _.findWhere(this.events, {id: formId})
-      this.formDialog.data = {...link}
-      this.formDialog.show = true
+      this.openEventDialog(link)
     },
     updateEvent(wallet, data) {
       LNbits.api
@@ -189,8 +234,7 @@ window.app = Vue.createApp({
             return obj.id == data.id
           })
           this.events.push(mapEvents(response.data))
-          this.formDialog.show = false
-          this.formDialog.data = {}
+          this.resetEventDialog()
         })
         .catch(LNbits.utils.notifyApiError)
     },
@@ -216,6 +260,30 @@ window.app = Vue.createApp({
     },
     exporteventsCSV() {
       LNbits.utils.exportCSV(this.eventsTable.columns, this.events)
+    },
+    async checkCanceledEvents() {
+      const events = this.events
+        .filter(event => event.extra.conditional)
+        .filter(e => !e.canceled)
+      if (!events.length) return
+      const now = new Date()
+      events.forEach(async ev => {
+        if (new Date(ev.closing_date) < now && ev.sold < ev.extra.min_tickets) {
+          const {data} = await LNbits.api.request(
+            'PUT',
+            '/events/api/v1/events/' + ev.id + '/cancel',
+            _.findWhere(this.g.user.wallets, {id: ev.wallet}).adminkey
+          )
+          Quasar.Notify.create({
+            type: 'warning',
+            message: `Event ${ev.name} has been canceled and refunds have been issued.`,
+            icon: null
+          })
+          this.events = this.events.map(e =>
+            e.id === ev.id ? mapEvents(data) : e
+          )
+        }
+      })
     }
   },
   async created() {

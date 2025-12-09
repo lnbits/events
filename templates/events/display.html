@@ -6,7 +6,7 @@
       <q-card-section class="q-pa-none">
         <h3 class="q-my-none q-pa-lg">{{ event_name }}</h3>
         <br />
-        <div v-html="formatDescription"></div>
+        <div v-html="formatDescription" class="q-pa-md"></div>
         <br />
       </q-card-section>
     </q-card>
@@ -30,7 +30,23 @@
             :rules="[val => !!val || '* Required', val => emailValidation(val)]"
             lazy-rules
           ></q-input>
-
+          <q-input
+            v-if="this.extra?.conditional"
+            filled
+            dense
+            v-model.trim="formDialog.data.refund"
+            label="Refund lnadress or LNURL "
+            :rules="[val => !!val || '* Required']"
+            lazy-rules
+            :hint="`If minimum tickets (${this.extra?.min_tickets}) are not met, refund will be sent.`"
+          ></q-input>
+          <q-input
+            v-if="hasPromoCodes"
+            filled
+            dense
+            v-model.trim="formDialog.data.promo_code"
+            label="Apply Promo Code "
+          ></q-input>
           <div class="row q-mt-lg">
             <q-btn
               unelevated
@@ -93,6 +109,8 @@
   const event_name = '{{ event_name }}'
   const event_info = '{{ event_info | tojson }}'
   const event_banner = JSON.parse('{{ event_banner | tojson | safe }}')
+  const event_extra = JSON.parse('{{ event_extra | safe }}')
+  const has_promoCodes = {{ has_promo_codes | tojson }}
 </script>
 <script src="{{ static_url_for('events/static', path='js/display.js') }}"></script>
 {% endblock %}

@@ -9,7 +9,8 @@ window.app = Vue.createApp({
         show: false,
         data: {
           name: '',
-          email: ''
+          email: '',
+          refund: ''
         }
       },
       ticketLink: {
@@ -29,7 +30,8 @@ window.app = Vue.createApp({
     this.info = event_info
     this.info = this.info.substring(1, this.info.length - 1)
     this.banner = event_banner
-    await this.purgeUnpaidTickets()
+    this.extra = event_extra
+    this.hasPromoCodes = has_promoCodes
   },
   computed: {
     formatDescription() {
@@ -41,6 +43,7 @@ window.app = Vue.createApp({
       e.preventDefault()
       this.formDialog.data.name = ''
       this.formDialog.data.email = ''
+      this.formDialog.data.refund = ''
     },
 
     closeReceiveDialog() {
@@ -60,12 +63,12 @@ window.app = Vue.createApp({
       const regex = /^[\w\.-]+@[a-zA-Z\d\.-]+\.[a-zA-Z]{2,}$/
       return regex.test(val) || 'Please enter valid email.'
     },
-
     Invoice() {
       axios
         .post(`/events/api/v1/tickets/${event_id}`, {
           name: this.formDialog.data.name,
-          email: this.formDialog.data.email
+          email: this.formDialog.data.email,
+          promo_code: this.formDialog.data.promo_code || null
         })
         .then(response => {
           this.paymentReq = response.data.payment_request
@@ -122,13 +125,6 @@ window.app = Vue.createApp({
           }, 2000)
         })
         .catch(LNbits.utils.notifyApiError)
-    },
-    async purgeUnpaidTickets() {
-      try {
-        await LNbits.api.request('GET', `/events/api/v1/purge/${event_id}`)
-      } catch (error) {
-        LNbits.utils.notifyApiError(error)
-      }
     }
   }
 })
