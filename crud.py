@@ -3,13 +3,13 @@ from datetime import datetime, timedelta, timezone
 from lnbits.db import Database
 from lnbits.helpers import urlsafe_short_hash
 
-from .models import CreateEvent, Event, Ticket
+from .models import CreateEvent, Event, Ticket, TicketExtra
 
 db = Database("ext_events")
 
 
 async def create_ticket(
-    payment_hash: str, wallet: str, event: str, name: str, email: str
+    payment_hash: str, wallet: str, event: str, name: str, email: str, extra: dict
 ) -> Ticket:
     now = datetime.now(timezone.utc)
     ticket = Ticket(
@@ -22,6 +22,7 @@ async def create_ticket(
         paid=False,
         reg_timestamp=now,
         time=now,
+        extra=TicketExtra(**extra) if extra else TicketExtra(),
     )
     await db.insert("events.ticket", ticket)
     return ticket

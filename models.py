@@ -1,7 +1,29 @@
 from datetime import datetime
 
 from fastapi import Query
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field, validator
+
+
+class PromoCode(BaseModel):
+    code: str
+    discount_percent: float = 0.0
+    active: bool = True
+
+    # make the promo code uppercase
+    @validator("code")
+    def uppercase_code(cls, v):
+        return v.upper()
+
+    @validator("discount_percent")
+    def validate_discount_percent(cls, v):
+        assert 0 <= v <= 100, "Discount must be between 0 and 100."
+        return v
+
+
+class EventExtra(BaseModel):
+    promo_codes: list[PromoCode] = Field(default_factory=list)
+    conditional: bool = False
+    min_tickets: int = 1
 
 
 class CreateEvent(BaseModel):
@@ -15,11 +37,7 @@ class CreateEvent(BaseModel):
     amount_tickets: int = Query(..., ge=0)
     price_per_ticket: float = Query(..., ge=0)
     banner: str | None = None
-
-
-class CreateTicket(BaseModel):
-    name: str
-    email: EmailStr
+    extra: EventExtra = Field(default_factory=EventExtra)
 
 
 class Event(BaseModel):
@@ -28,6 +46,7 @@ class Event(BaseModel):
     name: str
     info: str
     closing_date: str
+    canceled: bool = False
     event_start_date: str
     event_end_date: str
     currency: str
@@ -36,6 +55,21 @@ class Event(BaseModel):
     time: datetime
     sold: int = 0
     banner: str | None = None
+    extra: EventExtra = Field(default_factory=EventExtra)
+
+
+class TicketExtra(BaseModel):
+    applied_promo_code: str | None = None
+    sats_paid: int | None = None
+    refund_address: str | None = None
+    refunded: bool = False
+
+
+class CreateTicket(BaseModel):
+    name: str
+    email: EmailStr
+    promo_code: str | None = None
+    refund_address: str | None = None
 
 
 class Ticket(BaseModel):
@@ -48,3 +82,4 @@ class Ticket(BaseModel):
     paid: bool
     time: datetime
     reg_timestamp: datetime
+    extra: TicketExtra = Field(default_factory=TicketExtra)

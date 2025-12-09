@@ -4,7 +4,7 @@
   <div class="col-12 col-md-8 col-lg-7 q-gutter-y-md">
     <q-card>
       <q-card-section>
-        <q-btn unelevated color="primary" @click="formDialog.show = true"
+        <q-btn unelevated color="primary" @click="openEventDialog"
           >New Event</q-btn
         >
       </q-card-section>
@@ -33,7 +33,7 @@
           <template v-slot:header="props">
             <q-tr :props="props">
               <q-th auto-width></q-th>
-
+              <q-th auto-width></q-th>
               <q-th v-for="col in props.cols" :key="col.name" :props="props">
                 <span v-text="col.label"></span>
               </q-th>
@@ -43,6 +43,16 @@
           </template>
           <template v-slot:body="props">
             <q-tr :props="props">
+              <q-td auto-width>
+                <q-btn
+                  size="sm"
+                  color="accent"
+                  round
+                  dense
+                  @click="props.expand = !props.expand"
+                  :icon="props.expand ? 'expand_less' : 'expand_more'"
+                />
+              </q-td>
               <q-td auto-width>
                 <q-btn
                   unelevated
@@ -87,6 +97,52 @@
                   icon="cancel"
                   color="pink"
                 ></q-btn>
+              </q-td>
+            </q-tr>
+            <q-tr v-show="props.expand" :props="props">
+              <q-td colspan="100%">
+                <div class="q-pa-md">
+                  <div class="text-subtitle1 q-mb-md">Promo codes</div>
+                  <div class="column">
+                    <div
+                      v-if="props.row.extra.promo_codes.length == 0"
+                      class="text-caption"
+                    >
+                      No promo codes for this event.
+                    </div>
+                    <div
+                      v-for="(code, index) in props.row.extra.promo_codes"
+                      :key="index"
+                      class="row items-center q-col-gutter-sm q-mb-sm"
+                    >
+                      <div class="col-auto">
+                        <q-chip
+                          square
+                          size="md"
+                          clickable
+                          @click="utils.copyText(code.code.toUpperCase())"
+                        >
+                          <q-avatar
+                            icon="bookmark"
+                            :color="code.active ? 'green' : 'grey'"
+                            text-color="white"
+                          ></q-avatar>
+                          <span v-text="code.code.toUpperCase()"></span>
+                        </q-chip>
+                      </div>
+                      <div class="col-auto">
+                        Discount: <span v-text="code.discount_percent"></span>%
+                      </div>
+                      <div class="col-auto">
+                        Status:
+                        <span
+                          :class="code.active ? 'text-green' : 'text-grey'"
+                          v-text="code.active ? 'Active' : 'Inactive'"
+                        ></span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </q-td>
             </q-tr>
           </template>
@@ -224,7 +280,6 @@
             ></q-input>
           </div>
         </div>
-
         <div class="row">
           <div class="col-4">Event begins</div>
           <div class="col-8">
@@ -248,7 +303,6 @@
             ></q-input>
           </div>
         </div>
-
         <div class="row q-col-gutter-sm">
           <div class="col">
             <q-select
@@ -280,9 +334,101 @@
               :mask="formDialog.data.currency != 'sats' ? '#.##' : '#'"
               fill-mask="0"
               reverse-fill-mask
+              :disable="formDialog.data.currency == null"
             ></q-input>
           </div>
         </div>
+        <q-expansion-item
+          group="advanced"
+          icon="settings"
+          label="Advanced options"
+        >
+          <div class="row q-mt-lg">
+            <div class="text-subtitle1 q-mb-md">Conditional Events</div>
+            <div class="text-caption">
+              Make this event conditional if
+              <strong>minimum tickets</strong> are sold. User will be asked to
+              provide a Lightning Address or LNURL pay for refunds.
+            </div>
+            <div class="col-8">
+              <q-toggle
+                v-model="formDialog.data.extra.conditional"
+                label="Conditional Event"
+                left-label
+              ></q-toggle>
+            </div>
+            <div class="col-4">
+              <q-input
+                filled
+                dense
+                v-model.number="formDialog.data.extra.min_tickets"
+                type="number"
+                label="Minimum Tickets"
+                :disable="!formDialog.data.extra.conditional"
+              ></q-input>
+            </div>
+          </div>
+          <q-separator class="q-my-md"></q-separator>
+          <div class="text-subtitle1 q-mb-md">Promo Codes</div>
+          <div class="text-caption">
+            Allow users to enter a promo code for discounts.
+          </div>
+
+          <div
+            v-for="(code, index) in formDialog.data.extra.promo_codes"
+            :key="index"
+            class="row q-col-gutter-sm q-mt-md"
+          >
+            <q-input
+              class="col-8"
+              filled
+              dense
+              v-model.trim="formDialog.data.extra.promo_codes[index].code"
+              type="text"
+              label="Promo Code"
+            >
+              <template v-slot:before>
+                <q-checkbox
+                  left-label
+                  v-model="formDialog.data.extra.promo_codes[index].active"
+                  checked-icon="radio_button_checked"
+                  unchecked-icon="radio_button_unchecked"
+                ></q-checkbox>
+                <q-tooltip>
+                  <span
+                    v-text="formDialog.data.extra.promo_codes[index].active ? 'Active' : 'Inactive'"
+                  ></span>
+                </q-tooltip>
+              </template>
+            </q-input>
+            <q-input
+              class="col-4"
+              filled
+              dense
+              v-model.number="formDialog.data.extra.promo_codes[index].discount_percent"
+              type="number"
+              label="Discount (%)"
+              min="0"
+              max="100"
+            >
+              <template v-slot:after>
+                <q-btn
+                  round
+                  dense
+                  flat
+                  icon="delete"
+                  @click="formDialog.data.extra.promo_codes.splice(index, 1)"
+                ></q-btn>
+              </template>
+            </q-input>
+          </div>
+          <div class="col-12 q-mt-md">
+            <q-btn
+              @click="formDialog.data.extra.promo_codes.push({code: '', discount_percent: 0, active: true})"
+              >Add Promo Code</q-btn
+            >
+          </div>
+        </q-expansion-item>
 
         <div class="row q-mt-lg">
           <q-btn

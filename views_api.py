@@ -26,12 +26,11 @@ from .crud import (
     get_events,
     get_ticket,
     get_tickets,
-    purge_unpaid_tickets,
     update_event,
     update_ticket,
 )
 from .models import CreateEvent, CreateTicket, Ticket
-from .services import set_ticket_paid
+from .services import refund_tickets, set_ticket_paid
 
 events_api_router = APIRouter()
 
@@ -77,6 +76,26 @@ async def api_event_create(
     return event.dict()
 
 
+@events_api_router.put("/api/v1/events/{event_id}/cancel")
+async def api_event_cancel(
+    event_id: str,
+    wallet: WalletTypeInfo = Depends(require_admin_key),
+):
+    event = await get_event(event_id)
+    if not event:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail="Event does not exist."
+        )
+
+    if event.wallet != wallet.wallet.id:
+        raise HTTPException(status_code=HTTPStatus.FORBIDDEN, detail="Not your event.")
+    event.canceled = True
+    event = await update_event(event)
+    await refund_tickets(event.id)
+
+    return event.dict()
+
+
 @events_api_router.delete("/api/v1/events/{event_id}")
 async def api_form_delete(
     event_id: str, wallet: WalletTypeInfo = Depends(require_admin_key)
@@ -116,11 +135,15 @@ async def api_tickets(
 async def api_ticket_create(event_id: str, data: CreateTicket):
     name = data.name
     email = data.email
-    return await api_ticket_make_ticket(event_id, name, email)
+    promo_code = data.promo_code.upper() if data.promo_code else None
+    refund_address = data.refund_address
+    return await api_ticket_make_ticket(
+        event_id, name, email, promo_code, refund_address
+    )
 
 
 @events_api_router.get("/api/v1/tickets/{event_id}/{name}/{email}")
-async def api_ticket_make_ticket(event_id, name, email):
+async def api_ticket_make_ticket(event_id, name, email, promo_code, refund_address):
     event = await get_event(event_id)
     if not event:
         raise HTTPException(
@@ -130,13 +153,24 @@ async def api_ticket_make_ticket(event_id, name, email):
     price = event.price_per_ticket
     extra = {"tag": "events", "name": name, "email": email}
 
-    if event.currency != "sats":
-        price = await fiat_amount_as_satoshis(event.price_per_ticket, event.currency)
+    if promo_code:
+        # check if promo_code exists in event.extra.promo_codes
+        if promo_code not in [pc.code for pc in event.extra.promo_codes]:
+            raise HTTPException(
+                status_code=HTTPStatus.BAD_REQUEST, detail="Invalid promo code."
+            )
+        # get the promocode
+        promo = next(pc for pc in event.extra.promo_codes if pc.code == promo_code)
+        extra["promo_code"] = promo.code
+        price = event.price_per_ticket * (1 - promo.discount_percent / 100)
 
+    if event.currency != "sats":
         extra["fiat"] = True
         extra["currency"] = event.currency
-        extra["fiatAmount"] = event.price_per_ticket
+        extra["fiatAmount"] = price
         extra["rate"] = await get_fiat_rate_satoshis(event.currency)
+
+        price = await fiat_amount_as_satoshis(price, event.currency)
 
     try:
         payment = await create_invoice(
@@ -151,6 +185,11 @@ async def api_ticket_make_ticket(event_id, name, email):
             event=event.id,
             name=name,
             email=email,
+            extra={
+                "applied_promo_code": promo_code,
+                "refund_address": refund_address,
+                "sats_paid": int(price),
+            },
         )
     except Exception as exc:
         raise HTTPException(
@@ -176,16 +215,31 @@ async def api_ticket_send_ticket(event_id, payment_hash):
         )
     payment = await get_standalone_payment(payment_hash, incoming=True)
     assert payment
+
+    if ticket.extra.applied_promo_code:
+        promo = next(
+            (
+                pc
+                for pc in event.extra.promo_codes
+                if pc.code == ticket.extra.applied_promo_code
+            ),
+            None,
+        )
+        if promo:
+            event.price_per_ticket *= 1 - promo.discount_percent / 100
+
     price = (
         event.price_per_ticket * 1000
         if event.currency == "sats"
         else await fiat_amount_as_satoshis(event.price_per_ticket, event.currency)
         * 1000
     )
+
     # check if price is equal to payment.amount
     lower_bound = price * 0.99  # 1% decrease
 
     if not payment.pending and abs(payment.amount) >= lower_bound:  # allow 1% error
+        ticket.extra.sats_paid = int(payment.amount / 1000)
         await set_ticket_paid(ticket)
         return {"paid": True, "ticket_id": ticket.id}
 
@@ -206,17 +260,6 @@ async def api_ticket_delete(
         raise HTTPException(status_code=HTTPStatus.FORBIDDEN, detail="Not your ticket.")
 
     await delete_ticket(ticket_id)
-
-
-# TODO: DELETE, updates db! @tal
-@events_api_router.get("/api/v1/purge/{event_id}")
-async def api_event_purge_tickets(event_id: str):
-    event = await get_event(event_id)
-    if not event:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail="Event does not exist."
-        )
-    return await purge_unpaid_tickets(event_id)
 
 
 @events_api_router.get("/api/v1/eventtickets/{event_id}")
