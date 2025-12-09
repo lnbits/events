@@ -1,6 +1,6 @@
 const mapEvents = function (obj) {
   obj.date = Quasar.date.formatDate(new Date(obj.time), 'YYYY-MM-DD HH:mm')
-  obj.fsat = new Intl.NumberFormat(navigator.language).format(
+  obj.fsat = new Intl.NumberFormat(window.g.locale).format(
     obj.price_per_ticket
   )
   obj.displayUrl = ['/events/', obj.id].join('')
