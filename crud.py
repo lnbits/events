@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -5,6 +6,30 @@ from lnbits.db import Database
 from lnbits.helpers import urlsafe_short_hash
 
 from .models import CreateEvent, Event, Ticket, TicketExtra
+
+
+def _parse_ticket_row(row) -> dict:
+    """
+    Parse a database row into a dict suitable for Ticket model creation.
+    Handles:
+    - Empty string to None conversion for name/email
+    - JSON string to dict conversion for extra field
+    """
+    ticket_data = dict(row)
+
+    # Convert empty strings back to None for the model
+    if ticket_data.get("name") == "":
+        ticket_data["name"] = None
+    if ticket_data.get("email") == "":
+        ticket_data["email"] = None
+
+    # Parse extra field from JSON string if needed
+    # (db.insert() serializes to JSON, but manual fetchone/fetchall returns string)
+    extra = ticket_data.get("extra")
+    if isinstance(extra, str):
+        ticket_data["extra"] = json.loads(extra)
+
+    return ticket_data
 
 db = Database("ext_events")
 
@@ -94,14 +119,7 @@ async def get_ticket(payment_hash: str) -> Optional[Ticket]:
     if not row:
         return None
 
-    # Convert empty strings back to None for the model
-    ticket_data = dict(row)
-    if ticket_data.get("name") == "":
-        ticket_data["name"] = None
-    if ticket_data.get("email") == "":
-        ticket_data["email"] = None
-
-    return Ticket(**ticket_data)
+    return Ticket(**_parse_ticket_row(row))
 
 
 async def get_tickets(wallet_ids: str | list[str]) -> list[Ticket]:
@@ -110,17 +128,7 @@ async def get_tickets(wallet_ids: str | list[str]) -> list[Ticket]:
     q = ",".join([f"'{wallet_id}'" for wallet_id in wallet_ids])
     rows = await db.fetchall(f"SELECT * FROM events.ticket WHERE wallet IN ({q})")
 
-    tickets = []
-    for row in rows:
-        # Convert empty strings back to None for the model
-        ticket_data = dict(row)
-        if ticket_data.get("name") == "":
-            ticket_data["name"] = None
-        if ticket_data.get("email") == "":
-            ticket_data["email"] = None
-        tickets.append(Ticket(**ticket_data))
-
-    return tickets
+    return [Ticket(**_parse_ticket_row(row)) for row in rows]
 
 
 async def get_tickets_by_user_id(user_id: str) -> list[Ticket]:
@@ -130,17 +138,7 @@ async def get_tickets_by_user_id(user_id: str) -> list[Ticket]:
         {"user_id": user_id}
     )
 
-    tickets = []
-    for row in rows:
-        # Convert empty strings back to None for the model
-        ticket_data = dict(row)
-        if ticket_data.get("name") == "":
-            ticket_data["name"] = None
-        if ticket_data.get("email") == "":
-            ticket_data["email"] = None
-        tickets.append(Ticket(**ticket_data))
-
-    return tickets
+    return [Ticket(**_parse_ticket_row(row)) for row in rows]
 
 
 async def delete_ticket(payment_hash: str) -> None:
@@ -212,14 +210,4 @@ async def get_event_tickets(event_id: str) -> list[Ticket]:
         {"event": event_id},
     )
 
-    tickets = []
-    for row in rows:
-        # Convert empty strings back to None for the model
-        ticket_data = dict(row)
-        if ticket_data.get("name") == "":
-            ticket_data["name"] = None
-        if ticket_data.get("email") == "":
-            ticket_data["email"] = None
-        tickets.append(Ticket(**ticket_data))
-
-    return tickets
+    return [Ticket(**_parse_ticket_row(row)) for row in rows]
