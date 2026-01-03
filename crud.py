@@ -20,7 +20,12 @@ async def create_ticket(
 ) -> Ticket:
     now = datetime.now(timezone.utc)
 
-    # Handle database constraints: if user_id is provided, use empty strings for name/email
+    # TODO: Check if this empty string workaround is still needed.
+    # This converts None to empty strings for database storage because:
+    # 1. Database may have NOT NULL constraints on name/email columns
+    # 2. When user_id is provided, name/email are not used (mutually exclusive)
+    # 3. The get_ticket() functions convert empty strings back to None when reading
+    # Consider using nullable columns instead of this empty string pattern.
     if user_id:
         db_name = ""
         db_email = ""
@@ -28,7 +33,28 @@ async def create_ticket(
         db_name = name or ""
         db_email = email or ""
 
-    ticket = Ticket(
+    # Create ticket with database-compatible values for insertion
+    # Using db.insert() ensures proper serialization of the extra field (TicketExtra)
+    # across all database backends (SQLite, PostgreSQL, CockroachDB)
+    db_ticket = Ticket(
+        id=payment_hash,
+        wallet=wallet,
+        event=event,
+        name=db_name,
+        email=db_email,
+        user_id=user_id,
+        registered=False,
+        paid=False,
+        reg_timestamp=now,
+        time=now,
+        extra=TicketExtra(**extra) if extra else TicketExtra(),
+    )
+
+    await db.insert("events.ticket", db_ticket)
+
+    # Return ticket with original name/email values (not empty strings)
+    # This maintains consistency with how get_ticket() converts empty strings back to None
+    return Ticket(
         id=payment_hash,
         wallet=wallet,
         event=event,
@@ -41,20 +67,6 @@ async def create_ticket(
         time=now,
         extra=TicketExtra(**extra) if extra else TicketExtra(),
     )
-
-    # Create a dict for database insertion with proper handling of constraints
-    ticket_dict = ticket.dict()
-    ticket_dict["name"] = db_name
-    ticket_dict["email"] = db_email
-
-    await db.execute(
-        """
-        INSERT INTO events.ticket (id, wallet, event, name, email, user_id, registered, paid, time, reg_timestamp, extra)
-        VALUES (:id, :wallet, :event, :name, :email, :user_id, :registered, :paid, :time, :reg_timestamp, :extra)
-        """,
-        ticket_dict
-    )
-    return ticket
 
 
 async def update_ticket(ticket: Ticket) -> Ticket:
