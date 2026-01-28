@@ -4,7 +4,7 @@
       <q-card class="q-pa-lg">
         <q-card-section class="q-pa-none">
           <center>
-            <h3 class="q-my-none">{{ ticketName }} Ticket</h3>
+            <h3 class="q-my-none">Ticket</h3>
             <br />
             <h5 class="q-my-none">
               Bookmark, print or screenshot this page,<br />

@@ -289,7 +289,7 @@ window.PageEvents = {
     if (this.g.user.wallets.length) {
       this.getTickets()
       this.getEvents()
-      this.currencies = await LNbits.api.getCurrencies()
+      this.currencies = ['sats', ...g.allowedCurrencies]
     }
   }
 }

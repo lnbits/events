@@ -1,5 +1,3 @@
-const {template} = require('underscore')
-
 const mapEvents = function (obj) {
   obj.date = Quasar.date.formatDate(
     new Date(obj.time * 1000),

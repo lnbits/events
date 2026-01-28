@@ -4,7 +4,7 @@
       <q-card class="q-pa-lg">
         <q-card-section class="q-pa-none">
           <center>
-            <h3 class="q-my-none">{{ event_name }} Registration</h3>
+            <h3 class="q-my-none">Registration</h3>
             <br />
 
             <br />

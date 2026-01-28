@@ -4,7 +4,7 @@
       <q-card>
         <q-img v-if="banner" :src="banner" transition="slide-up"></q-img>
         <q-card-section class="q-pa-none">
-          <h3 class="q-my-none q-pa-lg">{{ eventName }}</h3>
+          <h3 class="q-my-none q-pa-lg" v-text="eventName"></h3>
           <br />
           <div v-html="formatDescription" class="q-pa-md"></div>
           <br />
@@ -13,7 +13,7 @@
       <q-card class="q-pa-lg">
         <q-card-section class="q-pa-none">
           <h5 class="q-mt-none">Buy Ticket</h5>
-          <q-form @submit="Invoice()" class="q-gutter-md">
+          <q-form @submit="createInvoice()" class="q-gutter-md">
             <q-input
               filled
               dense
@@ -101,7 +101,10 @@
           ></lnbits-qrcode>
         </div>
         <div class="row q-mt-lg">
-          <q-btn outline color="grey" @click="copyText(receive.paymentReq)"
+          <q-btn
+            outline
+            color="grey"
+            @click="utils.copyText(receive.paymentReq)"
             >Copy invoice</q-btn
           >
           <q-btn v-close-popup flat color="grey" class="q-ml-auto">Close</q-btn>

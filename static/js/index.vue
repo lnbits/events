@@ -216,8 +216,9 @@
     <div class="col-12 col-md-4 col-lg-5 q-gutter-y-md">
       <q-card>
         <q-card-section>
-          <h6 class="text-subtitle1 q-my-none">
-            {{ SITE_TITLE }} Events extension
+          <h6 class="text-subtitle1 ellipsis q-my-none">
+            <span v-text="SITE_TITLE"></span>
+            Events extension
           </h6>
         </q-card-section>
         <q-card-section class="q-pa-none">
