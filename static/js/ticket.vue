@@ -1,0 +1,27 @@
+<template id="page-events-ticket">
+  <div class="row q-col-gutter-md justify-center">
+    <div class="col-12 col-md-7 col-lg-6 q-gutter-y-md">
+      <q-card class="q-pa-lg">
+        <q-card-section class="q-pa-none">
+          <center>
+            <h3 class="q-my-none">{{ ticket_name }} Ticket</h3>
+            <br />
+            <h5 class="q-my-none">
+              Bookmark, print or screenshot this page,<br />
+              and present it for registration!
+            </h5>
+            <br />
+            <lnbits-qrcode
+              :value="'ticket://{{ ticket_id }}'"
+              :options="{width: 500}"
+            ></lnbits-qrcode>
+            <br />
+            <q-btn @click="printWindow" color="grey" class="q-ml-auto">
+              <q-icon left size="3em" name="print"></q-icon> Print</q-btn
+            >
+          </center>
+        </q-card-section>
+      </q-card>
+    </div>
+  </div>
+</template>
