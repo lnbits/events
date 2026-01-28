@@ -1,0 +1,478 @@
+<template id="page-events">
+  <div class="row q-col-gutter-md">
+    <div class="col-12 col-md-8 col-lg-7 q-gutter-y-md">
+      <q-card>
+        <q-card-section>
+          <q-btn unelevated color="primary" @click="openEventDialog"
+            >New Event</q-btn
+          >
+        </q-card-section>
+      </q-card>
+
+      <q-card>
+        <q-card-section>
+          <div class="row items-center no-wrap q-mb-md">
+            <div class="col">
+              <h5 class="text-subtitle1 q-my-none">Events</h5>
+            </div>
+            <div class="col-auto">
+              <q-btn flat color="grey" @click="exporteventsCSV"
+                >Export to CSV</q-btn
+              >
+            </div>
+          </div>
+          <q-table
+            dense
+            flat
+            :rows="events"
+            row-key="id"
+            :columns="eventsTable.columns"
+            v-model:pagination="eventsTable.pagination"
+          >
+            <template v-slot:header="props">
+              <q-tr :props="props">
+                <q-th auto-width></q-th>
+                <q-th auto-width></q-th>
+                <q-th v-for="col in props.cols" :key="col.name" :props="props">
+                  <span v-text="col.label"></span>
+                </q-th>
+
+                <q-th auto-width></q-th>
+              </q-tr>
+            </template>
+            <template v-slot:body="props">
+              <q-tr :props="props">
+                <q-td auto-width>
+                  <q-btn
+                    size="sm"
+                    color="accent"
+                    round
+                    dense
+                    @click="props.expand = !props.expand"
+                    :icon="props.expand ? 'expand_less' : 'expand_more'"
+                  />
+                </q-td>
+                <q-td auto-width>
+                  <q-btn
+                    unelevated
+                    dense
+                    size="xs"
+                    icon="link"
+                    :color="$q.dark.isActive ? 'grey-7' : 'grey-5'"
+                    type="a"
+                    :href="props.row.displayUrl"
+                    target="_blank"
+                  ></q-btn>
+                  <q-btn
+                    unelevated
+                    dense
+                    size="xs"
+                    icon="how_to_reg"
+                    :color="$q.dark.isActive ? 'grey-7' : 'grey-5'"
+                    type="a"
+                    :href="'/events/register/' + props.row.id"
+                    target="_blank"
+                  ></q-btn>
+                </q-td>
+                <q-td v-for="col in props.cols" :key="col.name" :props="props">
+                  <span v-text="col.value"></span>
+                </q-td>
+                <q-td auto-width>
+                  <q-btn
+                    flat
+                    dense
+                    size="xs"
+                    @click="updateformDialog(props.row.id)"
+                    icon="edit"
+                    color="light-blue"
+                  ></q-btn>
+                </q-td>
+                <q-td auto-width>
+                  <q-btn
+                    flat
+                    dense
+                    size="xs"
+                    @click="deleteEvent(props.row.id)"
+                    icon="cancel"
+                    color="pink"
+                  ></q-btn>
+                </q-td>
+              </q-tr>
+              <q-tr v-show="props.expand" :props="props">
+                <q-td colspan="100%">
+                  <div class="q-pa-md">
+                    <div class="text-subtitle1 q-mb-md">Promo codes</div>
+                    <div class="column">
+                      <div
+                        v-if="props.row.extra.promo_codes.length == 0"
+                        class="text-caption"
+                      >
+                        No promo codes for this event.
+                      </div>
+                      <div
+                        v-for="(code, index) in props.row.extra.promo_codes"
+                        :key="index"
+                        class="row items-center q-col-gutter-sm q-mb-sm"
+                      >
+                        <div class="col-auto">
+                          <q-chip
+                            square
+                            size="md"
+                            clickable
+                            @click="utils.copyText(code.code.toUpperCase())"
+                          >
+                            <q-avatar
+                              icon="bookmark"
+                              :color="code.active ? 'green' : 'grey'"
+                              text-color="white"
+                            ></q-avatar>
+                            <span v-text="code.code.toUpperCase()"></span>
+                          </q-chip>
+                        </div>
+                        <div class="col-auto">
+                          Discount:
+                          <span v-text="code.discount_percent"></span>%
+                        </div>
+                        <div class="col-auto">
+                          Status:
+                          <span
+                            :class="code.active ? 'text-green' : 'text-grey'"
+                            v-text="code.active ? 'Active' : 'Inactive'"
+                          ></span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </q-td>
+              </q-tr>
+            </template>
+          </q-table>
+        </q-card-section>
+      </q-card>
+
+      <q-card>
+        <q-card-section>
+          <div class="row items-center no-wrap q-mb-md">
+            <div class="col">
+              <h5 class="text-subtitle1 q-my-none">Tickets</h5>
+            </div>
+            <div class="col-auto">
+              <q-btn flat color="grey" @click="exportticketsCSV"
+                >Export to CSV</q-btn
+              >
+            </div>
+          </div>
+          <q-table
+            dense
+            flat
+            :rows="tickets"
+            row-key="id"
+            :columns="ticketsTable.columns"
+            v-model:pagination="ticketsTable.pagination"
+          >
+            <template v-slot:header="props">
+              <q-tr :props="props">
+                <q-th auto-width></q-th>
+                <q-th v-for="col in props.cols" :key="col.name" :props="props">
+                  <span v-text="col.label"></span>
+                </q-th>
+              </q-tr>
+            </template>
+            <template v-slot:body="props">
+              <q-tr :props="props">
+                <q-td auto-width>
+                  <q-btn
+                    unelevated
+                    dense
+                    size="xs"
+                    icon="local_activity"
+                    :color="$q.dark.isActive ? 'grey-7' : 'grey-5'"
+                    type="a"
+                    :href="'/events/ticket/' + props.row.id"
+                    target="_blank"
+                  ></q-btn>
+                </q-td>
+
+                <q-td v-for="col in props.cols" :key="col.name" :props="props">
+                  <span v-text="col.value"></span>
+                </q-td>
+
+                <q-td auto-width>
+                  <q-btn
+                    flat
+                    dense
+                    size="xs"
+                    @click="deleteTicket(props.row.id)"
+                    icon="cancel"
+                    color="pink"
+                  ></q-btn>
+                </q-td>
+              </q-tr>
+            </template>
+          </q-table>
+        </q-card-section>
+      </q-card>
+    </div>
+    <div class="col-12 col-md-4 col-lg-5 q-gutter-y-md">
+      <q-card>
+        <q-card-section>
+          <h6 class="text-subtitle1 q-my-none">
+            {{ SITE_TITLE }} Events extension
+          </h6>
+        </q-card-section>
+        <q-card-section class="q-pa-none">
+          <q-separator></q-separator>
+          <q-list> {% include "events/_api_docs.html" %} </q-list>
+        </q-card-section>
+      </q-card>
+    </div>
+
+    <q-dialog v-model="formDialog.show" position="top">
+      <q-card class="q-pa-lg q-pt-xl lnbits__dialog-card">
+        <q-form @submit="sendEventData" class="q-gutter-md">
+          <div class="row">
+            <div class="col">
+              <q-input
+                filled
+                dense
+                v-model.trim="formDialog.data.name"
+                type="name"
+                label="Title of event "
+              ></q-input>
+            </div>
+            <div class="col q-pl-sm">
+              <q-select
+                filled
+                dense
+                emit-value
+                v-model="formDialog.data.wallet"
+                :options="g.user.walletOptions"
+                label="Wallet *"
+              >
+              </q-select>
+            </div>
+          </div>
+
+          <q-input
+            filled
+            dense
+            v-model.trim="formDialog.data.info"
+            type="textarea"
+            label="Info about the event"
+            hint="Markdown supported"
+          ></q-input>
+          <q-input
+            filled
+            dense
+            v-model.trim="formDialog.data.banner"
+            type="url"
+            label="Image URL"
+            hint="Optional banner image to display on the event page"
+          ></q-input>
+          <div class="row q-mt-lg">
+            <div class="col-4">Ticket closing date</div>
+            <div class="col-8">
+              <q-input
+                filled
+                dense
+                v-model.trim="formDialog.data.closing_date"
+                type="date"
+              ></q-input>
+            </div>
+          </div>
+          <div class="row">
+            <div class="col-4">Event begins</div>
+            <div class="col-8">
+              <q-input
+                filled
+                dense
+                v-model.trim="formDialog.data.event_start_date"
+                type="date"
+              ></q-input>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-4">Event ends</div>
+            <div class="col-8">
+              <q-input
+                filled
+                dense
+                v-model.trim="formDialog.data.event_end_date"
+                type="date"
+              ></q-input>
+            </div>
+          </div>
+          <div class="row q-col-gutter-sm">
+            <div class="col">
+              <q-select
+                filled
+                dense
+                v-model="formDialog.data.currency"
+                type="text"
+                label="Unit"
+                :options="currencies"
+              ></q-select>
+            </div>
+            <div class="col">
+              <q-input
+                filled
+                dense
+                v-model.number="formDialog.data.amount_tickets"
+                type="number"
+                label="Amount of tickets "
+              ></q-input>
+            </div>
+            <div class="col">
+              <q-input
+                filled
+                dense
+                v-model.number="formDialog.data.price_per_ticket"
+                type="number"
+                :label="'Price (' + formDialog.data.currency + ') *'"
+                :step="formDialog.data.currency != 'sats' ? '0.01' : '1'"
+                :mask="formDialog.data.currency != 'sats' ? '#.##' : '#'"
+                fill-mask="0"
+                reverse-fill-mask
+                :disable="formDialog.data.currency == null"
+              ></q-input>
+            </div>
+          </div>
+          <q-expansion-item
+            group="advanced"
+            icon="settings"
+            label="Advanced options"
+          >
+            <div class="row q-mt-lg">
+              <div class="text-subtitle1 q-mb-md">Conditional Events</div>
+              <div class="text-caption">
+                Make this event conditional if
+                <strong>minimum tickets</strong> are sold. User will be asked to
+                provide a Lightning Address or LNURL pay for refunds.
+              </div>
+              <div class="col-8">
+                <q-toggle
+                  v-model="formDialog.data.extra.conditional"
+                  label="Conditional Event"
+                  left-label
+                ></q-toggle>
+              </div>
+              <div class="col-4">
+                <q-input
+                  filled
+                  dense
+                  v-model.number="formDialog.data.extra.min_tickets"
+                  type="number"
+                  label="Minimum Tickets"
+                  :disable="!formDialog.data.extra.conditional"
+                ></q-input>
+              </div>
+            </div>
+            <q-separator class="q-my-md"></q-separator>
+            <div class="text-subtitle1 q-mb-md">Promo Codes</div>
+            <div class="text-caption">
+              Allow users to enter a promo code for discounts.
+            </div>
+
+            <div
+              v-for="(code, index) in formDialog.data.extra.promo_codes"
+              :key="index"
+              class="row q-col-gutter-sm q-mt-md"
+            >
+              <q-input
+                class="col-8"
+                filled
+                dense
+                v-model.trim="formDialog.data.extra.promo_codes[index].code"
+                type="text"
+                label="Promo Code"
+              >
+                <template v-slot:before>
+                  <q-checkbox
+                    left-label
+                    v-model="formDialog.data.extra.promo_codes[index].active"
+                    checked-icon="radio_button_checked"
+                    unchecked-icon="radio_button_unchecked"
+                  ></q-checkbox>
+                  <q-tooltip>
+                    <span
+                      v-text="
+                        formDialog.data.extra.promo_codes[index].active
+                          ? 'Active'
+                          : 'Inactive'
+                      "
+                    ></span>
+                  </q-tooltip>
+                </template>
+              </q-input>
+              <q-input
+                class="col-4"
+                filled
+                dense
+                v-model.number="
+                  formDialog.data.extra.promo_codes[index].discount_percent
+                "
+                type="number"
+                label="Discount (%)"
+                min="0"
+                max="100"
+              >
+                <template v-slot:after>
+                  <q-btn
+                    round
+                    dense
+                    flat
+                    icon="delete"
+                    @click="formDialog.data.extra.promo_codes.splice(index, 1)"
+                  ></q-btn>
+                </template>
+              </q-input>
+            </div>
+            <div class="col-12 q-mt-md">
+              <q-btn
+                @click="
+                  formDialog.data.extra.promo_codes.push({
+                    code: '',
+                    discount_percent: 0,
+                    active: true
+                  })
+                "
+                >Add Promo Code</q-btn
+              >
+            </div>
+          </q-expansion-item>
+
+          <div class="row q-mt-lg">
+            <q-btn
+              v-if="formDialog.data.id"
+              unelevated
+              color="primary"
+              type="submit"
+              >Update Event</q-btn
+            >
+            <q-btn
+              v-else
+              unelevated
+              color="primary"
+              :disable="
+                formDialog.data.wallet == null ||
+                formDialog.data.name == null ||
+                formDialog.data.info == null ||
+                formDialog.data.closing_date == null ||
+                formDialog.data.event_start_date == null ||
+                formDialog.data.event_end_date == null ||
+                formDialog.data.amount_tickets == null ||
+                formDialog.data.price_per_ticket == null
+              "
+              type="submit"
+              >Create Event</q-btn
+            >
+            <q-btn v-close-popup flat color="grey" class="q-ml-auto"
+              >Cancel</q-btn
+            >
+          </div>
+        </q-form>
+      </q-card>
+    </q-dialog>
+  </div>
+</template>

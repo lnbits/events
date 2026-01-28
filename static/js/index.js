@@ -5,9 +5,8 @@ const mapEvents = function (obj) {
   return obj
 }
 
-window.app = Vue.createApp({
-  el: '#vue',
-  mixins: [windowMixin],
+window.PageEvents = {
+  template: '#page-events',
   data() {
     return {
       events: [],
@@ -293,4 +292,4 @@ window.app = Vue.createApp({
       this.currencies = await LNbits.api.getCurrencies()
     }
   }
-})
+}
