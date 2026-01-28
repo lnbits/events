@@ -1,0 +1,26 @@
+[
+    {
+        "path": "/events/",
+        "name": "PageEvents",
+        "template": "/events/static/js/index.vue",
+        "component": "/events/static/js/index.js"
+    },
+    {
+        "path": "/events/:id",
+        "name": "PageEventsPublic",
+        "template": "/events/static/js/display.vue",
+        "component": "/events/static/js/display.js"
+    },
+    {
+        "path": "/events/ticket/:id",
+        "name": "PageEventsTicket",
+        "template": "/events/static/js/ticket.vue",
+        "component": "/events/static/js/ticket.js"
+    },
+    {
+        "path": "/events/register/:id",
+        "name": "PageEventsRegister",
+        "template": "/events/static/js/register.vue",
+        "component": "/events/static/js/register.js"
+    }
+]
