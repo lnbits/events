@@ -1,6 +1,5 @@
-window.app = Vue.createApp({
-  el: '#vue',
-  mixins: [windowMixin],
+window.PageEventsDisplay = {
+  template: '#page-events-display',
   data() {
     return {
       paymentReq: null,
@@ -127,4 +126,4 @@ window.app = Vue.createApp({
         .catch(LNbits.utils.notifyApiError)
     }
   }
-})
+}
