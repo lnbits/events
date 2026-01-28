@@ -1,5 +1,10 @@
-Sell tickets for events and use the built-in scanner for registering attendants
+Sell tickets for events and manage attendee registration with a built-in QR scanner.
 
-Events alows you to make tickets for an event. Each ticket is in the form of a uniqque QR code. After registering, and paying for ticket, the user gets a QR code to present at registration/entrance.
+Its features include:
 
-Events includes a shareable ticket scanner, which can be used to register attendees.
+- Creating events with ticket pricing
+- Generating unique QR code tickets after payment
+- Providing a shareable ticket scanner for check-in
+- Tracking registered and checked-in attendees
+
+A complete ticketing solution for event organizers, meetup hosts, and conference planners who want to sell tickets and manage attendance with Bitcoin.

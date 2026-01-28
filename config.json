@@ -1,8 +1,11 @@
 {
+  "id": "events",
+  "version": "1.1.0",
   "name": "Events",
+  "repo": "https://github.com/lnbits/events",
   "short_description": "Sell and register event tickets",
+  "description": "",
   "tile": "/events/static/image/events.png",
-  "lnbits": "1.1.0",
   "min_lnbits_version": "1.3.0",
   "contributors": [
     {
@@ -51,5 +54,9 @@
   ],
   "description_md": "https://raw.githubusercontent.com/lnbits/events/main/description.md",
   "terms_and_conditions_md": "https://raw.githubusercontent.com/lnbits/events/main/toc.md",
-  "license": "MIT"
+  "license": "MIT",
+  "paid_features": "",
+  "tags": ["Fun & Social", "Ticketing"],
+  "donate": "",
+  "hidden": false
 }
