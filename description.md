@@ -1,6 +1,6 @@
 Sell tickets for events and manage attendee registration with a built-in QR scanner.
 
-Its functions include:
+Its features include:
 
 - Creating events with ticket pricing
 - Generating unique QR code tickets after payment
