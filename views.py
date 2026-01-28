@@ -12,13 +12,6 @@ from .services import refund_tickets
 
 events_generic_router = APIRouter()
 
-"""
-bitcoinswitch_generic_router.add_api_route(
-    "/", methods=["GET"], endpoint=index, dependencies=[Depends(check_user_exists)]
-)
-
-"""
-
 events_generic_router.add_api_route(
     "/",
     methods=["GET"],

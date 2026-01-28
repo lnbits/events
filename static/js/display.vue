@@ -4,7 +4,7 @@
       <q-card>
         <q-img v-if="banner" :src="banner" transition="slide-up"></q-img>
         <q-card-section class="q-pa-none">
-          <h3 class="q-my-none q-pa-lg">{{ event_name }}</h3>
+          <h3 class="q-my-none q-pa-lg">{{ eventName }}</h3>
           <br />
           <div v-html="formatDescription" class="q-pa-md"></div>
           <br />

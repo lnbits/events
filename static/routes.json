@@ -7,7 +7,7 @@
     },
     {
         "path": "/events/:id",
-        "name": "PageEventsPublic",
+        "name": "PageEventsDisplay",
         "template": "/events/static/js/display.vue",
         "component": "/events/static/js/display.js"
     },

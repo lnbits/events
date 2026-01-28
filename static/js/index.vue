@@ -222,7 +222,40 @@
         </q-card-section>
         <q-card-section class="q-pa-none">
           <q-separator></q-separator>
-          <q-list> {% include "events/_api_docs.html" %} </q-list>
+          <q-list>
+            <q-expansion-item
+              group="extras"
+              icon="swap_vertical_circle"
+              label="Info"
+              :content-inset-level="0.5"
+            >
+              <q-card>
+                <q-card-section>
+                  <h5 class="text-subtitle1 q-my-none">
+                    Events: Sell and register ticket waves for an event
+                  </h5>
+                  <p>
+                    Events allows you to make a wave of tickets for an event,
+                    each ticket is in the form of a unique QRcode, which the
+                    user presents at registration. Events comes with a shareable
+                    ticket scanner, which can be used to register attendees.<br />
+                    <small>
+                      Created by,
+                      <a class="text-secondary" href="https://github.com/benarc"
+                        >Ben Arc</a
+                      >
+                    </small>
+                  </p>
+                </q-card-section>
+              </q-card>
+              <q-btn
+                flat
+                label="Swagger API"
+                type="a"
+                href="../docs#/events"
+              ></q-btn>
+            </q-expansion-item>
+          </q-list>
         </q-card-section>
       </q-card>
     </div>

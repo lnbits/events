@@ -2,6 +2,8 @@ from datetime import datetime, timezone
 from http import HTTPStatus
 
 from fastapi import APIRouter, Depends, Query
+from starlette.exceptions import HTTPException
+
 from lnbits.core.crud import get_standalone_payment, get_user
 from lnbits.core.models import WalletTypeInfo
 from lnbits.core.services import create_invoice
@@ -13,7 +15,6 @@ from lnbits.utils.exchange_rates import (
     fiat_amount_as_satoshis,
     get_fiat_rate_satoshis,
 )
-from starlette.exceptions import HTTPException
 
 from .crud import (
     create_event,
@@ -26,6 +27,7 @@ from .crud import (
     get_events,
     get_ticket,
     get_tickets,
+    purge_unpaid_tickets,
     update_event,
     update_ticket,
 )
@@ -47,6 +49,46 @@ async def api_events(
         wallet_ids = user.wallet_ids if user else []
 
     return [event.dict() for event in await get_events(wallet_ids)]
+
+
+@events_api_router.get("/api/v1/events/{event_id}")
+async def api_get_event(event_id: str) -> dict:
+    event = await get_event(event_id)
+    if not event:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail="Event does not exist."
+        )
+    await purge_unpaid_tickets(event_id)
+
+    is_window_open = datetime.now(timezone.utc) < datetime.strptime(
+        event.closing_date, "%Y-%m-%d"
+    ).replace(tzinfo=timezone.utc)
+    is_min_tickets_met = (
+        event.sold >= event.extra.min_tickets if event.extra.conditional else True
+    )
+    if event.amount_tickets < 1:
+        raise HTTPException(status_code=HTTPStatus.GONE, detail="Event is sold out.")
+    if event.extra.conditional and not is_min_tickets_met and not is_window_open:
+        event.canceled = True
+        await update_event(event)
+        await refund_tickets(event_id)
+
+        raise HTTPException(status_code=HTTPStatus.GONE, detail="Event canceled.")
+
+    if not is_window_open:
+        raise HTTPException(
+            status_code=HTTPStatus.GONE, detail="Ticket closing date has passed."
+        )
+
+    return {
+        "event_id": event_id,
+        "event_name": event.name,
+        "event_info": event.info,
+        "event_price": event.price_per_ticket,
+        "event_banner": event.banner,
+        "event_extra": event.extra.json(),
+        "has_promo_codes": len(event.extra.promo_codes) > 0,
+    }
 
 
 @events_api_router.post("/api/v1/events")
@@ -129,6 +171,25 @@ async def api_tickets(
         wallet_ids = user.wallet_ids if user else []
 
     return await get_tickets(wallet_ids)
+
+
+@events_api_router.get("/api/v1/tickets/{ticket_id}")
+async def api_get_ticket(ticket_id: str) -> dict:
+    ticket = await get_ticket(ticket_id)
+    if not ticket:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail="Ticket does not exist."
+        )
+    event = await get_event(ticket.event)
+    if not event:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail="Event does not exist."
+        )
+    return {
+        "ticket_id": ticket.id,
+        "ticket_name": event.name,
+        "ticket_info": event.info,
+    }
 
 
 @events_api_router.post("/api/v1/tickets/{event_id}")

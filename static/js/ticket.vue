@@ -4,7 +4,7 @@
       <q-card class="q-pa-lg">
         <q-card-section class="q-pa-none">
           <center>
-            <h3 class="q-my-none">{{ ticket_name }} Ticket</h3>
+            <h3 class="q-my-none">{{ ticketName }} Ticket</h3>
             <br />
             <h5 class="q-my-none">
               Bookmark, print or screenshot this page,<br />
@@ -12,7 +12,7 @@
             </h5>
             <br />
             <lnbits-qrcode
-              :value="'ticket://{{ ticket_id }}'"
+              :value="`ticket://${ticketId}`"
               :options="{width: 500}"
             ></lnbits-qrcode>
             <br />

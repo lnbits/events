@@ -2,6 +2,7 @@ window.PageEventsDisplay = {
   template: '#page-events-display',
   data() {
     return {
+      eventName: '',
       paymentReq: null,
       redirectUrl: null,
       formDialog: {
@@ -26,11 +27,8 @@ window.PageEventsDisplay = {
     }
   },
   async created() {
-    this.info = event_info
-    this.info = this.info.substring(1, this.info.length - 1)
-    this.banner = event_banner
-    this.extra = event_extra
-    this.hasPromoCodes = has_promoCodes
+    this.eventId = this.$route.params.id
+    await this.getEvent()
   },
   computed: {
     formatDescription() {
@@ -38,6 +36,21 @@ window.PageEventsDisplay = {
     }
   },
   methods: {
+    async getEvent() {
+      try {
+        const {data} = await LNbits.api.request(
+          'GET',
+          `/events/api/v1/events/${this.eventId}`
+        )
+        this.eventName = data.event_name
+        this.info = data.event_info
+        this.banner = data.event_banner
+        this.extra = data.event_extra
+        this.hasPromoCodes = data.has_promo_codes
+      } catch (error) {
+        LNbits.utils.notifyApiError(error)
+      }
+    },
     resetForm(e) {
       e.preventDefault()
       this.formDialog.data.name = ''
