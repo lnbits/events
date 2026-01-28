@@ -1,3 +1,5 @@
+const {template} = require('underscore')
+
 const mapEvents = function (obj) {
   obj.date = Quasar.date.formatDate(
     new Date(obj.time * 1000),
@@ -8,9 +10,8 @@ const mapEvents = function (obj) {
   return obj
 }
 
-window.app = Vue.createApp({
-  el: '#vue',
-  mixins: [windowMixin],
+window.PageEventsRegister = {
+  template: '#page-events-register',
   data() {
     return {
       tickets: [],
@@ -75,4 +76,4 @@ window.app = Vue.createApp({
   created() {
     this.getEventTickets()
   }
-})
+}
