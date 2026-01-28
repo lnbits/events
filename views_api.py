@@ -2,8 +2,6 @@ from datetime import datetime, timezone
 from http import HTTPStatus
 
 from fastapi import APIRouter, Depends, Query
-from starlette.exceptions import HTTPException
-
 from lnbits.core.crud import get_standalone_payment, get_user
 from lnbits.core.models import WalletTypeInfo
 from lnbits.core.services import create_invoice
@@ -15,6 +13,7 @@ from lnbits.utils.exchange_rates import (
     fiat_amount_as_satoshis,
     get_fiat_rate_satoshis,
 )
+from starlette.exceptions import HTTPException
 
 from .crud import (
     create_event,
