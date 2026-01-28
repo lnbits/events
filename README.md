@@ -12,7 +12,7 @@
 
 <small>For more about LNBits extension check [this tutorial](https://github.com/lnbits/lnbits/wiki/LNbits-Extensions)</small>
 
-## Sell tickets for events and use the built-in scanner for registering attendants
+## Sell tickets for events and use the built-in scanner for registering attendees
 
 Events allows you to create tickets for an event. Each ticket is in the form of a unique QR code. After registering and paying, the user gets a QR code to present at registration/entrance.
 
