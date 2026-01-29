@@ -289,7 +289,11 @@ window.PageEvents = {
     if (this.g.user.wallets.length) {
       this.getTickets()
       this.getEvents()
-      this.currencies = ['sats', ...g.allowedCurrencies]
+      if (g.allowedCurrencies && g.allowedCurrencies.length) {
+        this.currencies = ['sats', ...g.allowedCurrencies]
+      } else {
+        this.currencies = ['sats', ...g.currencies]
+      }
     }
   }
 }
