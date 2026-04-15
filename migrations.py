@@ -169,12 +169,12 @@ async def m006_add_extra_fields(db):
     """
     # Add canceled and 'extra' columns to events table
     await db.execute(
-        """
-        ALTER TABLE events.events
-        ADD COLUMN canceled BOOLEAN NOT NULL DEFAULT FALSE,
-        ADD COLUMN extra TEXT;
-        """
+        "ALTER TABLE events.events ADD COLUMN canceled BOOLEAN NOT NULL DEFAULT FALSE;"
     )
+    await db.execute(
+        "ALTER TABLE events.events ADD COLUMN extra TEXT;"
+    )
+
 
     # Add 'extra' column to ticket table
     await db.execute("ALTER TABLE events.ticket ADD COLUMN extra TEXT;")
