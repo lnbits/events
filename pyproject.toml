@@ -7,11 +7,8 @@ authors = [{ name = "Alan Bits", email = "alan@lnbits.com" }]
 urls = { Homepage = "https://lnbits.com", Repository = "https://github.com/lnbits/events" }
 dependencies = [ "lnbits>1" ]
 
-[tool.poetry]
-package-mode = false
-
-[tool.uv]
-dev-dependencies = [
+[dependency-groups]
+dev = [
     "black",
     "pytest-asyncio",
     "pytest",
@@ -19,6 +16,9 @@ dev-dependencies = [
     "pre-commit",
     "ruff",
 ]
+
+[tool.poetry]
+package-mode = false
 
 [tool.mypy]
 exclude = "(nostr/*)"
