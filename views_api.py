@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from http import HTTPStatus
 
 from fastapi import APIRouter, Depends, Query
@@ -288,6 +288,6 @@ async def api_event_register_ticket(ticket_id) -> list[Ticket]:
         )
 
     ticket.registered = True
-    ticket.reg_timestamp = datetime.now(timezone.utc)
+    ticket.reg_timestamp = datetime.now(UTC)
     await update_ticket(ticket)
     return await get_event_tickets(ticket.event)
