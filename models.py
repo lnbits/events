@@ -83,3 +83,17 @@ class Ticket(BaseModel):
     time: datetime
     reg_timestamp: datetime
     extra: TicketExtra = Field(default_factory=TicketExtra)
+
+
+class PublicTicket(BaseModel):
+    event: str
+    name: str
+    registered: bool
+    paid: bool
+    time: datetime
+    reg_timestamp: datetime
+
+
+class TicketPaymentRequest(BaseModel):
+    payment_hash: str
+    payment_request: str

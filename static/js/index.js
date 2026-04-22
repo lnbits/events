@@ -5,9 +5,8 @@ const mapEvents = function (obj) {
   return obj
 }
 
-window.app = Vue.createApp({
-  el: '#vue',
-  mixins: [windowMixin],
+window.PageEvents = {
+  template: '#page-events',
   data() {
     return {
       events: [],
@@ -290,7 +289,11 @@ window.app = Vue.createApp({
     if (this.g.user.wallets.length) {
       this.getTickets()
       this.getEvents()
-      this.currencies = await LNbits.api.getCurrencies()
+      if (g.allowedCurrencies && g.allowedCurrencies.length) {
+        this.currencies = ['sats', ...g.allowedCurrencies]
+      } else {
+        this.currencies = ['sats', ...g.currencies]
+      }
     }
   }
-})
+}
