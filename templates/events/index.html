@@ -137,7 +137,7 @@
               </q-td>
               <q-td auto-width>
                 <q-btn
-                  v-if="props.row.status === 'proposed'"
+                  v-if="isAdmin && props.row.status === 'proposed'"
                   flat
                   dense
                   size="xs"
@@ -148,7 +148,7 @@
                   <q-tooltip>Approve</q-tooltip>
                 </q-btn>
                 <q-btn
-                  v-if="props.row.status === 'proposed'"
+                  v-if="isAdmin && props.row.status === 'proposed'"
                   flat
                   dense
                   size="xs"
