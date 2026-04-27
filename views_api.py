@@ -209,10 +209,17 @@ async def api_event_propose(
     """
     Propose a new event for admin approval.
     Requires invoice key (any authenticated user, not admin-only).
+    Auto-approved if the admin has enabled auto_approve in settings.
     """
-    data.status = "proposed"
+    ext_settings = await get_settings()
+    data.status = "approved" if ext_settings.auto_approve else "proposed"
     data.wallet = wallet.wallet.id
     event = await create_event(data)
+
+    # Publish to Nostr if auto-approved
+    if event.status == "approved":
+        await _publish_or_delete_nostr_event(event)
+
     return event.dict()
 
 
