@@ -105,49 +105,62 @@ async def api_events_all(
 
 
 @events_api_router.post("/api/v1/events")
-@events_api_router.put("/api/v1/events/{event_id}")
 async def api_event_create(
     data: CreateEvent,
-    wallet: WalletTypeInfo = Depends(require_admin_key),
-    event_id: str | None = None,
+    wallet: WalletTypeInfo = Depends(require_invoice_key),
 ):
-    if event_id:
-        event = await get_event(event_id)
-        if not event:
-            raise HTTPException(
-                status_code=HTTPStatus.NOT_FOUND, detail="Event does not exist."
-            )
+    """
+    Create a new event. Any authenticated user can create events.
+    Admin-created events are auto-approved. Non-admin events require
+    approval unless auto_approve is enabled in extension settings.
+    """
+    if not data.wallet:
+        data.wallet = wallet.wallet.id
 
-        if event.wallet != wallet.wallet.id:
-            raise HTTPException(
-                status_code=HTTPStatus.FORBIDDEN, detail="Not your event."
-            )
-        for k, v in data.dict().items():
-            setattr(event, k, v)
-        event = await update_event(event)
+    from lnbits.settings import settings
 
-        # Republish to Nostr if event is approved (kind 31922 is replaceable)
-        if event.status == "approved" and event.nostr_event_id:
-            await _publish_or_delete_nostr_event(event)
-    else:
-        if not data.wallet:
-            data.wallet = wallet.wallet.id
-        # Check if approval is required for non-admin users
-        from lnbits.settings import settings
+    ext_settings = await get_settings()
+    user_id = wallet.wallet.user
+    is_admin = (
+        user_id == settings.super_user
+        or user_id in settings.lnbits_admin_users
+    )
+    if not is_admin and not ext_settings.auto_approve:
+        data.status = "proposed"
 
-        ext_settings = await get_settings()
-        user_id = wallet.wallet.user
-        is_admin = (
-            user_id == settings.super_user
-            or user_id in settings.lnbits_admin_users
+    event = await create_event(data)
+
+    # Publish to Nostr if approved
+    if event.status == "approved":
+        await _publish_or_delete_nostr_event(event)
+
+    return event.dict()
+
+
+@events_api_router.put("/api/v1/events/{event_id}")
+async def api_event_update(
+    event_id: str,
+    data: CreateEvent,
+    wallet: WalletTypeInfo = Depends(require_admin_key),
+):
+    """Update an existing event. Requires admin key (event owner)."""
+    event = await get_event(event_id)
+    if not event:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail="Event does not exist."
         )
-        if not is_admin and not ext_settings.auto_approve:
-            data.status = "proposed"
-        event = await create_event(data)
 
-        # Publish to Nostr if auto-approved (admin-created)
-        if event.status == "approved":
-            await _publish_or_delete_nostr_event(event)
+    if event.wallet != wallet.wallet.id:
+        raise HTTPException(
+            status_code=HTTPStatus.FORBIDDEN, detail="Not your event."
+        )
+    for k, v in data.dict().items():
+        setattr(event, k, v)
+    event = await update_event(event)
+
+    # Republish to Nostr if event is approved (kind 31922 is replaceable)
+    if event.status == "approved" and event.nostr_event_id:
+        await _publish_or_delete_nostr_event(event)
 
     return event.dict()
 
@@ -199,28 +212,6 @@ async def api_form_delete(
 
 
 #########Event Approval##########
-
-
-@events_api_router.post("/api/v1/events/propose")
-async def api_event_propose(
-    data: CreateEvent,
-    wallet: WalletTypeInfo = Depends(require_invoice_key),
-):
-    """
-    Propose a new event for admin approval.
-    Requires invoice key (any authenticated user, not admin-only).
-    Auto-approved if the admin has enabled auto_approve in settings.
-    """
-    ext_settings = await get_settings()
-    data.status = "approved" if ext_settings.auto_approve else "proposed"
-    data.wallet = wallet.wallet.id
-    event = await create_event(data)
-
-    # Publish to Nostr if auto-approved
-    if event.status == "approved":
-        await _publish_or_delete_nostr_event(event)
-
-    return event.dict()
 
 
 @events_api_router.get("/api/v1/events/pending")
