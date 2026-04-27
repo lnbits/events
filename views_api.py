@@ -27,14 +27,16 @@ from .crud import (
     get_events,
     get_pending_events,
     get_public_events,
+    get_settings,
     get_ticket,
     get_tickets,
     get_tickets_by_user_id,
     # TODO: consider exposing purge_unpaid_tickets via an admin endpoint
     update_event,
+    update_settings,
     update_ticket,
 )
-from .models import CreateEvent, CreateTicket, Ticket
+from .models import CreateEvent, CreateTicket, EventsSettings, Ticket
 from .nostr_publisher import publish_event_to_nostr
 from .services import refund_tickets, set_ticket_paid
 
@@ -130,15 +132,16 @@ async def api_event_create(
     else:
         if not data.wallet:
             data.wallet = wallet.wallet.id
-        # Auto-approve for LNbits admins, require approval for regular users
+        # Check if approval is required for non-admin users
         from lnbits.settings import settings
 
+        ext_settings = await get_settings()
         user_id = wallet.wallet.user
         is_admin = (
             user_id == settings.super_user
             or user_id in settings.lnbits_admin_users
         )
-        if not is_admin:
+        if not is_admin and not ext_settings.auto_approve:
             data.status = "proposed"
         event = await create_event(data)
 
@@ -266,6 +269,26 @@ async def api_event_reject(
     event.status = "rejected"
     event = await update_event(event)
     return event.dict()
+
+
+#########Settings##########
+
+
+@events_api_router.get("/api/v1/settings")
+async def api_get_settings(
+    admin: Account = Depends(check_admin),
+) -> EventsSettings:
+    """Get extension settings. LNbits admin only."""
+    return await get_settings()
+
+
+@events_api_router.put("/api/v1/settings")
+async def api_update_settings(
+    data: EventsSettings,
+    admin: Account = Depends(check_admin),
+) -> EventsSettings:
+    """Update extension settings. LNbits admin only."""
+    return await update_settings(data)
 
 
 #########Tickets##########

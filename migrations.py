@@ -214,3 +214,20 @@ async def m009_add_nostr_columns(db):
     await db.execute(
         "ALTER TABLE events.events ADD COLUMN nostr_event_created_at INTEGER;"
     )
+
+
+async def m010_add_events_settings(db):
+    """
+    Create extension settings table for admin-configurable options.
+    """
+    await db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS events.settings (
+            id INTEGER PRIMARY KEY DEFAULT 1,
+            auto_approve BOOLEAN NOT NULL DEFAULT FALSE
+        );
+        """
+    )
+    await db.execute(
+        "INSERT OR IGNORE INTO events.settings (id, auto_approve) VALUES (1, FALSE);"
+    )

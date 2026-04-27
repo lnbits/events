@@ -5,7 +5,7 @@ from typing import Optional
 from lnbits.db import Database
 from lnbits.helpers import urlsafe_short_hash
 
-from .models import CreateEvent, Event, Ticket, TicketExtra
+from .models import CreateEvent, Event, EventsSettings, Ticket, TicketExtra
 
 
 def _parse_ticket_row(row) -> dict:
@@ -218,6 +218,27 @@ async def get_pending_events() -> list[Event]:
         "SELECT * FROM events.events WHERE status = 'proposed' ORDER BY time DESC",
         model=Event,
     )
+
+
+async def get_settings() -> EventsSettings:
+    """Get extension settings (single row, always exists after migration)."""
+    row = await db.fetchone("SELECT * FROM events.settings WHERE id = 1")
+    if row:
+        return EventsSettings(**dict(row))
+    return EventsSettings()
+
+
+async def update_settings(settings: EventsSettings) -> EventsSettings:
+    """Update extension settings."""
+    await db.execute(
+        """
+        UPDATE events.settings
+        SET auto_approve = :auto_approve
+        WHERE id = 1
+        """,
+        {"auto_approve": settings.auto_approve},
+    )
+    return settings
 
 
 async def delete_event(event_id: str) -> None:

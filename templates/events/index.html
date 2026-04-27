@@ -2,6 +2,24 @@
 %} {% block page %}
 <div class="row q-col-gutter-md">
   <div class="col-12 col-md-8 col-lg-7 q-gutter-y-md">
+    <!-- Settings (admin only) -->
+    <q-card v-if="isAdmin">
+      <q-card-section>
+        <div class="row items-center justify-between">
+          <div class="col">
+            <span class="text-subtitle1">Settings</span>
+          </div>
+          <div class="col-auto">
+            <q-toggle
+              v-model="settings.auto_approve"
+              label="Auto-approve events"
+              @update:model-value="saveSettings"
+            ></q-toggle>
+          </div>
+        </div>
+      </q-card-section>
+    </q-card>
+
     <q-card>
       <q-card-section>
         <q-btn unelevated color="primary" @click="openEventDialog"

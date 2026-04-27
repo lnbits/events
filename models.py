@@ -84,6 +84,12 @@ class Event(BaseModel):
     nostr_event_created_at: int | None = None
 
 
+class EventsSettings(BaseModel):
+    """Extension-level settings for the events extension."""
+
+    auto_approve: bool = False  # Skip approval for all users
+
+
 class TicketExtra(BaseModel):
     applied_promo_code: str | None = None
     sats_paid: int | None = None

@@ -14,6 +14,9 @@ window.app = Vue.createApp({
       allUserEvents: [],
       pendingEvents: [],
       isAdmin: false,
+      settings: {
+        auto_approve: false
+      },
       tickets: [],
       currencies: [],
       eventsTable: {
@@ -117,6 +120,29 @@ window.app = Vue.createApp({
     }
   },
   methods: {
+    getSettings() {
+      LNbits.api
+        .request('GET', '/events/api/v1/settings')
+        .then(response => {
+          this.settings = response.data
+        })
+        .catch(() => {
+          // Not admin or settings not available
+        })
+    },
+    saveSettings() {
+      LNbits.api
+        .request('PUT', '/events/api/v1/settings', null, this.settings)
+        .then(() => {
+          this.$q.notify({
+            type: 'positive',
+            message: 'Settings saved'
+          })
+        })
+        .catch(err => {
+          LNbits.utils.notifyApiError(err)
+        })
+    },
     approveEvent(eventId) {
       LNbits.utils
         .confirmDialog('Approve this event?')
@@ -375,6 +401,7 @@ window.app = Vue.createApp({
       this.getTickets()
       this.getEvents()
       this.getPendingEvents()
+      this.getSettings()
       this.currencies = await LNbits.api.getCurrencies()
     }
   }
