@@ -21,6 +21,9 @@ events_static_files = [
 
 scheduled_tasks: list[asyncio.Task] = []
 
+# Module-level NostrClient — None when nostrclient is unavailable
+nostr_client = None
+
 
 def events_stop():
     for task in scheduled_tasks:
@@ -29,12 +32,32 @@ def events_stop():
         except Exception as ex:
             logger.warning(ex)
 
+    global nostr_client
+    if nostr_client:
+        asyncio.get_event_loop().create_task(nostr_client.stop())
+
 
 def events_start():
     from lnbits.tasks import create_permanent_unique_task
 
-    task = create_permanent_unique_task("ext_events", wait_for_paid_invoices)
-    scheduled_tasks.append(task)
+    task1 = create_permanent_unique_task("ext_events", wait_for_paid_invoices)
+    scheduled_tasks.append(task1)
+
+    async def _start_nostr_client():
+        global nostr_client
+        await asyncio.sleep(10)  # Wait for nostrclient to be ready
+        try:
+            from .nostr.nostr_client import NostrClient
+
+            nostr_client = NostrClient()
+            logger.info("[EVENTS] Starting NostrClient for NIP-52 publishing")
+            await nostr_client.run_forever()
+        except Exception as e:
+            logger.warning(f"[EVENTS] NostrClient failed to start: {e}")
+            logger.info("[EVENTS] Events will work without Nostr publishing")
+
+    task2 = create_permanent_unique_task("ext_events_nostr", _start_nostr_client)
+    scheduled_tasks.append(task2)
 
 
 __all__ = ["db", "events_ext", "events_start", "events_static_files", "events_stop"]
