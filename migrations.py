@@ -231,3 +231,15 @@ async def m010_add_events_settings(db):
     await db.execute(
         "INSERT OR IGNORE INTO events.settings (id, auto_approve) VALUES (1, FALSE);"
     )
+
+
+async def m011_add_location_and_categories(db):
+    """
+    Add location and categories columns for NIP-52 calendar event support.
+    """
+    await db.execute(
+        "ALTER TABLE events.events ADD COLUMN location TEXT;"
+    )
+    await db.execute(
+        "ALTER TABLE events.events ADD COLUMN categories TEXT;"
+    )

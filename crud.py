@@ -164,6 +164,12 @@ async def purge_unpaid_tickets(event_id: str) -> None:
 
 async def create_event(data: CreateEvent) -> Event:
     event_id = urlsafe_short_hash()
+    # Default end date to start date if not provided
+    if not data.event_end_date:
+        data.event_end_date = data.event_start_date
+    # Default closing date to end date if not provided
+    if not data.closing_date:
+        data.closing_date = data.event_end_date
     event = Event(id=event_id, time=datetime.now(timezone.utc), **data.dict())
     await db.insert("events.events", event)
     return event

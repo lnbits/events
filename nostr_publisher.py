@@ -40,13 +40,17 @@ def build_nip52_event(event: Event, pubkey: str) -> NostrEvent:
         tags.append(["end", event.event_end_date])
     if event.banner:
         tags.append(["image", event.banner])
+    if event.location:
+        tags.append(["location", event.location])
+    for cat in (event.categories or []):
+        tags.append(["t", cat])
 
     nostr_event = NostrEvent(
         pubkey=pubkey,
         created_at=int(time.time()),
         kind=31922,
         tags=tags,
-        content=event.info,
+        content=event.info or "",
     )
     nostr_event.id = nostr_event.event_id
     return nostr_event

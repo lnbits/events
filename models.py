@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 from typing import Optional
 
@@ -29,15 +30,17 @@ class EventExtra(BaseModel):
 
 class CreateEvent(BaseModel):
     wallet: Optional[str] = None
-    name: str
-    info: str
-    closing_date: str
-    event_start_date: str
-    event_end_date: str
+    name: str  # title (required)
+    info: str = ""  # description (optional, visible by default)
+    closing_date: Optional[str] = None  # defaults to event_end_date or event_start_date
+    event_start_date: str  # required
+    event_end_date: Optional[str] = None  # defaults to event_start_date
     currency: str = "sat"
-    amount_tickets: int = Query(..., ge=0)
-    price_per_ticket: float = Query(..., ge=0)
-    banner: Optional[str] = None
+    amount_tickets: int = 0  # 0 = unlimited / not ticketed
+    price_per_ticket: float = 0  # 0 = free
+    banner: Optional[str] = None  # image URL (optional, visible by default)
+    location: Optional[str] = None  # venue/address (optional, visible by default)
+    categories: list[str] = Field(default_factory=list)  # NIP-52 't' tags
     extra: EventExtra = Field(default_factory=EventExtra)
     status: str = "approved"  # proposed, approved, rejected
 
@@ -67,21 +70,29 @@ class Event(BaseModel):
     id: str
     wallet: str
     name: str
-    info: str
-    closing_date: str
+    info: str = ""
+    closing_date: str | None = None
     canceled: bool = False
     event_start_date: str
-    event_end_date: str
-    currency: str
-    amount_tickets: int
-    price_per_ticket: float
+    event_end_date: str | None = None
+    currency: str = "sat"
+    amount_tickets: int = 0
+    price_per_ticket: float = 0
     time: datetime
     sold: int = 0
     banner: str | None = None
+    location: str | None = None
+    categories: list[str] = Field(default_factory=list)
     extra: EventExtra = Field(default_factory=EventExtra)
     status: str = "approved"  # proposed, approved, rejected
     nostr_event_id: str | None = None
     nostr_event_created_at: int | None = None
+
+    @validator("categories", pre=True)
+    def parse_categories(cls, v):
+        if isinstance(v, str):
+            return json.loads(v) if v else []
+        return v or []
 
 
 class EventsSettings(BaseModel):
