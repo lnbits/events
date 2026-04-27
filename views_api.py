@@ -3,9 +3,10 @@ from http import HTTPStatus
 
 from fastapi import APIRouter, Depends, Query
 from lnbits.core.crud import get_standalone_payment, get_user
-from lnbits.core.models import WalletTypeInfo
+from lnbits.core.models import Account, WalletTypeInfo
 from lnbits.core.services import create_invoice
 from lnbits.decorators import (
+    check_admin,
     require_admin_key,
     require_invoice_key,
 )
@@ -65,9 +66,9 @@ async def api_events_public():
 
 @events_api_router.get("/api/v1/events/all")
 async def api_events_all(
-    wallet: WalletTypeInfo = Depends(require_admin_key),
+    admin: Account = Depends(check_admin),
 ):
-    """Get all events across all wallets. Admin only."""
+    """Get all events across all wallets. LNbits admin only."""
     from .crud import get_all_events
 
     events = await get_all_events()
@@ -161,9 +162,9 @@ async def api_event_propose(
 
 @events_api_router.get("/api/v1/events/pending")
 async def api_events_pending(
-    wallet: WalletTypeInfo = Depends(require_admin_key),
+    admin: Account = Depends(check_admin),
 ):
-    """Get all proposed events awaiting approval. Admin only."""
+    """Get all proposed events awaiting approval. LNbits admin only."""
     events = await get_pending_events()
     return [event.dict() for event in events]
 
@@ -171,9 +172,9 @@ async def api_events_pending(
 @events_api_router.put("/api/v1/events/{event_id}/approve")
 async def api_event_approve(
     event_id: str,
-    wallet: WalletTypeInfo = Depends(require_admin_key),
+    admin: Account = Depends(check_admin),
 ):
-    """Approve a proposed event. Admin only."""
+    """Approve a proposed event. LNbits admin only."""
     event = await get_event(event_id)
     if not event:
         raise HTTPException(
@@ -192,9 +193,9 @@ async def api_event_approve(
 @events_api_router.put("/api/v1/events/{event_id}/reject")
 async def api_event_reject(
     event_id: str,
-    wallet: WalletTypeInfo = Depends(require_admin_key),
+    admin: Account = Depends(check_admin),
 ):
-    """Reject a proposed event. Admin only."""
+    """Reject a proposed event. LNbits admin only."""
     event = await get_event(event_id)
     if not event:
         raise HTTPException(

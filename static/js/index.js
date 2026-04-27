@@ -122,8 +122,7 @@ window.app = Vue.createApp({
           LNbits.api
             .request(
               'PUT',
-              '/events/api/v1/events/' + eventId + '/approve',
-              this.g.user.wallets[0].adminkey
+              '/events/api/v1/events/' + eventId + '/approve'
             )
             .then(() => {
               this.$q.notify({
@@ -145,8 +144,7 @@ window.app = Vue.createApp({
           LNbits.api
             .request(
               'PUT',
-              '/events/api/v1/events/' + eventId + '/reject',
-              this.g.user.wallets[0].adminkey
+              '/events/api/v1/events/' + eventId + '/reject'
             )
             .then(() => {
               this.$q.notify({
@@ -207,8 +205,7 @@ window.app = Vue.createApp({
       LNbits.api
         .request(
           'GET',
-          '/events/api/v1/events/all',
-          this.g.user.wallets[0].adminkey
+          '/events/api/v1/events/all'
         )
         .then(response => {
           this.events = response.data.map(obj => {
@@ -236,8 +233,7 @@ window.app = Vue.createApp({
       LNbits.api
         .request(
           'GET',
-          '/events/api/v1/events/pending',
-          this.g.user.wallets[0].adminkey
+          '/events/api/v1/events/pending'
         )
         .then(response => {
           this.pendingEvents = response.data.map(obj => {
