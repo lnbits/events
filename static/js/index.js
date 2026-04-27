@@ -73,7 +73,8 @@ window.app = Vue.createApp({
             field: 'sold'
           },
           {name: 'info', align: 'left', label: 'Info', field: 'info'},
-          {name: 'banner', align: 'left', label: 'Banner', field: 'banner'}
+          {name: 'banner', align: 'left', label: 'Banner', field: 'banner'},
+          {name: 'status', align: 'left', label: 'Status', field: 'status'}
         ],
         pagination: {
           rowsPerPage: 10
@@ -112,7 +113,56 @@ window.app = Vue.createApp({
       }
     }
   },
+  computed: {
+    pendingEvents() {
+      return this.events.filter(e => e.status === 'proposed')
+    }
+  },
   methods: {
+    approveEvent(eventId) {
+      LNbits.utils
+        .confirmDialog('Approve this event?')
+        .onOk(() => {
+          LNbits.api
+            .request(
+              'PUT',
+              '/events/api/v1/events/' + eventId + '/approve',
+              this.g.user.wallets[0].adminkey
+            )
+            .then(() => {
+              this.$q.notify({
+                type: 'positive',
+                message: 'Event approved'
+              })
+              this.getEvents()
+            })
+            .catch(err => {
+              LNbits.utils.notifyApiError(err)
+            })
+        })
+    },
+    rejectEvent(eventId) {
+      LNbits.utils
+        .confirmDialog('Reject this event?')
+        .onOk(() => {
+          LNbits.api
+            .request(
+              'PUT',
+              '/events/api/v1/events/' + eventId + '/reject',
+              this.g.user.wallets[0].adminkey
+            )
+            .then(() => {
+              this.$q.notify({
+                type: 'positive',
+                message: 'Event rejected'
+              })
+              this.getEvents()
+            })
+            .catch(err => {
+              LNbits.utils.notifyApiError(err)
+            })
+        })
+    },
     getTickets() {
       LNbits.api
         .request(

@@ -10,6 +10,58 @@
       </q-card-section>
     </q-card>
 
+    <!-- Pending Event Approvals -->
+    <q-card v-if="pendingEvents.length > 0">
+      <q-card-section>
+        <div class="row items-center no-wrap q-mb-md">
+          <div class="col">
+            <h5 class="text-subtitle1 q-my-none">
+              <q-icon name="pending" color="orange" class="q-mr-sm" />
+              Pending Approvals
+              <q-badge color="orange" :label="pendingEvents.length" class="q-ml-sm" />
+            </h5>
+          </div>
+        </div>
+        <q-list separator>
+          <q-item v-for="event in pendingEvents" :key="event.id">
+            <q-item-section>
+              <q-item-label>{% raw %}{{ event.name }}{% endraw %}</q-item-label>
+              <q-item-label caption>
+                {% raw %}{{ event.event_start_date }}{% endraw %}
+                &mdash;
+                {% raw %}{{ event.info.substring(0, 80) }}{% endraw %}{% raw %}{{ event.info.length > 80 ? '...' : '' }}{% endraw %}
+              </q-item-label>
+              <q-item-label caption>
+                {% raw %}{{ event.amount_tickets }}{% endraw %} tickets &bull;
+                {% raw %}{{ event.price_per_ticket }}{% endraw %} {% raw %}{{ event.currency }}{% endraw %}
+              </q-item-label>
+            </q-item-section>
+            <q-item-section side>
+              <div class="row q-gutter-sm">
+                <q-btn
+                  dense
+                  color="green"
+                  icon="check_circle"
+                  label="Approve"
+                  size="sm"
+                  @click="approveEvent(event.id)"
+                />
+                <q-btn
+                  dense
+                  outline
+                  color="red"
+                  icon="block"
+                  label="Reject"
+                  size="sm"
+                  @click="rejectEvent(event.id)"
+                />
+              </div>
+            </q-item-section>
+          </q-item>
+        </q-list>
+      </q-card-section>
+    </q-card>
+
     <q-card>
       <q-card-section>
         <div class="row items-center no-wrap q-mb-md">
@@ -76,9 +128,36 @@
                 ></q-btn>
               </q-td>
               <q-td v-for="col in props.cols" :key="col.name" :props="props">
-                <span v-text="col.value"></span>
+                <q-badge
+                  v-if="col.name === 'status'"
+                  :color="col.value === 'approved' ? 'green' : col.value === 'proposed' ? 'orange' : 'red'"
+                  :label="col.value"
+                />
+                <span v-else v-text="col.value"></span>
               </q-td>
               <q-td auto-width>
+                <q-btn
+                  v-if="props.row.status === 'proposed'"
+                  flat
+                  dense
+                  size="xs"
+                  @click="approveEvent(props.row.id)"
+                  icon="check_circle"
+                  color="green"
+                >
+                  <q-tooltip>Approve</q-tooltip>
+                </q-btn>
+                <q-btn
+                  v-if="props.row.status === 'proposed'"
+                  flat
+                  dense
+                  size="xs"
+                  @click="rejectEvent(props.row.id)"
+                  icon="block"
+                  color="red"
+                >
+                  <q-tooltip>Reject</q-tooltip>
+                </q-btn>
                 <q-btn
                   flat
                   dense
