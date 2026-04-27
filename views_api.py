@@ -99,6 +99,16 @@ async def api_event_create(
     else:
         if not data.wallet:
             data.wallet = wallet.wallet.id
+        # Auto-approve for LNbits admins, require approval for regular users
+        from lnbits.settings import settings
+
+        user_id = wallet.wallet.user
+        is_admin = (
+            user_id == settings.super_user
+            or user_id in settings.lnbits_admin_users
+        )
+        if not is_admin:
+            data.status = "proposed"
         event = await create_event(data)
 
     return event.dict()
