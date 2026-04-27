@@ -80,6 +80,8 @@ class Event(BaseModel):
     banner: str | None = None
     extra: EventExtra = Field(default_factory=EventExtra)
     status: str = "approved"  # proposed, approved, rejected
+    nostr_event_id: str | None = None
+    nostr_event_created_at: int | None = None
 
 
 class TicketExtra(BaseModel):

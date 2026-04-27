@@ -202,3 +202,15 @@ async def m008_add_event_status(db):
     await db.execute(
         "ALTER TABLE events.events ADD COLUMN status TEXT NOT NULL DEFAULT 'approved';"
     )
+
+
+async def m009_add_nostr_columns(db):
+    """
+    Add columns to track published NIP-52 Nostr calendar events.
+    """
+    await db.execute(
+        "ALTER TABLE events.events ADD COLUMN nostr_event_id TEXT;"
+    )
+    await db.execute(
+        "ALTER TABLE events.events ADD COLUMN nostr_event_created_at INTEGER;"
+    )
