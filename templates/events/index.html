@@ -25,15 +25,15 @@
         <q-list separator>
           <q-item v-for="event in pendingEvents" :key="event.id">
             <q-item-section>
-              <q-item-label>{% raw %}{{ event.name }}{% endraw %}</q-item-label>
+              <q-item-label v-text="event.name"></q-item-label>
               <q-item-label caption>
-                {% raw %}{{ event.event_start_date }}{% endraw %}
+                <span v-text="event.event_start_date"></span>
                 &mdash;
-                {% raw %}{{ event.info.substring(0, 80) }}{% endraw %}{% raw %}{{ event.info.length > 80 ? '...' : '' }}{% endraw %}
+                <span v-text="event.info.substring(0, 80)"></span><span v-if="event.info.length > 80">...</span>
               </q-item-label>
               <q-item-label caption>
-                {% raw %}{{ event.amount_tickets }}{% endraw %} tickets &bull;
-                {% raw %}{{ event.price_per_ticket }}{% endraw %} {% raw %}{{ event.currency }}{% endraw %}
+                <span v-text="event.amount_tickets"></span> tickets &bull;
+                <span v-text="event.price_per_ticket"></span> <span v-text="event.currency"></span>
               </q-item-label>
             </q-item-section>
             <q-item-section side>
