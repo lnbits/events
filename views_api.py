@@ -24,6 +24,8 @@ from .crud import (
     get_event,
     get_event_tickets,
     get_events,
+    get_pending_events,
+    get_public_events,
     get_ticket,
     get_tickets,
     get_tickets_by_user_id,
@@ -54,12 +56,10 @@ async def api_events(
 @events_api_router.get("/api/v1/events/public")
 async def api_events_public():
     """
-    Retrieve all events in the database with read-only access.
-    This endpoint allows access to all events using any valid API key (read access).
+    Retrieve approved, non-canceled events for public display.
+    No authentication required.
     """
-    # Get all events from the database without wallet filtering
-    from .crud import get_all_events
-    events = await get_all_events()
+    events = await get_public_events()
     return [event.dict() for event in events]
 
 
@@ -126,6 +126,75 @@ async def api_form_delete(
     await delete_event(event_id)
     await delete_event_tickets(event_id)
     return "", HTTPStatus.NO_CONTENT
+
+
+#########Event Approval##########
+
+
+@events_api_router.post("/api/v1/events/propose")
+async def api_event_propose(
+    data: CreateEvent,
+    wallet: WalletTypeInfo = Depends(require_invoice_key),
+):
+    """
+    Propose a new event for admin approval.
+    Requires invoice key (any authenticated user, not admin-only).
+    """
+    data.status = "proposed"
+    data.wallet = wallet.wallet.id
+    event = await create_event(data)
+    return event.dict()
+
+
+@events_api_router.get("/api/v1/events/pending")
+async def api_events_pending(
+    wallet: WalletTypeInfo = Depends(require_admin_key),
+):
+    """Get all proposed events awaiting approval. Admin only."""
+    events = await get_pending_events()
+    return [event.dict() for event in events]
+
+
+@events_api_router.put("/api/v1/events/{event_id}/approve")
+async def api_event_approve(
+    event_id: str,
+    wallet: WalletTypeInfo = Depends(require_admin_key),
+):
+    """Approve a proposed event. Admin only."""
+    event = await get_event(event_id)
+    if not event:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail="Event does not exist."
+        )
+    if event.status != "proposed":
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail=f"Event is already {event.status}.",
+        )
+    event.status = "approved"
+    event = await update_event(event)
+    return event.dict()
+
+
+@events_api_router.put("/api/v1/events/{event_id}/reject")
+async def api_event_reject(
+    event_id: str,
+    wallet: WalletTypeInfo = Depends(require_admin_key),
+):
+    """Reject a proposed event. Admin only."""
+    event = await get_event(event_id)
+    if not event:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail="Event does not exist."
+        )
+    if event.status != "proposed":
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail=f"Event is already {event.status}.",
+        )
+    event.status = "rejected"
+    event = await update_event(event)
+    return event.dict()
 
 
 #########Tickets##########
