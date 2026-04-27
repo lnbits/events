@@ -202,17 +202,34 @@ window.app = Vue.createApp({
       LNbits.utils.exportCSV(this.ticketsTable.columns, this.tickets)
     },
     getEvents() {
+      // Try admin endpoint first (shows all events across all wallets)
+      // Falls back to user's own events if not admin
       LNbits.api
         .request(
           'GET',
-          '/events/api/v1/events?all_wallets=true',
-          this.g.user.wallets[0].inkey
+          '/events/api/v1/events/all',
+          this.g.user.wallets[0].adminkey
         )
         .then(response => {
           this.events = response.data.map(obj => {
             return mapEvents(obj)
           })
           this.checkCanceledEvents()
+        })
+        .catch(() => {
+          // Not admin, fall back to own events
+          LNbits.api
+            .request(
+              'GET',
+              '/events/api/v1/events?all_wallets=true',
+              this.g.user.wallets[0].inkey
+            )
+            .then(response => {
+              this.events = response.data.map(obj => {
+                return mapEvents(obj)
+              })
+              this.checkCanceledEvents()
+            })
         })
     },
     getPendingEvents() {

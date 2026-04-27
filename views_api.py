@@ -63,6 +63,17 @@ async def api_events_public():
     return [event.dict() for event in events]
 
 
+@events_api_router.get("/api/v1/events/all")
+async def api_events_all(
+    wallet: WalletTypeInfo = Depends(require_admin_key),
+):
+    """Get all events across all wallets. Admin only."""
+    from .crud import get_all_events
+
+    events = await get_all_events()
+    return [event.dict() for event in events]
+
+
 @events_api_router.post("/api/v1/events")
 @events_api_router.put("/api/v1/events/{event_id}")
 async def api_event_create(
