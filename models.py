@@ -28,7 +28,7 @@ class EventExtra(BaseModel):
 
 
 class CreateEvent(BaseModel):
-    wallet: str
+    wallet: Optional[str] = None
     name: str
     info: str
     closing_date: str

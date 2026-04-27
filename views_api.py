@@ -85,6 +85,8 @@ async def api_event_create(
             setattr(event, k, v)
         event = await update_event(event)
     else:
+        if not data.wallet:
+            data.wallet = wallet.wallet.id
         event = await create_event(data)
 
     return event.dict()
