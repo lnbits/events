@@ -29,7 +29,7 @@ from .crud import (
     get_ticket,
     get_tickets,
     get_tickets_by_user_id,
-    purge_unpaid_tickets,
+    # TODO: consider exposing purge_unpaid_tickets via an admin endpoint
     update_event,
     update_ticket,
 )
@@ -276,7 +276,9 @@ async def api_ticket_make_ticket_user_id(event_id: str, user_id: str):
 
 
 @events_api_router.get("/api/v1/tickets/{event_id}/{name}/{email}")
-async def api_ticket_make_ticket(event_id, name, email, promo_code=None, refund_address=None):
+async def api_ticket_make_ticket(
+    event_id, name, email, promo_code=None, refund_address=None
+):
     event = await get_event(event_id)
     if not event:
         raise HTTPException(
