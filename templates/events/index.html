@@ -229,6 +229,48 @@
       </q-card-section>
     </q-card>
 
+    <!-- All Users' Events (admin only) -->
+    <q-card v-if="isAdmin && allUserEvents.length > 0">
+      <q-card-section>
+        <div class="row items-center no-wrap q-mb-md">
+          <div class="col">
+            <h5 class="text-subtitle1 q-my-none">
+              All Users' Events
+              <q-badge color="blue" :label="allUserEvents.length" class="q-ml-sm"></q-badge>
+            </h5>
+          </div>
+        </div>
+        <q-table
+          dense
+          flat
+          :rows="allUserEvents"
+          row-key="id"
+          :columns="eventsTable.columns"
+          :pagination="{rowsPerPage: 10}"
+        >
+          <template v-slot:header="props">
+            <q-tr :props="props">
+              <q-th v-for="col in props.cols" :key="col.name" :props="props">
+                <span v-text="col.label"></span>
+              </q-th>
+            </q-tr>
+          </template>
+          <template v-slot:body="props">
+            <q-tr :props="props">
+              <q-td v-for="col in props.cols" :key="col.name" :props="props">
+                <q-badge
+                  v-if="col.name === 'status'"
+                  :color="col.value === 'approved' ? 'green' : col.value === 'proposed' ? 'orange' : 'red'"
+                  :label="col.value"
+                ></q-badge>
+                <span v-else v-text="col.value"></span>
+              </q-td>
+            </q-tr>
+          </template>
+        </q-table>
+      </q-card-section>
+    </q-card>
+
     <q-card>
       <q-card-section>
         <div class="row items-center no-wrap q-mb-md">

@@ -11,7 +11,9 @@ window.app = Vue.createApp({
   data() {
     return {
       events: [],
+      allUserEvents: [],
       pendingEvents: [],
+      isAdmin: false,
       tickets: [],
       currencies: [],
       eventsTable: {
@@ -200,12 +202,12 @@ window.app = Vue.createApp({
       LNbits.utils.exportCSV(this.ticketsTable.columns, this.tickets)
     },
     getEvents() {
-      // Try admin endpoint first (shows all events across all wallets)
-      // Falls back to user's own events if not admin
+      // Always fetch own events
       LNbits.api
         .request(
           'GET',
-          '/events/api/v1/events/all'
+          '/events/api/v1/events?all_wallets=true',
+          this.g.user.wallets[0].inkey
         )
         .then(response => {
           this.events = response.data.map(obj => {
@@ -213,20 +215,24 @@ window.app = Vue.createApp({
           })
           this.checkCanceledEvents()
         })
+
+      // Admin: also fetch all users' events
+      LNbits.api
+        .request(
+          'GET',
+          '/events/api/v1/events/all'
+        )
+        .then(response => {
+          this.isAdmin = true
+          // Exclude own events (already in this.events)
+          const ownWalletIds = this.g.user.wallets.map(w => w.id)
+          this.allUserEvents = response.data
+            .filter(obj => !ownWalletIds.includes(obj.wallet))
+            .map(obj => mapEvents(obj))
+        })
         .catch(() => {
-          // Not admin, fall back to own events
-          LNbits.api
-            .request(
-              'GET',
-              '/events/api/v1/events?all_wallets=true',
-              this.g.user.wallets[0].inkey
-            )
-            .then(response => {
-              this.events = response.data.map(obj => {
-                return mapEvents(obj)
-              })
-              this.checkCanceledEvents()
-            })
+          this.isAdmin = false
+          this.allUserEvents = []
         })
     },
     getPendingEvents() {
