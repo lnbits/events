@@ -11,6 +11,7 @@ window.app = Vue.createApp({
   data() {
     return {
       events: [],
+      pendingEvents: [],
       tickets: [],
       currencies: [],
       eventsTable: {
@@ -113,11 +114,6 @@ window.app = Vue.createApp({
       }
     }
   },
-  computed: {
-    pendingEvents() {
-      return this.events.filter(e => e.status === 'proposed')
-    }
-  },
   methods: {
     approveEvent(eventId) {
       LNbits.utils
@@ -135,6 +131,7 @@ window.app = Vue.createApp({
                 message: 'Event approved'
               })
               this.getEvents()
+              this.getPendingEvents()
             })
             .catch(err => {
               LNbits.utils.notifyApiError(err)
@@ -157,6 +154,7 @@ window.app = Vue.createApp({
                 message: 'Event rejected'
               })
               this.getEvents()
+              this.getPendingEvents()
             })
             .catch(err => {
               LNbits.utils.notifyApiError(err)
@@ -215,6 +213,23 @@ window.app = Vue.createApp({
             return mapEvents(obj)
           })
           this.checkCanceledEvents()
+        })
+    },
+    getPendingEvents() {
+      LNbits.api
+        .request(
+          'GET',
+          '/events/api/v1/events/pending',
+          this.g.user.wallets[0].adminkey
+        )
+        .then(response => {
+          this.pendingEvents = response.data.map(obj => {
+            return mapEvents(obj)
+          })
+        })
+        .catch(() => {
+          // Not an admin or no pending events
+          this.pendingEvents = []
         })
     },
     sendEventData() {
@@ -340,6 +355,7 @@ window.app = Vue.createApp({
     if (this.g.user.wallets.length) {
       this.getTickets()
       this.getEvents()
+      this.getPendingEvents()
       this.currencies = await LNbits.api.getCurrencies()
     }
   }
