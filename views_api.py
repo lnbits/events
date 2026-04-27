@@ -35,9 +35,36 @@ from .crud import (
     update_ticket,
 )
 from .models import CreateEvent, CreateTicket, Ticket
+from .nostr_publisher import publish_event_to_nostr
 from .services import refund_tickets, set_ticket_paid
 
 events_api_router = APIRouter()
+
+
+async def _publish_or_delete_nostr_event(event, delete=False):
+    """Publish (or delete) a NIP-52 calendar event using the creator's keypair."""
+    try:
+        from lnbits.core.crud.wallets import get_wallet
+        from lnbits.core.crud.users import get_account
+
+        from . import nostr_client
+
+        wallet_obj = await get_wallet(event.wallet)
+        if not wallet_obj:
+            return
+        account = await get_account(wallet_obj.user)
+        if not account or not account.pubkey or not account.prvkey:
+            return
+
+        nostr_event = await publish_event_to_nostr(
+            nostr_client, event, account.pubkey, account.prvkey, delete=delete
+        )
+        if nostr_event and not delete:
+            event.nostr_event_id = nostr_event.id
+            event.nostr_event_created_at = nostr_event.created_at
+            await update_event(event)
+    except Exception as e:
+        logger.warning(f"[EVENTS] Nostr publish failed: {e}")
 
 
 @events_api_router.get("/api/v1/events")
@@ -96,6 +123,10 @@ async def api_event_create(
         for k, v in data.dict().items():
             setattr(event, k, v)
         event = await update_event(event)
+
+        # Republish to Nostr if event is approved (kind 31922 is replaceable)
+        if event.status == "approved" and event.nostr_event_id:
+            await _publish_or_delete_nostr_event(event)
     else:
         if not data.wallet:
             data.wallet = wallet.wallet.id
@@ -110,6 +141,10 @@ async def api_event_create(
         if not is_admin:
             data.status = "proposed"
         event = await create_event(data)
+
+        # Publish to Nostr if auto-approved (admin-created)
+        if event.status == "approved":
+            await _publish_or_delete_nostr_event(event)
 
     return event.dict()
 
@@ -131,6 +166,10 @@ async def api_event_cancel(
     event = await update_event(event)
     await refund_tickets(event.id)
 
+    # Delete NIP-52 event from Nostr if it was published
+    if event.nostr_event_id:
+        await _publish_or_delete_nostr_event(event, delete=True)
+
     return event.dict()
 
 
@@ -146,6 +185,10 @@ async def api_form_delete(
 
     if event.wallet != wallet.wallet.id:
         raise HTTPException(status_code=HTTPStatus.FORBIDDEN, detail="Not your event.")
+
+    # Delete NIP-52 event from Nostr if it was published
+    if event.nostr_event_id:
+        await _publish_or_delete_nostr_event(event, delete=True)
 
     await delete_event(event_id)
     await delete_event_tickets(event_id)
@@ -197,6 +240,10 @@ async def api_event_approve(
         )
     event.status = "approved"
     event = await update_event(event)
+
+    # Publish NIP-52 calendar event to Nostr
+    await _publish_or_delete_nostr_event(event)
+
     return event.dict()
 
 
