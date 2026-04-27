@@ -50,14 +50,32 @@ def events_start():
             from .nostr.nostr_client import NostrClient
 
             nostr_client = NostrClient()
-            logger.info("[EVENTS] Starting NostrClient for NIP-52 publishing")
+            logger.info("[EVENTS] Starting NostrClient for NIP-52 sync")
             await nostr_client.run_forever()
         except Exception as e:
             logger.warning(f"[EVENTS] NostrClient failed to start: {e}")
-            logger.info("[EVENTS] Events will work without Nostr publishing")
+            logger.info("[EVENTS] Events will work without Nostr sync")
 
     task2 = create_permanent_unique_task("ext_events_nostr", _start_nostr_client)
     scheduled_tasks.append(task2)
+
+    async def _sync_nostr_events():
+        global nostr_client
+        await asyncio.sleep(15)  # Wait for NostrClient to connect
+        if not nostr_client:
+            logger.info("[EVENTS] No NostrClient, skipping Nostr sync")
+            return
+        try:
+            from .nostr_sync import wait_for_nostr_events
+
+            await wait_for_nostr_events(nostr_client)
+        except Exception as e:
+            logger.error(f"[EVENTS] Nostr sync task failed: {e}")
+
+    task3 = create_permanent_unique_task(
+        "ext_events_nostr_sync", _sync_nostr_events
+    )
+    scheduled_tasks.append(task3)
 
 
 __all__ = ["db", "events_ext", "events_start", "events_static_files", "events_stop"]
