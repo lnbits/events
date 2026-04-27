@@ -191,3 +191,14 @@ async def m007_add_extra_fields(db):
 
     # Add 'extra' column to ticket table
     await db.execute("ALTER TABLE events.ticket ADD COLUMN extra TEXT;")
+
+
+async def m008_add_event_status(db):
+    """
+    Add status column to events table for proposal/approval workflow.
+    Values: 'proposed', 'approved', 'rejected'.
+    Default 'approved' for backward compatibility with existing events.
+    """
+    await db.execute(
+        "ALTER TABLE events.events ADD COLUMN status TEXT NOT NULL DEFAULT 'approved';"
+    )

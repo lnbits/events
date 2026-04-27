@@ -39,6 +39,7 @@ class CreateEvent(BaseModel):
     price_per_ticket: float = Query(..., ge=0)
     banner: Optional[str] = None
     extra: EventExtra = Field(default_factory=EventExtra)
+    status: str = "approved"  # proposed, approved, rejected
 
 
 class CreateTicket(BaseModel):
@@ -78,6 +79,7 @@ class Event(BaseModel):
     sold: int = 0
     banner: str | None = None
     extra: EventExtra = Field(default_factory=EventExtra)
+    status: str = "approved"  # proposed, approved, rejected
 
 
 class TicketExtra(BaseModel):
