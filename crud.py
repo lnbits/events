@@ -200,6 +200,26 @@ async def get_all_events() -> list[Event]:
     )
 
 
+async def get_public_events() -> list[Event]:
+    """Get approved, non-canceled events for public display."""
+    return await db.fetchall(
+        """
+        SELECT * FROM events.events
+        WHERE status = 'approved' AND canceled = FALSE
+        ORDER BY event_start_date ASC
+        """,
+        model=Event,
+    )
+
+
+async def get_pending_events() -> list[Event]:
+    """Get proposed events awaiting admin approval."""
+    return await db.fetchall(
+        "SELECT * FROM events.events WHERE status = 'proposed' ORDER BY time DESC",
+        model=Event,
+    )
+
+
 async def delete_event(event_id: str) -> None:
     await db.execute("DELETE FROM events.events WHERE id = :id", {"id": event_id})
 
