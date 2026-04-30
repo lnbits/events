@@ -2,7 +2,8 @@ window.PageEventsDisplay = {
   template: '#page-events-display',
   data() {
     return {
-      eventName: '',
+      eventErrorLabel: '',
+      event: null,
       paymentReq: null,
       redirectUrl: null,
       formDialog: {
@@ -28,7 +29,7 @@ window.PageEventsDisplay = {
   },
   async created() {
     this.eventId = this.$route.params.id
-    await this.getEvent()
+    this.event = await this.getEvent()
   },
   computed: {
     formatDescription() {
@@ -42,12 +43,9 @@ window.PageEventsDisplay = {
           'GET',
           `/events/api/v1/events/${this.eventId}`
         )
-        this.eventName = data.event_name
-        this.info = data.event_info
-        this.banner = data.event_banner
-        this.extra = data.event_extra
-        this.hasPromoCodes = data.has_promo_codes
+        return data
       } catch (error) {
+        this.eventErrorLabel = 'Event unavailable.'
         LNbits.utils.notifyApiError(error)
       }
     },
@@ -88,7 +86,7 @@ window.PageEventsDisplay = {
           }
         )
         this.paymentReq = data.payment_request
-        this.paymentCheck = data.payment_hash
+        this.paymentHash = data.payment_hash
 
         dismissMsg = Quasar.Notify.create({
           timeout: 0,
@@ -104,21 +102,14 @@ window.PageEventsDisplay = {
         paymentChecker = setInterval(async () => {
           try {
             const res = await LNbits.api.request(
-              'POST',
-              `/events/api/v1/tickets/${this.eventId}/${this.paymentCheck}`,
-              {
-                event: this.eventId,
-                event_name: this.eventName,
-                name: this.formDialog.data.name,
-                email: this.formDialog.data.email
-              }
+              'GET',
+              `/events/api/v1/tickets/${this.eventId}/${this.paymentHash}`
             )
             if (res.data.paid) {
               clearInterval(paymentChecker)
               dismissMsg()
               this.formDialog.data.name = ''
               this.formDialog.data.email = ''
-
               Quasar.Notify.create({
                 type: 'positive',
                 message: 'Sent, thank you!',
@@ -129,15 +120,14 @@ window.PageEventsDisplay = {
                 status: 'complete',
                 paymentReq: null
               }
-
               this.ticketLink = {
                 show: true,
                 data: {
-                  link: `/events/ticket/${res.data.ticket_id}`
+                  link: `/events/ticket/${res.data.id}`
                 }
               }
               setTimeout(() => {
-                window.location.href = `/events/ticket/${res.data.ticket_id}`
+                window.location.href = `/events/ticket/${res.data.id}`
               }, 5000)
             }
           } catch (error) {

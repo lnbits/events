@@ -1,10 +1,3 @@
-const mapEvents = function (obj) {
-  obj.date = LNbits.utils.formatTimestamp(obj.time)
-  obj.fsat = new Intl.NumberFormat(window.g.locale).format(obj.price_per_ticket)
-  obj.displayUrl = ['/events/', obj.id].join('')
-  return obj
-}
-
 window.PageEvents = {
   template: '#page-events',
   data() {
@@ -104,6 +97,7 @@ window.PageEvents = {
       formDialog: {
         show: false,
         data: {
+          currency: "sats",
           extra: {
             promo_codes: []
           }
@@ -117,18 +111,15 @@ window.PageEvents = {
         .request(
           'GET',
           '/events/api/v1/tickets?all_wallets=true',
-          this.g.user.wallets[0].inkey
+          this.g.user.wallets[0].adminkey
         )
         .then(response => {
-          this.tickets = response.data
-            .map(function (obj) {
-              return mapEvents(obj)
-            })
-            .filter(e => e.paid)
+          this.tickets = response.data.filter(e => e.paid)
         })
     },
     deleteTicket(ticketId) {
       const tickets = _.findWhere(this.tickets, {id: ticketId})
+      const wallet = _.findWhere(this.g.user.wallets, {id: tickets.wallet})
 
       LNbits.utils
         .confirmDialog('Are you sure you want to delete this ticket')
@@ -137,16 +128,14 @@ window.PageEvents = {
             .request(
               'DELETE',
               '/events/api/v1/tickets/' + ticketId,
-              _.findWhere(this.g.user.wallets, {id: tickets.wallet}).inkey
+              wallet.adminkey
             )
             .then(response => {
               this.tickets = _.reject(this.tickets, function (obj) {
                 return obj.id == ticketId
               })
             })
-            .catch(function (error) {
-              LNbits.utils.notifyApiError(error)
-            })
+            .catch(LNbits.utils.notifyApiError)
         })
     },
     exportticketsCSV() {
@@ -160,9 +149,7 @@ window.PageEvents = {
           this.g.user.wallets[0].inkey
         )
         .then(response => {
-          this.events = response.data.map(obj => {
-            return mapEvents(obj)
-          })
+          this.events = response.data
           this.checkCanceledEvents()
         })
     },
@@ -189,6 +176,7 @@ window.PageEvents = {
         this.formDialog.data = {...data}
       } else {
         this.formDialog.data = {
+          currency: "sats",
           extra: {
             conditional: false,
             min_tickets: 1,
@@ -211,7 +199,7 @@ window.PageEvents = {
       LNbits.api
         .request('POST', '/events/api/v1/events', wallet.adminkey, data)
         .then(response => {
-          this.events.push(mapEvents(response.data))
+          this.events.push(response.data)
           this.resetEventDialog()
         })
         .catch(LNbits.utils.notifyApiError)
@@ -232,7 +220,7 @@ window.PageEvents = {
           this.events = _.reject(this.events, function (obj) {
             return obj.id == data.id
           })
-          this.events.push(mapEvents(response.data))
+          this.events.push(response.data)
           this.resetEventDialog()
         })
         .catch(LNbits.utils.notifyApiError)
@@ -254,7 +242,7 @@ window.PageEvents = {
                 return obj.id == eventsId
               })
             })
-            .catch(LNbits.utils.notifyApiError(error))
+            .catch(LNbits.utils.notifyApiError)
         })
     },
     exporteventsCSV() {
@@ -279,7 +267,7 @@ window.PageEvents = {
             icon: null
           })
           this.events = this.events.map(e =>
-            e.id === ev.id ? mapEvents(data) : e
+            e.id === ev.id ? data : e
           )
         }
       })
@@ -289,10 +277,10 @@ window.PageEvents = {
     if (this.g.user.wallets.length) {
       this.getTickets()
       this.getEvents()
-      if (g.allowedCurrencies && g.allowedCurrencies.length) {
-        this.currencies = ['sats', ...g.allowedCurrencies]
+      if (this.g.allowedCurrencies && this.g.allowedCurrencies.length > 0) {
+        this.currencies = ['sats', ...this.g.allowedCurrencies]
       } else {
-        this.currencies = ['sats', ...g.currencies]
+        this.currencies = ['sats', ...this.g.currencies]
       }
     }
   }

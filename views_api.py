@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from http import HTTPStatus
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from lnbits.core.crud import get_standalone_payment, get_user
+from lnbits.core.crud import get_user
 from lnbits.core.models import WalletTypeInfo
 from lnbits.core.services import create_invoice
 from lnbits.decorators import (
@@ -33,11 +33,13 @@ from .models import (
     CreateEvent,
     CreateTicket,
     Event,
+    PublicEvent,
     PublicTicket,
     Ticket,
     TicketPaymentRequest,
 )
-from .services import refund_tickets, set_ticket_paid
+from .services import refund_tickets
+from .tasks import paid_invoice_queue
 
 events_api_router = APIRouter(prefix="/api/v1/events")
 tickets_api_router = APIRouter(prefix="/api/v1/tickets")
@@ -57,7 +59,7 @@ async def api_events(
     return await get_events(wallet_ids)
 
 
-@events_api_router.get("/{event_id}")
+@events_api_router.get("/{event_id}", response_model=PublicEvent)
 async def api_get_event(event_id: str) -> Event:
     event = await get_event(event_id)
     if not event:
@@ -257,52 +259,62 @@ async def api_ticket_make_ticket(
     )
 
 
-@tickets_api_router.post("/{event_id}/{payment_hash}")
-async def api_ticket_send_ticket(event_id, payment_hash):
-    event = await get_event(event_id)
-    if not event:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND,
-            detail="Event could not be fetched.",
+# @tickets_api_router.post("/{event_id}/{payment_hash}")
+# async def api_ticket_send_ticket(event_id, payment_hash):
+#     event = await get_event(event_id)
+#     if not event:
+#         raise HTTPException(
+#             status_code=HTTPStatus.NOT_FOUND,
+#             detail="Event could not be fetched.",
+#         )
+
+#     ticket = await get_ticket(payment_hash)
+#     if not ticket:
+#         raise HTTPException(
+#             status_code=HTTPStatus.NOT_FOUND,
+#             detail="Ticket could not be fetched.",
+#         )
+#     payment = await get_standalone_payment(payment_hash, incoming=True)
+#     assert payment
+
+#     if ticket.extra.applied_promo_code:
+#         promo = next(
+#             (
+#                 pc
+#                 for pc in event.extra.promo_codes
+#                 if pc.code == ticket.extra.applied_promo_code
+#             ),
+#             None,
+#         )
+#         if promo:
+#             event.price_per_ticket *= 1 - promo.discount_percent / 100
+
+#     price = (
+#         event.price_per_ticket * 1000
+#         if event.currency == "sats"
+#         else await fiat_amount_as_satoshis(event.price_per_ticket, event.currency)
+#         * 1000
+#     )
+
+#     # check if price is equal to payment.amount
+#     lower_bound = price * 0.99  # 1% decrease
+
+#     if not payment.pending and abs(payment.amount) >= lower_bound:  # allow 1% error
+#         ticket.extra.sats_paid = int(payment.amount / 1000)
+#         await set_ticket_paid(ticket)
+#         return {"paid": True, "ticket_id": ticket.id}
+
+#     return {"paid": False}
+
+
+@tickets_api_router.websocket("/ws")
+async def websocket_endpoint(websocket):
+    await websocket.accept()
+    while True:
+        ticket = await paid_invoice_queue.get()
+        await websocket.send_json(
+            {"ticket_id": ticket.id, "payment_hash": ticket.payment_hash}
         )
-
-    ticket = await get_ticket(payment_hash)
-    if not ticket:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND,
-            detail="Ticket could not be fetched.",
-        )
-    payment = await get_standalone_payment(payment_hash, incoming=True)
-    assert payment
-
-    if ticket.extra.applied_promo_code:
-        promo = next(
-            (
-                pc
-                for pc in event.extra.promo_codes
-                if pc.code == ticket.extra.applied_promo_code
-            ),
-            None,
-        )
-        if promo:
-            event.price_per_ticket *= 1 - promo.discount_percent / 100
-
-    price = (
-        event.price_per_ticket * 1000
-        if event.currency == "sats"
-        else await fiat_amount_as_satoshis(event.price_per_ticket, event.currency)
-        * 1000
-    )
-
-    # check if price is equal to payment.amount
-    lower_bound = price * 0.99  # 1% decrease
-
-    if not payment.pending and abs(payment.amount) >= lower_bound:  # allow 1% error
-        ticket.extra.sats_paid = int(payment.amount / 1000)
-        await set_ticket_paid(ticket)
-        return {"paid": True, "ticket_id": ticket.id}
-
-    return {"paid": False}
 
 
 @tickets_api_router.delete("/{ticket_id}")

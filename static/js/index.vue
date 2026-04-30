@@ -33,11 +33,10 @@
               <q-tr :props="props">
                 <q-th auto-width></q-th>
                 <q-th auto-width></q-th>
+                <q-th auto-width></q-th>
                 <q-th v-for="col in props.cols" :key="col.name" :props="props">
                   <span v-text="col.label"></span>
                 </q-th>
-
-                <q-th auto-width></q-th>
               </q-tr>
             </template>
             <template v-slot:body="props">
@@ -60,7 +59,7 @@
                     icon="link"
                     :color="$q.dark.isActive ? 'grey-7' : 'grey-5'"
                     type="a"
-                    :href="props.row.displayUrl"
+                    :href="'/events/' + props.row.id"
                     target="_blank"
                   ></q-btn>
                   <q-btn
@@ -72,10 +71,8 @@
                     type="a"
                     :href="'/events/register/' + props.row.id"
                     target="_blank"
+                    class="q-ml-xs"
                   ></q-btn>
-                </q-td>
-                <q-td v-for="col in props.cols" :key="col.name" :props="props">
-                  <span v-text="col.value"></span>
                 </q-td>
                 <q-td auto-width>
                   <q-btn
@@ -86,8 +83,6 @@
                     icon="edit"
                     color="light-blue"
                   ></q-btn>
-                </q-td>
-                <q-td auto-width>
                   <q-btn
                     flat
                     dense
@@ -95,7 +90,11 @@
                     @click="deleteEvent(props.row.id)"
                     icon="cancel"
                     color="pink"
+                    class="q-ml-xs"
                   ></q-btn>
+                </q-td>
+                <q-td v-for="col in props.cols" :key="col.name" :props="props">
+                  <span v-text="col.value"></span>
                 </q-td>
               </q-tr>
               <q-tr v-show="props.expand" :props="props">
