@@ -1,4 +1,5 @@
 import asyncio
+from typing import Any
 from datetime import datetime, timezone
 from http import HTTPStatus
 
@@ -202,27 +203,24 @@ async def api_get_ticket(ticket_id: str) -> Ticket:
 
 @tickets_api_router.post("/{event_id}")
 async def api_ticket_create(event_id: str, data: CreateTicket) -> TicketPaymentRequest:
-    name = data.name
-    email = data.email
-    promo_code = data.promo_code.upper() if data.promo_code else None
-    refund_address = data.refund_address
-    return await api_ticket_make_ticket(
-        event_id, name, email, promo_code, refund_address
-    )
-
-
-@tickets_api_router.get("/{event_id}/{name}/{email}")
-async def api_ticket_make_ticket(
-    event_id, name, email, promo_code, refund_address
-) -> TicketPaymentRequest:
     event = await get_event(event_id)
     if not event:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND, detail="Event does not exist."
         )
 
+    if event.canceled:
+        raise HTTPException(status_code=HTTPStatus.GONE, detail="Event is canceled.")
+
+    if event.amount_tickets > 0 and event.sold >= event.amount_tickets:
+        raise HTTPException(status_code=HTTPStatus.GONE, detail="Event is sold out.")
+
+    name = data.name
+    email = data.email
+    promo_code = data.promo_code.upper() if data.promo_code else None
+    refund_address = data.refund_address
     price = event.price_per_ticket
-    extra = {"tag": "events", "name": name, "email": email}
+    extra: dict[str, Any] = {"tag": "events", "name": name, "email": email}
 
     if promo_code:
         # check if promo_code exists in event.extra.promo_codes
@@ -265,54 +263,6 @@ async def api_ticket_make_ticket(
     return TicketPaymentRequest(
         payment_hash=payment.payment_hash, payment_request=payment.bolt11
     )
-
-
-# @tickets_api_router.post("/{event_id}/{payment_hash}")
-# async def api_ticket_send_ticket(event_id, payment_hash):
-#     event = await get_event(event_id)
-#     if not event:
-#         raise HTTPException(
-#             status_code=HTTPStatus.NOT_FOUND,
-#             detail="Event could not be fetched.",
-#         )
-
-#     ticket = await get_ticket(payment_hash)
-#     if not ticket:
-#         raise HTTPException(
-#             status_code=HTTPStatus.NOT_FOUND,
-#             detail="Ticket could not be fetched.",
-#         )
-#     payment = await get_standalone_payment(payment_hash, incoming=True)
-#     assert payment
-
-#     if ticket.extra.applied_promo_code:
-#         promo = next(
-#             (
-#                 pc
-#                 for pc in event.extra.promo_codes
-#                 if pc.code == ticket.extra.applied_promo_code
-#             ),
-#             None,
-#         )
-#         if promo:
-#             event.price_per_ticket *= 1 - promo.discount_percent / 100
-
-#     price = (
-#         event.price_per_ticket * 1000
-#         if event.currency == "sats"
-#         else await fiat_amount_as_satoshis(event.price_per_ticket, event.currency)
-#         * 1000
-#     )
-
-#     # check if price is equal to payment.amount
-#     lower_bound = price * 0.99  # 1% decrease
-
-#     if not payment.pending and abs(payment.amount) >= lower_bound:  # allow 1% error
-#         ticket.extra.sats_paid = int(payment.amount / 1000)
-#         await set_ticket_paid(ticket)
-#         return {"paid": True, "ticket_id": ticket.id}
-
-#     return {"paid": False}
 
 
 @tickets_api_router.websocket("/ws/{payment_hash}")
