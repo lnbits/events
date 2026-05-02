@@ -1,7 +1,15 @@
+import asyncio
 from datetime import datetime, timezone
 from http import HTTPStatus
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Query,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from lnbits.core.crud import get_user
 from lnbits.core.models import WalletTypeInfo
 from lnbits.core.services import create_invoice
@@ -39,7 +47,7 @@ from .models import (
     TicketPaymentRequest,
 )
 from .services import refund_tickets
-from .tasks import paid_invoice_queue
+from .tasks import deregister_payment_listener, register_payment_listener
 
 events_api_router = APIRouter(prefix="/api/v1/events")
 tickets_api_router = APIRouter(prefix="/api/v1/tickets")
@@ -307,14 +315,46 @@ async def api_ticket_make_ticket(
 #     return {"paid": False}
 
 
-@tickets_api_router.websocket("/ws")
-async def websocket_endpoint(websocket):
+@tickets_api_router.websocket("/ws/{payment_hash}")
+async def websocket_endpoint(payment_hash: str, websocket: WebSocket) -> None:
     await websocket.accept()
-    while True:
-        ticket = await paid_invoice_queue.get()
-        await websocket.send_json(
-            {"ticket_id": ticket.id, "payment_hash": ticket.payment_hash}
-        )
+    queue: asyncio.Queue[Ticket] = asyncio.Queue()
+    register_payment_listener(payment_hash, queue)
+    disconnect_task: asyncio.Task | None = None
+    payment_task: asyncio.Task | None = None
+
+    try:
+        ticket = await get_ticket(payment_hash)
+        if ticket and ticket.paid:
+            await websocket.send_json({"paid": True})
+            return
+
+        while True:
+            disconnect_task = asyncio.create_task(websocket.receive_text())
+            payment_task = asyncio.create_task(queue.get())
+            done, pending = await asyncio.wait(
+                {disconnect_task, payment_task}, return_when=asyncio.FIRST_COMPLETED
+            )
+
+            for task in pending:
+                task.cancel()
+
+            if disconnect_task in done:
+                try:
+                    disconnect_task.result()
+                except WebSocketDisconnect:
+                    pass
+                break
+
+            ticket = payment_task.result()
+            await websocket.send_json({"paid": ticket.paid})
+            if ticket.paid:
+                break
+    finally:
+        for pending_task in (disconnect_task, payment_task):
+            if pending_task and not pending_task.done():
+                pending_task.cancel()
+        deregister_payment_listener(payment_hash, queue)
 
 
 @tickets_api_router.delete("/{ticket_id}")

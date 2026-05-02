@@ -2,7 +2,11 @@
   <div v-if="event" class="row q-col-gutter-md justify-center">
     <div class="col-12 col-md-7 col-lg-6 q-gutter-y-md">
       <q-card>
-        <q-img v-if="event.banner" :src="event.banner" transition="slide-up"></q-img>
+        <q-img
+          v-if="event.banner"
+          :src="event.banner"
+          transition="slide-up"
+        ></q-img>
         <q-card-section class="q-pa-none">
           <h3 class="q-my-none q-pa-lg" v-text="event.name"></h3>
           <div v-html="event.info" class="q-pa-lg"></div>
