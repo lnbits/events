@@ -97,7 +97,7 @@ window.PageEvents = {
       formDialog: {
         show: false,
         data: {
-          currency: "sats",
+          currency: 'sats',
           extra: {
             promo_codes: []
           }
@@ -176,7 +176,7 @@ window.PageEvents = {
         this.formDialog.data = {...data}
       } else {
         this.formDialog.data = {
-          currency: "sats",
+          currency: 'sats',
           extra: {
             conditional: false,
             min_tickets: 1,
@@ -266,9 +266,7 @@ window.PageEvents = {
             message: `Event ${ev.name} has been canceled and refunds have been issued.`,
             icon: null
           })
-          this.events = this.events.map(e =>
-            e.id === ev.id ? data : e
-          )
+          this.events = this.events.map(e => (e.id === ev.id ? data : e))
         }
       })
     }
