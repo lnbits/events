@@ -8,7 +8,20 @@ from .crud import get_ticket
 from .models import Ticket
 from .services import set_ticket_paid
 
-paid_invoice_queue: asyncio.Queue[Ticket] = asyncio.Queue()
+payment_listeners: dict[str, list[asyncio.Queue[Ticket]]] = {}
+
+
+def register_payment_listener(payment_hash, queue: asyncio.Queue[Ticket]) -> None:
+    if payment_hash not in payment_listeners:
+        payment_listeners[payment_hash] = []
+    payment_listeners[payment_hash].append(queue)
+
+
+def deregister_payment_listener(payment_hash, queue: asyncio.Queue[Ticket]) -> None:
+    if payment_hash in payment_listeners:
+        payment_listeners[payment_hash].remove(queue)
+        if not payment_listeners[payment_hash]:
+            del payment_listeners[payment_hash]
 
 
 async def wait_for_paid_invoices():
@@ -30,4 +43,6 @@ async def on_invoice_paid(payment: Payment) -> None:
         return
 
     ticket = await set_ticket_paid(ticket)
-    paid_invoice_queue.put_nowait(ticket)
+    if payment_listeners.get(payment.payment_hash):
+        for paid_ticket_queue in payment_listeners[payment.payment_hash]:
+            paid_ticket_queue.put_nowait(ticket)
