@@ -1,28 +1,22 @@
-const mapEvents = function (obj) {
-  obj.date = Quasar.date.formatDate(
-    new Date(obj.time * 1000),
-    'YYYY-MM-DD HH:mm'
-  )
-  obj.fsat = new Intl.NumberFormat(LOCALE).format(obj.amount)
-  obj.displayUrl = ['/events/', obj.id].join('')
-  return obj
-}
-
-window.app = Vue.createApp({
-  el: '#vue',
-  mixins: [windowMixin],
+window.PageEventsRegister = {
+  template: '#page-events-register',
   data() {
     return {
       tickets: [],
       ticketsTable: {
         columns: [
-          {name: 'id', align: 'left', label: 'ID', field: 'id'},
           {name: 'name', align: 'left', label: 'Name', field: 'name'},
           {
             name: 'registered',
             align: 'left',
             label: 'Registered',
             field: 'registered'
+          },
+          {
+            name: 'paid',
+            align: 'left',
+            label: 'Paid',
+            field: 'paid'
           }
         ],
         pagination: {
@@ -49,30 +43,26 @@ window.app = Vue.createApp({
       this.sendCamera.show = false
       const value = res[0].rawValue.split('//')[1]
       LNbits.api
-        .request('GET', `/events/api/v1/register/ticket/${value}`)
+        .request('PUT', `/events/api/v1/tickets/register/${value}`)
         .then(() => {
           Quasar.Notify.create({
             type: 'positive',
             message: 'Registered!'
           })
-          setTimeout(() => {
-            window.location.reload()
-          }, 2000)
         })
         .catch(LNbits.utils.notifyApiError)
     },
     getEventTickets() {
       LNbits.api
-        .request('GET', `/events/api/v1/eventtickets/${event_id}`)
+        .request('GET', `/events/api/v1/events/${this.eventId}/tickets`)
         .then(response => {
-          this.tickets = response.data.map(obj => {
-            return mapEvents(obj)
-          })
+          this.tickets = response.data
         })
         .catch(LNbits.utils.notifyApiError)
     }
   },
   created() {
+    this.eventId = this.$route.params.id
     this.getEventTickets()
   }
-})
+}

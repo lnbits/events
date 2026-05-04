@@ -1,13 +1,5 @@
-const mapEvents = function (obj) {
-  obj.date = LNbits.utils.formatTimestamp(obj.time)
-  obj.fsat = new Intl.NumberFormat(window.g.locale).format(obj.price_per_ticket)
-  obj.displayUrl = ['/events/', obj.id].join('')
-  return obj
-}
-
-window.app = Vue.createApp({
-  el: '#vue',
-  mixins: [windowMixin],
+window.PageEvents = {
+  template: '#page-events',
   data() {
     return {
       events: [],
@@ -105,6 +97,7 @@ window.app = Vue.createApp({
       formDialog: {
         show: false,
         data: {
+          currency: 'sats',
           extra: {
             promo_codes: []
           }
@@ -118,18 +111,15 @@ window.app = Vue.createApp({
         .request(
           'GET',
           '/events/api/v1/tickets?all_wallets=true',
-          this.g.user.wallets[0].inkey
+          this.g.user.wallets[0].adminkey
         )
         .then(response => {
-          this.tickets = response.data
-            .map(function (obj) {
-              return mapEvents(obj)
-            })
-            .filter(e => e.paid)
+          this.tickets = response.data.filter(e => e.paid)
         })
     },
     deleteTicket(ticketId) {
       const tickets = _.findWhere(this.tickets, {id: ticketId})
+      const wallet = _.findWhere(this.g.user.wallets, {id: tickets.wallet})
 
       LNbits.utils
         .confirmDialog('Are you sure you want to delete this ticket')
@@ -138,16 +128,14 @@ window.app = Vue.createApp({
             .request(
               'DELETE',
               '/events/api/v1/tickets/' + ticketId,
-              _.findWhere(this.g.user.wallets, {id: tickets.wallet}).inkey
+              wallet.adminkey
             )
             .then(response => {
               this.tickets = _.reject(this.tickets, function (obj) {
                 return obj.id == ticketId
               })
             })
-            .catch(function (error) {
-              LNbits.utils.notifyApiError(error)
-            })
+            .catch(LNbits.utils.notifyApiError)
         })
     },
     exportticketsCSV() {
@@ -161,9 +149,7 @@ window.app = Vue.createApp({
           this.g.user.wallets[0].inkey
         )
         .then(response => {
-          this.events = response.data.map(obj => {
-            return mapEvents(obj)
-          })
+          this.events = response.data
           this.checkCanceledEvents()
         })
     },
@@ -190,6 +176,7 @@ window.app = Vue.createApp({
         this.formDialog.data = {...data}
       } else {
         this.formDialog.data = {
+          currency: 'sats',
           extra: {
             conditional: false,
             min_tickets: 1,
@@ -212,7 +199,7 @@ window.app = Vue.createApp({
       LNbits.api
         .request('POST', '/events/api/v1/events', wallet.adminkey, data)
         .then(response => {
-          this.events.push(mapEvents(response.data))
+          this.events.push(response.data)
           this.resetEventDialog()
         })
         .catch(LNbits.utils.notifyApiError)
@@ -233,7 +220,7 @@ window.app = Vue.createApp({
           this.events = _.reject(this.events, function (obj) {
             return obj.id == data.id
           })
-          this.events.push(mapEvents(response.data))
+          this.events.push(response.data)
           this.resetEventDialog()
         })
         .catch(LNbits.utils.notifyApiError)
@@ -255,7 +242,7 @@ window.app = Vue.createApp({
                 return obj.id == eventsId
               })
             })
-            .catch(LNbits.utils.notifyApiError(error))
+            .catch(LNbits.utils.notifyApiError)
         })
     },
     exporteventsCSV() {
@@ -279,9 +266,7 @@ window.app = Vue.createApp({
             message: `Event ${ev.name} has been canceled and refunds have been issued.`,
             icon: null
           })
-          this.events = this.events.map(e =>
-            e.id === ev.id ? mapEvents(data) : e
-          )
+          this.events = this.events.map(e => (e.id === ev.id ? data : e))
         }
       })
     }
@@ -290,7 +275,11 @@ window.app = Vue.createApp({
     if (this.g.user.wallets.length) {
       this.getTickets()
       this.getEvents()
-      this.currencies = await LNbits.api.getCurrencies()
+      if (this.g.allowedCurrencies && this.g.allowedCurrencies.length > 0) {
+        this.currencies = ['sats', ...this.g.allowedCurrencies]
+      } else {
+        this.currencies = ['sats', ...this.g.currencies]
+      }
     }
   }
-})
+}

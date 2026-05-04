@@ -58,6 +58,17 @@ class Event(BaseModel):
     extra: EventExtra = Field(default_factory=EventExtra)
 
 
+class PublicEvent(BaseModel):
+    id: str
+    name: str
+    info: str
+    closing_date: str
+    canceled: bool
+    event_start_date: str
+    event_end_date: str
+    banner: str | None
+
+
 class TicketExtra(BaseModel):
     applied_promo_code: str | None = None
     sats_paid: int | None = None
@@ -83,3 +94,17 @@ class Ticket(BaseModel):
     time: datetime
     reg_timestamp: datetime
     extra: TicketExtra = Field(default_factory=TicketExtra)
+
+
+class PublicTicket(BaseModel):
+    event: str
+    name: str
+    registered: bool
+    paid: bool
+    time: datetime
+    reg_timestamp: datetime
+
+
+class TicketPaymentRequest(BaseModel):
+    payment_hash: str
+    payment_request: str

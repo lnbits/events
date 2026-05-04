@@ -1,0 +1,125 @@
+<template id="page-events-display">
+  <div v-if="event" class="row q-col-gutter-md justify-center">
+    <div class="col-12 col-md-7 col-lg-6 q-gutter-y-md">
+      <q-card>
+        <q-img
+          v-if="event.banner"
+          :src="event.banner"
+          transition="slide-up"
+        ></q-img>
+        <q-card-section class="q-pa-none">
+          <h3 class="q-my-none q-pa-lg" v-text="event.name"></h3>
+          <div v-html="event.info" class="q-pa-lg"></div>
+        </q-card-section>
+      </q-card>
+      <q-card class="q-pa-lg">
+        <q-card-section class="q-pa-none">
+          <h5 class="q-mt-none">Buy Ticket</h5>
+          <q-form @submit="createInvoice()" class="q-gutter-md">
+            <q-input
+              filled
+              dense
+              v-model.trim="formDialog.data.name"
+              label="Your name "
+              :rules="[val => nameValidation(val)]"
+            ></q-input>
+            <q-input
+              filled
+              dense
+              v-model.trim="formDialog.data.email"
+              type="email"
+              label="Your email "
+              :rules="[
+                val => !!val || '* Required',
+                val => emailValidation(val)
+              ]"
+              lazy-rules
+            ></q-input>
+            <q-input
+              v-if="this.extra?.conditional"
+              filled
+              dense
+              v-model.trim="formDialog.data.refund"
+              label="Refund lnadress or LNURL "
+              :rules="[val => !!val || '* Required']"
+              lazy-rules
+              :hint="`If minimum tickets (${this.extra?.min_tickets}) are not met, refund will be sent.`"
+            ></q-input>
+            <q-input
+              filled
+              dense
+              v-model.trim="formDialog.data.promo_code"
+              label="(optional) Promo Code "
+            ></q-input>
+            <div class="row q-mt-lg">
+              <q-btn
+                unelevated
+                color="primary"
+                :disable="
+                  formDialog.data.name == '' ||
+                  formDialog.data.email == '' ||
+                  Boolean(paymentReq)
+                "
+                type="submit"
+                >Submit</q-btn
+              >
+              <q-btn @click="resetForm" flat color="grey" class="q-ml-auto"
+                >Clear</q-btn
+              >
+            </div>
+          </q-form>
+        </q-card-section>
+      </q-card>
+
+      <q-card v-show="ticketLink.show" class="q-pa-lg">
+        <div class="text-center q-mb-lg">
+          <q-btn
+            unelevated
+            size="xl"
+            :href="ticketLink.data.link"
+            target="_blank"
+            color="primary"
+            type="a"
+            >Link to your ticket!</q-btn
+          >
+          <br /><br />
+          <p>You'll be redirected in a few moments...</p>
+        </div>
+      </q-card>
+    </div>
+
+    <q-dialog v-model="receive.show" position="top" @hide="closeReceiveDialog">
+      <q-card
+        v-if="!receive.paymentReq"
+        class="q-pa-lg q-pt-xl lnbits__dialog-card"
+      >
+      </q-card>
+      <q-card v-else class="q-pa-lg q-pt-xl lnbits__dialog-card">
+        <div class="text-center q-mb-lg">
+          <lnbits-qrcode
+            :href="'lightning:' + receive.paymentReq"
+            :value="'LIGHTNING:' + receive.paymentReq.toUpperCase()"
+          ></lnbits-qrcode>
+        </div>
+        <div class="row q-mt-lg">
+          <q-btn
+            outline
+            color="grey"
+            @click="utils.copyText(receive.paymentReq)"
+            >Copy invoice</q-btn
+          >
+          <q-btn v-close-popup flat color="grey" class="q-ml-auto">Close</q-btn>
+        </div>
+      </q-card>
+    </q-dialog>
+  </div>
+  <div v-else class="row q-col-gutter-md justify-center">
+    <div class="col-12 col-md-7 col-lg-6 q-gutter-y-md">
+      <q-card class="q-pa-lg">
+        <q-card-section class="q-pa-none">
+          <h3 class="q-my-none q-pa-lg" v-text="eventErrorLabel"></h3>
+        </q-card-section>
+      </q-card>
+    </div>
+  </div>
+</template>
