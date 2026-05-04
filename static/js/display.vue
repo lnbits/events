@@ -1,13 +1,15 @@
 <template id="page-events-display">
-  <div class="row q-col-gutter-md justify-center">
+  <div v-if="event" class="row q-col-gutter-md justify-center">
     <div class="col-12 col-md-7 col-lg-6 q-gutter-y-md">
       <q-card>
-        <q-img v-if="banner" :src="banner" transition="slide-up"></q-img>
+        <q-img
+          v-if="event.banner"
+          :src="event.banner"
+          transition="slide-up"
+        ></q-img>
         <q-card-section class="q-pa-none">
-          <h3 class="q-my-none q-pa-lg" v-text="eventName"></h3>
-          <br />
-          <div v-html="formatDescription" class="q-pa-md"></div>
-          <br />
+          <h3 class="q-my-none q-pa-lg" v-text="event.name"></h3>
+          <div v-html="event.info" class="q-pa-lg"></div>
         </q-card-section>
       </q-card>
       <q-card class="q-pa-lg">
@@ -44,11 +46,10 @@
               :hint="`If minimum tickets (${this.extra?.min_tickets}) are not met, refund will be sent.`"
             ></q-input>
             <q-input
-              v-if="hasPromoCodes"
               filled
               dense
               v-model.trim="formDialog.data.promo_code"
-              label="Apply Promo Code "
+              label="(optional) Promo Code "
             ></q-input>
             <div class="row q-mt-lg">
               <q-btn
@@ -63,7 +64,7 @@
                 >Submit</q-btn
               >
               <q-btn @click="resetForm" flat color="grey" class="q-ml-auto"
-                >Cancel</q-btn
+                >Clear</q-btn
               >
             </div>
           </q-form>
@@ -97,7 +98,7 @@
         <div class="text-center q-mb-lg">
           <lnbits-qrcode
             :href="'lightning:' + receive.paymentReq"
-            :value="'lightning:' + receive.paymentReq.toUpperCase()"
+            :value="'LIGHTNING:' + receive.paymentReq.toUpperCase()"
           ></lnbits-qrcode>
         </div>
         <div class="row q-mt-lg">
@@ -111,5 +112,14 @@
         </div>
       </q-card>
     </q-dialog>
+  </div>
+  <div v-else class="row q-col-gutter-md justify-center">
+    <div class="col-12 col-md-7 col-lg-6 q-gutter-y-md">
+      <q-card class="q-pa-lg">
+        <q-card-section class="q-pa-none">
+          <h3 class="q-my-none q-pa-lg" v-text="eventErrorLabel"></h3>
+        </q-card-section>
+      </q-card>
+    </div>
   </div>
 </template>

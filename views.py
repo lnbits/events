@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from lnbits.core.views.generic import index, index_public  # type: ignore
+from lnbits.core.views.generic import index, index_public
 from lnbits.decorators import check_account_id_exists
 
 events_generic_router = APIRouter()

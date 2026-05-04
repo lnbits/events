@@ -28,7 +28,6 @@
           >
             <template v-slot:header="props">
               <q-tr :props="props">
-                <q-th auto-width></q-th>
                 <q-th v-for="col in props.cols" :key="col.name" :props="props">
                   <span v-text="col.label"></span>
                 </q-th>
@@ -36,19 +35,6 @@
             </template>
             <template v-slot:body="props">
               <q-tr :props="props">
-                <q-td auto-width>
-                  <q-btn
-                    unelevated
-                    dense
-                    size="xs"
-                    icon="local_activity"
-                    :color="$q.dark.isActive ? 'grey-7' : 'grey-5'"
-                    type="a"
-                    :href="'/events/ticket/' + props.row.id"
-                    target="_blank"
-                  ></q-btn>
-                </q-td>
-
                 <q-td v-for="col in props.cols" :key="col.name" :props="props">
                   <span v-text="col.value"></span>
                 </q-td>

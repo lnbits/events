@@ -1,8 +1,17 @@
+import asyncio
 from datetime import datetime, timezone
 from http import HTTPStatus
+from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from lnbits.core.crud import get_standalone_payment, get_user
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Query,
+    WebSocket,
+    WebSocketDisconnect,
+)
+from lnbits.core.crud import get_user
 from lnbits.core.models import WalletTypeInfo
 from lnbits.core.services import create_invoice
 from lnbits.decorators import (
@@ -33,11 +42,13 @@ from .models import (
     CreateEvent,
     CreateTicket,
     Event,
+    PublicEvent,
     PublicTicket,
     Ticket,
     TicketPaymentRequest,
 )
-from .services import refund_tickets, set_ticket_paid
+from .services import refund_tickets
+from .tasks import deregister_payment_listener, register_payment_listener
 
 events_api_router = APIRouter(prefix="/api/v1/events")
 tickets_api_router = APIRouter(prefix="/api/v1/tickets")
@@ -57,7 +68,7 @@ async def api_events(
     return await get_events(wallet_ids)
 
 
-@events_api_router.get("/{event_id}")
+@events_api_router.get("/{event_id}", response_model=PublicEvent)
 async def api_get_event(event_id: str) -> Event:
     event = await get_event(event_id)
     if not event:
@@ -192,27 +203,24 @@ async def api_get_ticket(ticket_id: str) -> Ticket:
 
 @tickets_api_router.post("/{event_id}")
 async def api_ticket_create(event_id: str, data: CreateTicket) -> TicketPaymentRequest:
-    name = data.name
-    email = data.email
-    promo_code = data.promo_code.upper() if data.promo_code else None
-    refund_address = data.refund_address
-    return await api_ticket_make_ticket(
-        event_id, name, email, promo_code, refund_address
-    )
-
-
-@tickets_api_router.get("/{event_id}/{name}/{email}")
-async def api_ticket_make_ticket(
-    event_id, name, email, promo_code, refund_address
-) -> TicketPaymentRequest:
     event = await get_event(event_id)
     if not event:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND, detail="Event does not exist."
         )
 
+    if event.canceled:
+        raise HTTPException(status_code=HTTPStatus.GONE, detail="Event is canceled.")
+
+    if event.amount_tickets > 0 and event.sold >= event.amount_tickets:
+        raise HTTPException(status_code=HTTPStatus.GONE, detail="Event is sold out.")
+
+    name = data.name
+    email = data.email
+    promo_code = data.promo_code.upper() if data.promo_code else None
+    refund_address = data.refund_address
     price = event.price_per_ticket
-    extra = {"tag": "events", "name": name, "email": email}
+    extra: dict[str, Any] = {"tag": "events", "name": name, "email": email}
 
     if promo_code:
         # check if promo_code exists in event.extra.promo_codes
@@ -257,52 +265,46 @@ async def api_ticket_make_ticket(
     )
 
 
-@tickets_api_router.post("/{event_id}/{payment_hash}")
-async def api_ticket_send_ticket(event_id, payment_hash):
-    event = await get_event(event_id)
-    if not event:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND,
-            detail="Event could not be fetched.",
-        )
+@tickets_api_router.websocket("/ws/{payment_hash}")
+async def websocket_endpoint(payment_hash: str, websocket: WebSocket) -> None:
+    await websocket.accept()
+    queue: asyncio.Queue[Ticket] = asyncio.Queue()
+    register_payment_listener(payment_hash, queue)
+    disconnect_task: asyncio.Task | None = None
+    payment_task: asyncio.Task | None = None
 
-    ticket = await get_ticket(payment_hash)
-    if not ticket:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND,
-            detail="Ticket could not be fetched.",
-        )
-    payment = await get_standalone_payment(payment_hash, incoming=True)
-    assert payment
+    try:
+        ticket = await get_ticket(payment_hash)
+        if ticket and ticket.paid:
+            await websocket.send_json({"paid": True})
+            return
 
-    if ticket.extra.applied_promo_code:
-        promo = next(
-            (
-                pc
-                for pc in event.extra.promo_codes
-                if pc.code == ticket.extra.applied_promo_code
-            ),
-            None,
-        )
-        if promo:
-            event.price_per_ticket *= 1 - promo.discount_percent / 100
+        while True:
+            disconnect_task = asyncio.create_task(websocket.receive_text())
+            payment_task = asyncio.create_task(queue.get())
+            done, pending = await asyncio.wait(
+                {disconnect_task, payment_task}, return_when=asyncio.FIRST_COMPLETED
+            )
 
-    price = (
-        event.price_per_ticket * 1000
-        if event.currency == "sats"
-        else await fiat_amount_as_satoshis(event.price_per_ticket, event.currency)
-        * 1000
-    )
+            for task in pending:
+                task.cancel()
 
-    # check if price is equal to payment.amount
-    lower_bound = price * 0.99  # 1% decrease
+            if disconnect_task in done:
+                try:
+                    disconnect_task.result()
+                except WebSocketDisconnect:
+                    pass
+                break
 
-    if not payment.pending and abs(payment.amount) >= lower_bound:  # allow 1% error
-        ticket.extra.sats_paid = int(payment.amount / 1000)
-        await set_ticket_paid(ticket)
-        return {"paid": True, "ticket_id": ticket.id}
-
-    return {"paid": False}
+            ticket = payment_task.result()
+            await websocket.send_json({"paid": ticket.paid})
+            if ticket.paid:
+                break
+    finally:
+        for pending_task in (disconnect_task, payment_task):
+            if pending_task and not pending_task.done():
+                pending_task.cancel()
+        deregister_payment_listener(payment_hash, queue)
 
 
 @tickets_api_router.delete("/{ticket_id}")
