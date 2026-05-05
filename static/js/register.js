@@ -5,15 +5,14 @@ window.PageEventsRegister = {
       tickets: [],
       ticketsTable: {
         columns: [
-          {name: 'id', align: 'left', label: 'ID', field: 'id'},
           {name: 'name', align: 'left', label: 'Name', field: 'name'},
           {name: 'email', align: 'left', label: 'Email', field: 'email'},
-          {name: 'paid', align: 'left', label: 'Paid', field: 'paid'},
           {
-            name: 'registered',
+            name: 'id',
             align: 'left',
-            label: 'Registered',
-            field: 'registered'
+            label: 'ID',
+            field: 'id',
+            format: val => this.shortId(val)
           }
         ],
         pagination: {
@@ -43,6 +42,9 @@ window.PageEventsRegister = {
     },
     showCamera() {
       this.sendCamera.show = true
+    },
+    shortId(id) {
+      return id ? `${id.slice(0, 6)}...${id.slice(-4)}` : ''
     },
     decodeQR(res) {
       this.sendCamera.show = false

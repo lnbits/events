@@ -26,11 +26,11 @@
             <div><strong>Name:</strong> {{ lastScan.ticket.name }}</div>
             <div><strong>Email:</strong> {{ lastScan.ticket.email }}</div>
             <div><strong>Paid:</strong> {{ lastScan.ticket.paid }}</div>
-            <div><strong>ID:</strong> {{ lastScan.ticket.id }}</div>
+            <div><strong>ID:</strong> {{ shortId(lastScan.ticket.id) }}</div>
           </div>
           <div v-else>
             <div class="text-h6 q-mb-sm">Failed</div>
-            <div><strong>Ticket ID:</strong> {{ lastScan.ticketId }}</div>
+            <div><strong>Ticket ID:</strong> {{ shortId(lastScan.ticketId) }}</div>
             <div><strong>Error:</strong> {{ lastScan.error }}</div>
           </div>
         </q-card-section>
