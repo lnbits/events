@@ -5,18 +5,15 @@ window.PageEventsRegister = {
       tickets: [],
       ticketsTable: {
         columns: [
+          {name: 'id', align: 'left', label: 'ID', field: 'id'},
           {name: 'name', align: 'left', label: 'Name', field: 'name'},
+          {name: 'email', align: 'left', label: 'Email', field: 'email'},
+          {name: 'paid', align: 'left', label: 'Paid', field: 'paid'},
           {
             name: 'registered',
             align: 'left',
             label: 'Registered',
             field: 'registered'
-          },
-          {
-            name: 'paid',
-            align: 'left',
-            label: 'Paid',
-            field: 'paid'
           }
         ],
         pagination: {
@@ -30,8 +27,15 @@ window.PageEventsRegister = {
     }
   },
   methods: {
-    hoverEmail(tmp) {
-      this.tickets.data.emailtemp = tmp
+    storageKey() {
+      return `events_scanned_${this.eventId}`
+    },
+    loadScannedTickets() {
+      this.tickets = Quasar.LocalStorage.getItem(this.storageKey()) || []
+    },
+    saveScannedTicket(ticket) {
+      this.tickets.unshift(ticket)
+      Quasar.LocalStorage.set(this.storageKey(), this.tickets)
     },
     closeCamera() {
       this.sendCamera.show = false
@@ -44,25 +48,18 @@ window.PageEventsRegister = {
       const value = res[0].rawValue.split('//')[1]
       LNbits.api
         .request('PUT', `/events/api/v1/tickets/register/${value}`)
-        .then(() => {
+        .then(response => {
+          this.saveScannedTicket(response.data)
           Quasar.Notify.create({
             type: 'positive',
             message: 'Registered!'
           })
         })
         .catch(LNbits.utils.notifyApiError)
-    },
-    getEventTickets() {
-      LNbits.api
-        .request('GET', `/events/api/v1/events/${this.eventId}/tickets`)
-        .then(response => {
-          this.tickets = response.data
-        })
-        .catch(LNbits.utils.notifyApiError)
     }
   },
   created() {
     this.eventId = this.$route.params.id
-    this.getEventTickets()
+    this.loadScannedTickets()
   }
 }
