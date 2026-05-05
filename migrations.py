@@ -162,16 +162,30 @@ async def m005_add_image_banner(db):
     await db.execute("ALTER TABLE events.events ADD COLUMN banner TEXT;")
 
 
+async def _alter_add_column_safe(db, sql: str) -> None:
+    """ALTER TABLE ADD COLUMN that swallows duplicate-column errors.
+
+    Earlier aiolabs/events forks added some of these columns under different
+    migration names (e.g. our former m007). Skipping the error keeps the
+    migration log monotonic for both fresh installs and pre-rebase upgrades.
+    """
+    try:
+        await db.execute(sql)
+    except Exception as exc:
+        msg = str(exc).lower()
+        if "duplicate column" in msg or "already exists" in msg:
+            return
+        raise
+
+
 async def m006_add_extra_fields(db):
     """
     Add a canceled and 'extra' column to events and ticket tables
     to support promo codes and ticket metadata.
     """
-    # Add canceled and 'extra' columns to events table
-    await db.execute(
-        "ALTER TABLE events.events ADD COLUMN canceled BOOLEAN NOT NULL DEFAULT FALSE;"
+    await _alter_add_column_safe(
+        db,
+        "ALTER TABLE events.events ADD COLUMN canceled BOOLEAN NOT NULL DEFAULT FALSE",
     )
-    await db.execute("ALTER TABLE events.events ADD COLUMN extra TEXT;")
-
-    # Add 'extra' column to ticket table
-    await db.execute("ALTER TABLE events.ticket ADD COLUMN extra TEXT;")
+    await _alter_add_column_safe(db, "ALTER TABLE events.events ADD COLUMN extra TEXT")
+    await _alter_add_column_safe(db, "ALTER TABLE events.ticket ADD COLUMN extra TEXT")
