@@ -16,6 +16,26 @@
         </q-card-section>
       </q-card>
 
+      <q-card
+        v-if="lastScan"
+        :class="lastScan.success ? 'bg-positive' : 'bg-negative'"
+      >
+        <q-card-section class="text-white">
+          <div v-if="lastScan.success">
+            <div class="text-h6 q-mb-sm">Registered</div>
+            <div><strong>Name:</strong> {{ lastScan.ticket.name }}</div>
+            <div><strong>Email:</strong> {{ lastScan.ticket.email }}</div>
+            <div><strong>Paid:</strong> {{ lastScan.ticket.paid }}</div>
+            <div><strong>ID:</strong> {{ lastScan.ticket.id }}</div>
+          </div>
+          <div v-else>
+            <div class="text-h6 q-mb-sm">Failed</div>
+            <div><strong>Ticket ID:</strong> {{ lastScan.ticketId }}</div>
+            <div><strong>Error:</strong> {{ lastScan.error }}</div>
+          </div>
+        </q-card-section>
+      </q-card>
+
       <q-card>
         <q-card-section>
           <q-table

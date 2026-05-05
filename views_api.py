@@ -163,7 +163,6 @@ async def api_form_delete(
     await delete_event_tickets(event_id)
 
 
-
 @tickets_api_router.get("")
 async def api_tickets(
     all_wallets: bool = Query(False),

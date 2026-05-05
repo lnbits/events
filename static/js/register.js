@@ -23,7 +23,8 @@ window.PageEventsRegister = {
       sendCamera: {
         show: false,
         camera: 'auto'
-      }
+      },
+      lastScan: null
     }
   },
   methods: {
@@ -50,12 +51,18 @@ window.PageEventsRegister = {
         .request('PUT', `/events/api/v1/tickets/register/${value}`)
         .then(response => {
           this.saveScannedTicket(response.data)
-          Quasar.Notify.create({
-            type: 'positive',
-            message: 'Registered!'
-          })
+          this.lastScan = {success: true, ticket: response.data}
+          Quasar.Notify.create({type: 'positive', message: 'Registered!'})
         })
-        .catch(LNbits.utils.notifyApiError)
+        .catch(error => {
+          this.lastScan = {
+            success: false,
+            ticketId: value,
+            error:
+              error.response?.data?.detail || error.message || 'Unknown error'
+          }
+          LNbits.utils.notifyApiError(error)
+        })
     }
   },
   created() {
