@@ -162,16 +162,96 @@ async def m005_add_image_banner(db):
     await db.execute("ALTER TABLE events.events ADD COLUMN banner TEXT;")
 
 
+async def _alter_add_column_safe(db, sql: str) -> None:
+    """ALTER TABLE ADD COLUMN that swallows duplicate-column errors.
+
+    Earlier aiolabs/events forks added some of these columns under different
+    migration names (e.g. our former m007). Skipping the error keeps the
+    migration log monotonic for both fresh installs and pre-rebase upgrades.
+    """
+    try:
+        await db.execute(sql)
+    except Exception as exc:
+        msg = str(exc).lower()
+        if "duplicate column" in msg or "already exists" in msg:
+            return
+        raise
+
+
 async def m006_add_extra_fields(db):
     """
     Add a canceled and 'extra' column to events and ticket tables
     to support promo codes and ticket metadata.
     """
-    # Add canceled and 'extra' columns to events table
-    await db.execute(
-        "ALTER TABLE events.events ADD COLUMN canceled BOOLEAN NOT NULL DEFAULT FALSE;"
+    await _alter_add_column_safe(
+        db,
+        "ALTER TABLE events.events ADD COLUMN canceled BOOLEAN NOT NULL DEFAULT FALSE",
     )
-    await db.execute("ALTER TABLE events.events ADD COLUMN extra TEXT;")
+    await _alter_add_column_safe(db, "ALTER TABLE events.events ADD COLUMN extra TEXT")
+    await _alter_add_column_safe(db, "ALTER TABLE events.ticket ADD COLUMN extra TEXT")
 
-    # Add 'extra' column to ticket table
-    await db.execute("ALTER TABLE events.ticket ADD COLUMN extra TEXT;")
+
+async def m007_add_user_id_support(db):
+    """
+    Add user_id column to ticket table so a ticket can reference an LNbits
+    user id instead of (name, email). Application logic enforces that exactly
+    one identifier scheme is used per ticket.
+    """
+    await _alter_add_column_safe(
+        db, "ALTER TABLE events.ticket ADD COLUMN user_id TEXT"
+    )
+
+
+async def m008_add_event_status(db):
+    """
+    Add status column to events table for the proposal/approval workflow.
+    Values: 'proposed', 'approved', 'rejected'. Existing rows default to
+    'approved' so they stay visible after upgrade.
+    """
+    await _alter_add_column_safe(
+        db,
+        "ALTER TABLE events.events ADD COLUMN status TEXT NOT NULL DEFAULT 'approved'",
+    )
+
+
+async def m009_add_nostr_columns(db):
+    """
+    Track the most recent NIP-52 calendar event we published for this event
+    (used for replaceable updates and NIP-09 deletes).
+    """
+    await _alter_add_column_safe(
+        db, "ALTER TABLE events.events ADD COLUMN nostr_event_id TEXT"
+    )
+    await _alter_add_column_safe(
+        db, "ALTER TABLE events.events ADD COLUMN nostr_event_created_at INTEGER"
+    )
+
+
+async def m010_add_events_settings(db):
+    """
+    Create the extension settings singleton row used by the admin UI to
+    toggle e.g. auto_approve.
+    """
+    await db.execute("""
+        CREATE TABLE IF NOT EXISTS events.settings (
+            id INTEGER PRIMARY KEY DEFAULT 1,
+            auto_approve BOOLEAN NOT NULL DEFAULT FALSE
+        )
+        """)
+    await db.execute(
+        "INSERT INTO events.settings (id, auto_approve) "
+        "SELECT 1, FALSE WHERE NOT EXISTS "
+        "(SELECT 1 FROM events.settings WHERE id = 1)"
+    )
+
+
+async def m011_add_location_and_categories(db):
+    """
+    Add NIP-52 calendar metadata (location and a JSON-encoded category list).
+    """
+    await _alter_add_column_safe(
+        db, "ALTER TABLE events.events ADD COLUMN location TEXT"
+    )
+    await _alter_add_column_safe(
+        db, "ALTER TABLE events.events ADD COLUMN categories TEXT"
+    )

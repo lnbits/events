@@ -5,6 +5,12 @@ window.PageEvents = {
       events: [],
       tickets: [],
       currencies: [],
+      pendingEvents: [],
+      allUserEvents: [],
+      isAdmin: false,
+      settings: {
+        auto_approve: false
+      },
       eventsTable: {
         columns: [
           {name: 'id', align: 'left', label: 'ID', field: 'id'},
@@ -65,7 +71,8 @@ window.PageEvents = {
             field: 'sold'
           },
           {name: 'info', align: 'left', label: 'Info', field: 'info'},
-          {name: 'banner', align: 'left', label: 'Banner', field: 'banner'}
+          {name: 'banner', align: 'left', label: 'Banner', field: 'banner'},
+          {name: 'status', align: 'left', label: 'Status', field: 'status'}
         ],
         pagination: {
           rowsPerPage: 10
@@ -152,6 +159,79 @@ window.PageEvents = {
           this.events = response.data
           this.checkCanceledEvents()
         })
+
+      // Admin probe: a 200 from /all means we're an LNbits admin.
+      LNbits.api
+        .request('GET', '/events/api/v1/events/all')
+        .then(response => {
+          this.isAdmin = true
+          const ownWalletIds = this.g.user.wallets.map(w => w.id)
+          this.allUserEvents = response.data.filter(
+            e => !ownWalletIds.includes(e.wallet)
+          )
+        })
+        .catch(() => {
+          this.isAdmin = false
+          this.allUserEvents = []
+        })
+    },
+    getSettings() {
+      LNbits.api
+        .request('GET', '/events/api/v1/events/settings')
+        .then(response => {
+          this.settings = response.data
+        })
+        .catch(() => {
+          // Not admin or settings unavailable; keep defaults.
+        })
+    },
+    saveSettings() {
+      LNbits.api
+        .request('PUT', '/events/api/v1/events/settings', null, this.settings)
+        .then(() => {
+          Quasar.Notify.create({type: 'positive', message: 'Settings saved'})
+        })
+        .catch(LNbits.utils.notifyApiError)
+    },
+    getPendingEvents() {
+      LNbits.api
+        .request('GET', '/events/api/v1/events/pending')
+        .then(response => {
+          this.pendingEvents = response.data
+        })
+        .catch(() => {
+          this.pendingEvents = []
+        })
+    },
+    approveEvent(eventId) {
+      LNbits.utils.confirmDialog('Approve this event?').onOk(() => {
+        LNbits.api
+          .request('PUT', '/events/api/v1/events/' + eventId + '/approve')
+          .then(() => {
+            Quasar.Notify.create({
+              type: 'positive',
+              message: 'Event approved'
+            })
+            this.getEvents()
+            this.getPendingEvents()
+          })
+          .catch(LNbits.utils.notifyApiError)
+      })
+    },
+    rejectEvent(eventId) {
+      LNbits.utils.confirmDialog('Reject this event?').onOk(() => {
+        LNbits.api
+          .request('PUT', '/events/api/v1/events/' + eventId + '/reject')
+          .then(() => {
+            Quasar.Notify.create({
+              type: 'positive',
+              message: 'Event rejected'
+            })
+            this.getEvents()
+            this.getPendingEvents()
+          })
+          .catch(LNbits.utils.notifyApiError)
+      })
     },
     sendEventData() {
       const wallet = _.findWhere(this.g.user.wallets, {
@@ -275,6 +355,8 @@ window.PageEvents = {
     if (this.g.user.wallets.length) {
       this.getTickets()
       this.getEvents()
+      this.getSettings()
+      this.getPendingEvents()
       if (this.g.allowedCurrencies && this.g.allowedCurrencies.length > 0) {
         this.currencies = ['sats', ...this.g.allowedCurrencies]
       } else {
