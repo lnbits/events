@@ -214,6 +214,19 @@ async def m008_add_event_status(db):
     )
 
 
+async def m009_add_nostr_columns(db):
+    """
+    Track the most recent NIP-52 calendar event we published for this event
+    (used for replaceable updates and NIP-09 deletes).
+    """
+    await _alter_add_column_safe(
+        db, "ALTER TABLE events.events ADD COLUMN nostr_event_id TEXT"
+    )
+    await _alter_add_column_safe(
+        db, "ALTER TABLE events.events ADD COLUMN nostr_event_created_at INTEGER"
+    )
+
+
 async def m010_add_events_settings(db):
     """
     Create the extension settings singleton row used by the admin UI to
@@ -231,4 +244,16 @@ async def m010_add_events_settings(db):
         "INSERT INTO events.settings (id, auto_approve) "
         "SELECT 1, FALSE WHERE NOT EXISTS "
         "(SELECT 1 FROM events.settings WHERE id = 1)"
+    )
+
+
+async def m011_add_location_and_categories(db):
+    """
+    Add NIP-52 calendar metadata (location and a JSON-encoded category list).
+    """
+    await _alter_add_column_safe(
+        db, "ALTER TABLE events.events ADD COLUMN location TEXT"
+    )
+    await _alter_add_column_safe(
+        db, "ALTER TABLE events.events ADD COLUMN categories TEXT"
     )

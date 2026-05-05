@@ -55,6 +55,7 @@ from .models import (
     Ticket,
     TicketPaymentRequest,
 )
+from .nostr_hooks import publish_or_delete_nostr_event
 from .services import refund_tickets
 from .tasks import deregister_payment_listener, register_payment_listener
 
@@ -187,7 +188,12 @@ async def api_event_create(
     if not is_admin and not ext_settings.auto_approve:
         data.status = "proposed"
 
-    return await create_event(data)
+    event = await create_event(data)
+
+    if event.status == "approved":
+        await publish_or_delete_nostr_event(event)
+
+    return event
 
 
 @events_api_router.put("/{event_id}")
@@ -207,7 +213,13 @@ async def api_event_update(
         )
     for k, v in data.dict().items():
         setattr(event, k, v)
-    return await update_event(event)
+    event = await update_event(event)
+
+    # Re-publish the replaceable NIP-52 event if we already announced it.
+    if event.status == "approved" and event.nostr_event_id:
+        await publish_or_delete_nostr_event(event)
+
+    return event
 
 
 @events_api_router.put("/{event_id}/cancel")
@@ -225,6 +237,10 @@ async def api_event_cancel(
     event.canceled = True
     event = await update_event(event)
     await refund_tickets(event.id)
+
+    if event.nostr_event_id:
+        await publish_or_delete_nostr_event(event, delete=True)
+
     return event
 
 
@@ -239,6 +255,10 @@ async def api_form_delete(
         )
     if event.wallet != wallet.wallet.id:
         raise HTTPException(status_code=HTTPStatus.FORBIDDEN, detail="Not your event.")
+
+    if event.nostr_event_id:
+        await publish_or_delete_nostr_event(event, delete=True)
+
     await delete_event(event_id)
     await delete_event_tickets(event_id)
 
@@ -259,7 +279,9 @@ async def api_event_approve(
             detail=f"Event is already {event.status}.",
         )
     event.status = "approved"
-    return await update_event(event)
+    event = await update_event(event)
+    await publish_or_delete_nostr_event(event)
+    return event
 
 
 @events_api_router.put("/{event_id}/reject")

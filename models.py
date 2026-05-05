@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 
 from pydantic import BaseModel, EmailStr, Field, root_validator, validator
@@ -36,6 +37,8 @@ class CreateEvent(BaseModel):
     amount_tickets: int = 0  # 0 = unlimited / not ticketed
     price_per_ticket: float = 0  # 0 = free
     banner: str | None = None
+    location: str | None = None  # venue/address (NIP-52 'location' tag)
+    categories: list[str] = Field(default_factory=list)  # NIP-52 't' tags
     extra: EventExtra = Field(default_factory=EventExtra)
     status: str = "approved"  # proposed, approved, rejected
 
@@ -55,8 +58,18 @@ class Event(BaseModel):
     time: datetime
     sold: int = 0
     banner: str | None = None
+    location: str | None = None
+    categories: list[str] = Field(default_factory=list)
     extra: EventExtra = Field(default_factory=EventExtra)
     status: str = "approved"
+    nostr_event_id: str | None = None
+    nostr_event_created_at: int | None = None
+
+    @validator("categories", pre=True)
+    def parse_categories(cls, v):
+        if isinstance(v, str):
+            return json.loads(v) if v else []
+        return v or []
 
 
 class PublicEvent(BaseModel):
@@ -68,7 +81,15 @@ class PublicEvent(BaseModel):
     event_start_date: str
     event_end_date: str | None = None
     banner: str | None
+    location: str | None = None
+    categories: list[str] = Field(default_factory=list)
     status: str = "approved"  # surfaces "proposed"/"rejected" so SFC can render banner
+
+    @validator("categories", pre=True)
+    def parse_categories(cls, v):
+        if isinstance(v, str):
+            return json.loads(v) if v else []
+        return v or []
 
 
 class EventsSettings(BaseModel):
