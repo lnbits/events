@@ -50,7 +50,7 @@ async def _handle_calendar_event(nostr_client: NostrClient, event_data: dict):
         return
 
     tags = {t[0]: t[1] for t in event_data.get("tags", []) if len(t) >= 2}
-    tag_lists = {}
+    tag_lists: dict[str, list[str]] = {}
     for t in event_data.get("tags", []):
         if len(t) >= 2:
             tag_lists.setdefault(t[0], []).append(t[1])
@@ -137,9 +137,11 @@ async def wait_for_nostr_events(nostr_client: NostrClient):
     while True:
         try:
             # Subscribe to NIP-52 calendar events
-            await nostr_client.subscribe([
-                {"kinds": [31922, 31923]},
-            ])
+            await nostr_client.subscribe(
+                [
+                    {"kinds": [31922, 31923]},
+                ]
+            )
 
             # Process incoming events
             while True:

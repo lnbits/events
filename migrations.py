@@ -232,14 +232,12 @@ async def m010_add_events_settings(db):
     Create the extension settings singleton row used by the admin UI to
     toggle e.g. auto_approve.
     """
-    await db.execute(
-        """
+    await db.execute("""
         CREATE TABLE IF NOT EXISTS events.settings (
             id INTEGER PRIMARY KEY DEFAULT 1,
             auto_approve BOOLEAN NOT NULL DEFAULT FALSE
         )
-        """
-    )
+        """)
     await db.execute(
         "INSERT INTO events.settings (id, auto_approve) "
         "SELECT 1, FALSE WHERE NOT EXISTS "

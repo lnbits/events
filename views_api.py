@@ -139,9 +139,7 @@ async def api_get_event(event_id: str) -> Event:
 
     # closing_date is filled in by create_event (defaults to end_date or
     # start_date) but the field is typed Optional, so guard for the typechecker.
-    closing_date = (
-        event.closing_date or event.event_end_date or event.event_start_date
-    )
+    closing_date = event.closing_date or event.event_end_date or event.event_start_date
     is_window_open = datetime.now(timezone.utc) < datetime.strptime(
         closing_date, "%Y-%m-%d"
     ).replace(tzinfo=timezone.utc)
@@ -181,10 +179,7 @@ async def api_event_create(
 
     ext_settings = await get_settings()
     user_id = wallet.wallet.user
-    is_admin = (
-        user_id == settings.super_user
-        or user_id in settings.lnbits_admin_users
-    )
+    is_admin = user_id == settings.super_user or user_id in settings.lnbits_admin_users
     if not is_admin and not ext_settings.auto_approve:
         data.status = "proposed"
 
@@ -208,9 +203,7 @@ async def api_event_update(
             status_code=HTTPStatus.NOT_FOUND, detail="Event does not exist."
         )
     if event.wallet != wallet.wallet.id:
-        raise HTTPException(
-            status_code=HTTPStatus.FORBIDDEN, detail="Not your event."
-        )
+        raise HTTPException(status_code=HTTPStatus.FORBIDDEN, detail="Not your event.")
     for k, v in data.dict().items():
         setattr(event, k, v)
     event = await update_event(event)
@@ -351,9 +344,7 @@ async def api_get_ticket(ticket_id: str) -> Ticket:
 
 
 @tickets_api_router.post("/{event_id}")
-async def api_ticket_create(
-    event_id: str, data: CreateTicket
-) -> TicketPaymentRequest:
+async def api_ticket_create(event_id: str, data: CreateTicket) -> TicketPaymentRequest:
     event = await get_event(event_id)
     if not event:
         raise HTTPException(
@@ -423,9 +414,7 @@ async def _create_named_ticket(
     )
 
 
-async def _create_user_id_ticket(
-    event: Event, user_id: str
-) -> TicketPaymentRequest:
+async def _create_user_id_ticket(event: Event, user_id: str) -> TicketPaymentRequest:
     price = event.price_per_ticket
     extra: dict[str, Any] = {"tag": "events", "user_id": user_id}
 

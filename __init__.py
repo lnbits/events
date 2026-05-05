@@ -75,9 +75,7 @@ def events_start():
         except Exception as exc:
             logger.error(f"[EVENTS] Nostr sync task failed: {exc}")
 
-    task3 = create_permanent_unique_task(
-        "ext_events_nostr_sync", _sync_nostr_events
-    )
+    task3 = create_permanent_unique_task("ext_events_nostr_sync", _sync_nostr_events)
     scheduled_tasks.append(task3)
 
 

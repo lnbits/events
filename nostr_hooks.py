@@ -29,11 +29,15 @@ async def publish_or_delete_nostr_event(event: Event, *, delete: bool = False) -
         if not wallet_obj:
             return
         account = await get_account(wallet_obj.user)
-        if not account or not account.pubkey or not account.prvkey:
+        if not account or not account.pubkey or not account.prvkey:  # type: ignore[attr-defined]
             return
 
         nostr_event = await publish_event_to_nostr(
-            nostr_client, event, account.pubkey, account.prvkey, delete=delete
+            nostr_client,
+            event,
+            account.pubkey,
+            account.prvkey,  # type: ignore[attr-defined]
+            delete=delete,
         )
         if nostr_event and not delete:
             event.nostr_event_id = nostr_event.id

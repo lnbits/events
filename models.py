@@ -118,9 +118,7 @@ class CreateTicket(BaseModel):
         email = values.get("email")
         user_id = values.get("user_id")
         if not user_id and not (name and email):
-            raise ValueError(
-                "Either user_id or both name and email must be provided"
-            )
+            raise ValueError("Either user_id or both name and email must be provided")
         if user_id and (name or email):
             raise ValueError("Cannot provide both user_id and name/email")
         return values

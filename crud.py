@@ -94,7 +94,7 @@ async def update_ticket(ticket: Ticket) -> Ticket:
 
 
 async def get_ticket(payment_hash: str) -> Ticket | None:
-    row = await db.fetchone(
+    row: dict | None = await db.fetchone(
         "SELECT * FROM events.ticket WHERE id = :id",
         {"id": payment_hash},
     )
@@ -107,13 +107,15 @@ async def get_tickets(wallet_ids: str | list[str]) -> list[Ticket]:
     if isinstance(wallet_ids, str):
         wallet_ids = [wallet_ids]
     q = ",".join([f"'{wallet_id}'" for wallet_id in wallet_ids])
-    rows = await db.fetchall(f"SELECT * FROM events.ticket WHERE wallet IN ({q})")
+    rows: list[dict] = await db.fetchall(
+        f"SELECT * FROM events.ticket WHERE wallet IN ({q})"
+    )
     return [Ticket(**_parse_ticket_row(row)) for row in rows]
 
 
 async def get_tickets_by_user_id(user_id: str) -> list[Ticket]:
     """All tickets owned by the given LNbits user_id."""
-    rows = await db.fetchall(
+    rows: list[dict] = await db.fetchall(
         "SELECT * FROM events.ticket WHERE user_id = :user_id ORDER BY time DESC",
         {"user_id": user_id},
     )
@@ -206,7 +208,7 @@ async def get_pending_events() -> list[Event]:
 
 async def get_settings() -> EventsSettings:
     """Singleton settings row, seeded by m010."""
-    row = await db.fetchone("SELECT * FROM events.settings WHERE id = 1")
+    row: dict | None = await db.fetchone("SELECT * FROM events.settings WHERE id = 1")
     if row:
         return EventsSettings(**dict(row))
     return EventsSettings()
@@ -225,7 +227,7 @@ async def delete_event(event_id: str) -> None:
 
 
 async def get_event_tickets(event_id: str) -> list[Ticket]:
-    rows = await db.fetchall(
+    rows: list[dict] = await db.fetchall(
         "SELECT * FROM events.ticket WHERE event = :event",
         {"event": event_id},
     )

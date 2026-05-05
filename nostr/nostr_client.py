@@ -39,8 +39,7 @@ class NostrClient:
     async def connect(self) -> WebSocketApp:
         relay_endpoint = encrypt_internal_message("relay", urlsafe=True)
         ws_url = (
-            f"ws://localhost:{settings.port}"
-            f"/nostrclient/api/v1/{relay_endpoint}"
+            f"ws://localhost:{settings.port}" f"/nostrclient/api/v1/{relay_endpoint}"
         )
 
         logger.info("[EVENTS] Connecting to nostrclient WebSocket...")
@@ -58,12 +57,8 @@ class NostrClient:
             logger.warning(f"[EVENTS] WebSocket error: {error}")
 
         def on_close(_, status_code, message):
-            logger.warning(
-                f"[EVENTS] WebSocket closed: {status_code} {message}"
-            )
-            self.receive_event_queue.put_nowait(
-                ValueError("WebSocket closed")
-            )
+            logger.warning(f"[EVENTS] WebSocket closed: {status_code} {message}")
+            self.receive_event_queue.put_nowait(ValueError("WebSocket closed"))
 
         ws = WebSocketApp(
             ws_url,
@@ -118,9 +113,7 @@ class NostrClient:
     async def subscribe(self, filters: list[dict]):
         """Subscribe to events matching the given filters."""
         self.subscription_id = "events-" + urlsafe_short_hash()[:32]
-        await self.send_req_queue.put(
-            ["REQ", self.subscription_id, *filters]
-        )
+        await self.send_req_queue.put(["REQ", self.subscription_id, *filters])
         logger.info(
             f"[EVENTS] Subscribed to NIP-52 events "
             f"(sub: {self.subscription_id[:20]}...)"

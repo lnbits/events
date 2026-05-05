@@ -187,12 +187,7 @@ window.PageEvents = {
     },
     saveSettings() {
       LNbits.api
-        .request(
-          'PUT',
-          '/events/api/v1/events/settings',
-          null,
-          this.settings
-        )
+        .request('PUT', '/events/api/v1/events/settings', null, this.settings)
         .then(() => {
           Quasar.Notify.create({type: 'positive', message: 'Settings saved'})
         })

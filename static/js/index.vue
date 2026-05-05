@@ -192,7 +192,13 @@
                 <q-td v-for="col in props.cols" :key="col.name" :props="props">
                   <q-badge
                     v-if="col.name === 'status'"
-                    :color="col.value === 'approved' ? 'green' : col.value === 'proposed' ? 'orange' : 'red'"
+                    :color="
+                      col.value === 'approved'
+                        ? 'green'
+                        : col.value === 'proposed'
+                          ? 'orange'
+                          : 'red'
+                    "
                     :label="col.value"
                   ></q-badge>
                   <span v-else v-text="col.value"></span>
@@ -284,7 +290,13 @@
                 <q-td v-for="col in props.cols" :key="col.name" :props="props">
                   <q-badge
                     v-if="col.name === 'status'"
-                    :color="col.value === 'approved' ? 'green' : col.value === 'proposed' ? 'orange' : 'red'"
+                    :color="
+                      col.value === 'approved'
+                        ? 'green'
+                        : col.value === 'proposed'
+                          ? 'orange'
+                          : 'red'
+                    "
                     :label="col.value"
                   ></q-badge>
                   <span v-else v-text="col.value"></span>
