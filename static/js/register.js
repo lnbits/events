@@ -6,17 +6,13 @@ window.PageEventsRegister = {
       ticketsTable: {
         columns: [
           {name: 'name', align: 'left', label: 'Name', field: 'name'},
+          {name: 'email', align: 'left', label: 'Email', field: 'email'},
           {
-            name: 'registered',
+            name: 'id',
             align: 'left',
-            label: 'Registered',
-            field: 'registered'
-          },
-          {
-            name: 'paid',
-            align: 'left',
-            label: 'Paid',
-            field: 'paid'
+            label: 'ID',
+            field: 'id',
+            format: val => this.shortId(val)
           }
         ],
         pagination: {
@@ -26,12 +22,20 @@ window.PageEventsRegister = {
       sendCamera: {
         show: false,
         camera: 'auto'
-      }
+      },
+      lastScan: null
     }
   },
   methods: {
-    hoverEmail(tmp) {
-      this.tickets.data.emailtemp = tmp
+    storageKey() {
+      return `events_scanned_${this.eventId}`
+    },
+    loadScannedTickets() {
+      this.tickets = Quasar.LocalStorage.getItem(this.storageKey()) || []
+    },
+    saveScannedTicket(ticket) {
+      this.tickets.unshift(ticket)
+      Quasar.LocalStorage.set(this.storageKey(), this.tickets)
     },
     closeCamera() {
       this.sendCamera.show = false
@@ -39,30 +43,32 @@ window.PageEventsRegister = {
     showCamera() {
       this.sendCamera.show = true
     },
+    shortId(id) {
+      return id ? `${id.slice(0, 6)}...${id.slice(-4)}` : ''
+    },
     decodeQR(res) {
       this.sendCamera.show = false
       const value = res[0].rawValue.split('//')[1]
       LNbits.api
         .request('PUT', `/events/api/v1/tickets/register/${value}`)
-        .then(() => {
-          Quasar.Notify.create({
-            type: 'positive',
-            message: 'Registered!'
-          })
-        })
-        .catch(LNbits.utils.notifyApiError)
-    },
-    getEventTickets() {
-      LNbits.api
-        .request('GET', `/events/api/v1/events/${this.eventId}/tickets`)
         .then(response => {
-          this.tickets = response.data
+          this.saveScannedTicket(response.data)
+          this.lastScan = {success: true, ticket: response.data}
+          Quasar.Notify.create({type: 'positive', message: 'Registered!'})
         })
-        .catch(LNbits.utils.notifyApiError)
+        .catch(error => {
+          this.lastScan = {
+            success: false,
+            ticketId: value,
+            error:
+              error.response?.data?.detail || error.message || 'Unknown error'
+          }
+          LNbits.utils.notifyApiError(error)
+        })
     }
   },
   created() {
     this.eventId = this.$route.params.id
-    this.getEventTickets()
+    this.loadScannedTickets()
   }
 }

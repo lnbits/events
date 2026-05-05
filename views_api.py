@@ -30,7 +30,6 @@ from .crud import (
     delete_event_tickets,
     delete_ticket,
     get_event,
-    get_event_tickets,
     get_events,
     get_ticket,
     get_tickets,
@@ -162,14 +161,6 @@ async def api_form_delete(
 
     await delete_event(event_id)
     await delete_event_tickets(event_id)
-
-
-@events_api_router.get(
-    "/{event_id}/tickets",
-    response_model=list[PublicTicket],
-)
-async def api_event_tickets(event_id: str) -> list[Ticket]:
-    return await get_event_tickets(event_id)
 
 
 @tickets_api_router.get("")
@@ -323,7 +314,7 @@ async def api_ticket_delete(
     await delete_ticket(ticket_id)
 
 
-@tickets_api_router.put("/register/{ticket_id}", response_model=PublicTicket)
+@tickets_api_router.put("/register/{ticket_id}")
 async def api_event_register_ticket(ticket_id) -> Ticket:
     ticket = await get_ticket(ticket_id)
 
