@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from lnbits.db import Database
 from lnbits.helpers import urlsafe_short_hash
 
-from .models import CreateEvent, Event, Ticket, TicketExtra
+from .models import CreateEvent, Event, EventsSettings, Ticket, TicketExtra
 
 db = Database("ext_events")
 
@@ -143,6 +143,11 @@ async def purge_unpaid_tickets(event_id: str) -> None:
 
 async def create_event(data: CreateEvent) -> Event:
     event_id = urlsafe_short_hash()
+    # Default end_date to start_date and closing_date to end_date when omitted.
+    if not data.event_end_date:
+        data.event_end_date = data.event_start_date
+    if not data.closing_date:
+        data.closing_date = data.event_end_date
     event = Event(id=event_id, time=datetime.now(timezone.utc), **data.dict())
     await db.insert("events.events", event)
     return event
@@ -169,6 +174,50 @@ async def get_events(wallet_ids: str | list[str]) -> list[Event]:
         f"SELECT * FROM events.events WHERE wallet IN ({q})",
         model=Event,
     )
+
+
+async def get_all_events() -> list[Event]:
+    """All events, no wallet filter. Admin-only callers."""
+    return await db.fetchall(
+        "SELECT * FROM events.events ORDER BY time DESC",
+        model=Event,
+    )
+
+
+async def get_public_events() -> list[Event]:
+    """Approved, non-canceled events for the public listing."""
+    return await db.fetchall(
+        """
+        SELECT * FROM events.events
+        WHERE status = 'approved' AND canceled = FALSE
+        ORDER BY event_start_date ASC
+        """,
+        model=Event,
+    )
+
+
+async def get_pending_events() -> list[Event]:
+    """Proposed events awaiting admin approval."""
+    return await db.fetchall(
+        "SELECT * FROM events.events WHERE status = 'proposed' ORDER BY time DESC",
+        model=Event,
+    )
+
+
+async def get_settings() -> EventsSettings:
+    """Singleton settings row, seeded by m010."""
+    row = await db.fetchone("SELECT * FROM events.settings WHERE id = 1")
+    if row:
+        return EventsSettings(**dict(row))
+    return EventsSettings()
+
+
+async def update_settings(settings: EventsSettings) -> EventsSettings:
+    await db.execute(
+        "UPDATE events.settings SET auto_approve = :auto_approve WHERE id = 1",
+        {"auto_approve": settings.auto_approve},
+    )
+    return settings
 
 
 async def delete_event(event_id: str) -> None:

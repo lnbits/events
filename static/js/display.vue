@@ -12,7 +12,32 @@
           <div v-html="event.info" class="q-pa-lg"></div>
         </q-card-section>
       </q-card>
-      <q-card class="q-pa-lg">
+
+      <q-banner
+        v-if="event.status === 'proposed'"
+        class="bg-orange-2 text-orange-10"
+        rounded
+      >
+        <template v-slot:avatar>
+          <q-icon name="pending" color="orange-10"></q-icon>
+        </template>
+        <span class="text-weight-medium">Pending approval</span> &mdash; this
+        event is awaiting an admin review and is not yet open for tickets.
+      </q-banner>
+
+      <q-banner
+        v-else-if="event.status === 'rejected'"
+        class="bg-red-2 text-red-10"
+        rounded
+      >
+        <template v-slot:avatar>
+          <q-icon name="block" color="red-10"></q-icon>
+        </template>
+        <span class="text-weight-medium">Not approved</span> &mdash; this event
+        was reviewed and is not being published.
+      </q-banner>
+
+      <q-card v-if="event.status === 'approved'" class="q-pa-lg">
         <q-card-section class="q-pa-none">
           <h5 class="q-mt-none">Buy Ticket</h5>
           <q-form @submit="createInvoice()" class="q-gutter-md">

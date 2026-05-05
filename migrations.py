@@ -200,3 +200,35 @@ async def m007_add_user_id_support(db):
     await _alter_add_column_safe(
         db, "ALTER TABLE events.ticket ADD COLUMN user_id TEXT"
     )
+
+
+async def m008_add_event_status(db):
+    """
+    Add status column to events table for the proposal/approval workflow.
+    Values: 'proposed', 'approved', 'rejected'. Existing rows default to
+    'approved' so they stay visible after upgrade.
+    """
+    await _alter_add_column_safe(
+        db,
+        "ALTER TABLE events.events ADD COLUMN status TEXT NOT NULL DEFAULT 'approved'",
+    )
+
+
+async def m010_add_events_settings(db):
+    """
+    Create the extension settings singleton row used by the admin UI to
+    toggle e.g. auto_approve.
+    """
+    await db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS events.settings (
+            id INTEGER PRIMARY KEY DEFAULT 1,
+            auto_approve BOOLEAN NOT NULL DEFAULT FALSE
+        )
+        """
+    )
+    await db.execute(
+        "INSERT INTO events.settings (id, auto_approve) "
+        "SELECT 1, FALSE WHERE NOT EXISTS "
+        "(SELECT 1 FROM events.settings WHERE id = 1)"
+    )

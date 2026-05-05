@@ -1,11 +1,85 @@
 <template id="page-events">
   <div class="row q-col-gutter-md">
     <div class="col-12 col-md-8 col-lg-7 q-gutter-y-md">
+      <q-card v-if="isAdmin">
+        <q-card-section>
+          <div class="row items-center justify-between">
+            <div class="col">
+              <span class="text-subtitle1">Settings</span>
+            </div>
+            <div class="col-auto">
+              <q-toggle
+                v-model="settings.auto_approve"
+                label="Auto-approve events"
+                @update:model-value="saveSettings"
+              ></q-toggle>
+            </div>
+          </div>
+        </q-card-section>
+      </q-card>
+
       <q-card>
         <q-card-section>
           <q-btn unelevated color="primary" @click="openEventDialog"
             >New Event</q-btn
           >
+        </q-card-section>
+      </q-card>
+
+      <q-card v-if="pendingEvents.length > 0">
+        <q-card-section>
+          <div class="row items-center no-wrap q-mb-md">
+            <div class="col">
+              <h5 class="text-subtitle1 q-my-none">
+                <q-icon name="pending" color="orange" class="q-mr-sm"></q-icon>
+                Pending Approvals
+                <q-badge
+                  color="orange"
+                  :label="pendingEvents.length"
+                  class="q-ml-sm"
+                ></q-badge>
+              </h5>
+            </div>
+          </div>
+          <q-list separator>
+            <q-item v-for="event in pendingEvents" :key="event.id">
+              <q-item-section>
+                <q-item-label v-text="event.name"></q-item-label>
+                <q-item-label caption>
+                  <span v-text="event.event_start_date"></span>
+                  &mdash;
+                  <span v-text="event.info.substring(0, 80)"></span
+                  ><span v-if="event.info.length > 80">...</span>
+                </q-item-label>
+                <q-item-label caption>
+                  <span v-text="event.amount_tickets"></span> tickets &bull;
+                  <span v-text="event.price_per_ticket"></span>
+                  <span v-text="event.currency"></span>
+                </q-item-label>
+              </q-item-section>
+              <q-item-section side>
+                <div class="row q-gutter-sm">
+                  <q-btn
+                    dense
+                    color="green"
+                    icon="check_circle"
+                    label="Approve"
+                    size="sm"
+                    @click="approveEvent(event.id)"
+                  ></q-btn>
+                  <q-btn
+                    dense
+                    outline
+                    color="red"
+                    icon="block"
+                    label="Reject"
+                    size="sm"
+                    @click="rejectEvent(event.id)"
+                  ></q-btn>
+                </div>
+              </q-item-section>
+            </q-item>
+          </q-list>
         </q-card-section>
       </q-card>
 
@@ -76,6 +150,28 @@
                 </q-td>
                 <q-td auto-width>
                   <q-btn
+                    v-if="isAdmin && props.row.status === 'proposed'"
+                    flat
+                    dense
+                    size="xs"
+                    @click="approveEvent(props.row.id)"
+                    icon="check_circle"
+                    color="green"
+                  >
+                    <q-tooltip>Approve</q-tooltip>
+                  </q-btn>
+                  <q-btn
+                    v-if="isAdmin && props.row.status === 'proposed'"
+                    flat
+                    dense
+                    size="xs"
+                    @click="rejectEvent(props.row.id)"
+                    icon="block"
+                    color="red"
+                  >
+                    <q-tooltip>Reject</q-tooltip>
+                  </q-btn>
+                  <q-btn
                     flat
                     dense
                     size="xs"
@@ -94,7 +190,12 @@
                   ></q-btn>
                 </q-td>
                 <q-td v-for="col in props.cols" :key="col.name" :props="props">
-                  <span v-text="col.value"></span>
+                  <q-badge
+                    v-if="col.name === 'status'"
+                    :color="col.value === 'approved' ? 'green' : col.value === 'proposed' ? 'orange' : 'red'"
+                    :label="col.value"
+                  ></q-badge>
+                  <span v-else v-text="col.value"></span>
                 </q-td>
               </q-tr>
               <q-tr v-show="props.expand" :props="props">
@@ -142,6 +243,51 @@
                       </div>
                     </div>
                   </div>
+                </q-td>
+              </q-tr>
+            </template>
+          </q-table>
+        </q-card-section>
+      </q-card>
+
+      <q-card v-if="isAdmin && allUserEvents.length > 0">
+        <q-card-section>
+          <div class="row items-center no-wrap q-mb-md">
+            <div class="col">
+              <h5 class="text-subtitle1 q-my-none">
+                All Users' Events
+                <q-badge
+                  color="blue"
+                  :label="allUserEvents.length"
+                  class="q-ml-sm"
+                ></q-badge>
+              </h5>
+            </div>
+          </div>
+          <q-table
+            dense
+            flat
+            :rows="allUserEvents"
+            row-key="id"
+            :columns="eventsTable.columns"
+            :pagination="{rowsPerPage: 10}"
+          >
+            <template v-slot:header="props">
+              <q-tr :props="props">
+                <q-th v-for="col in props.cols" :key="col.name" :props="props">
+                  <span v-text="col.label"></span>
+                </q-th>
+              </q-tr>
+            </template>
+            <template v-slot:body="props">
+              <q-tr :props="props">
+                <q-td v-for="col in props.cols" :key="col.name" :props="props">
+                  <q-badge
+                    v-if="col.name === 'status'"
+                    :color="col.value === 'approved' ? 'green' : col.value === 'proposed' ? 'orange' : 'red'"
+                    :label="col.value"
+                  ></q-badge>
+                  <span v-else v-text="col.value"></span>
                 </q-td>
               </q-tr>
             </template>

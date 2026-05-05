@@ -1,6 +1,5 @@
 from datetime import datetime
 
-from fastapi import Query
 from pydantic import BaseModel, EmailStr, Field, root_validator, validator
 
 
@@ -27,46 +26,55 @@ class EventExtra(BaseModel):
 
 
 class CreateEvent(BaseModel):
-    wallet: str
-    name: str
-    info: str
-    closing_date: str
-    event_start_date: str
-    event_end_date: str
+    wallet: str | None = None  # filled from caller's wallet if absent
+    name: str  # title (required)
+    info: str = ""  # description (optional)
+    closing_date: str | None = None  # defaults to event_end_date
+    event_start_date: str  # required
+    event_end_date: str | None = None  # defaults to event_start_date
     currency: str = "sat"
-    amount_tickets: int = Query(..., ge=0)
-    price_per_ticket: float = Query(..., ge=0)
+    amount_tickets: int = 0  # 0 = unlimited / not ticketed
+    price_per_ticket: float = 0  # 0 = free
     banner: str | None = None
     extra: EventExtra = Field(default_factory=EventExtra)
+    status: str = "approved"  # proposed, approved, rejected
 
 
 class Event(BaseModel):
     id: str
     wallet: str
     name: str
-    info: str
-    closing_date: str
+    info: str = ""
+    closing_date: str | None = None
     canceled: bool = False
     event_start_date: str
-    event_end_date: str
-    currency: str
-    amount_tickets: int
-    price_per_ticket: float
+    event_end_date: str | None = None
+    currency: str = "sat"
+    amount_tickets: int = 0
+    price_per_ticket: float = 0
     time: datetime
     sold: int = 0
     banner: str | None = None
     extra: EventExtra = Field(default_factory=EventExtra)
+    status: str = "approved"
 
 
 class PublicEvent(BaseModel):
     id: str
     name: str
     info: str
-    closing_date: str
+    closing_date: str | None = None
     canceled: bool
     event_start_date: str
-    event_end_date: str
+    event_end_date: str | None = None
     banner: str | None
+    status: str = "approved"  # surfaces "proposed"/"rejected" so SFC can render banner
+
+
+class EventsSettings(BaseModel):
+    """Extension-level settings for the events extension."""
+
+    auto_approve: bool = False  # Skip approval workflow for non-admin users
 
 
 class TicketExtra(BaseModel):
