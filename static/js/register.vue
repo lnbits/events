@@ -30,7 +30,9 @@
           </div>
           <div v-else>
             <div class="text-h6 q-mb-sm">Failed</div>
-            <div><strong>Ticket ID:</strong> {{ shortId(lastScan.ticketId) }}</div>
+            <div>
+              <strong>Ticket ID:</strong> {{ shortId(lastScan.ticketId) }}
+            </div>
             <div><strong>Error:</strong> {{ lastScan.error }}</div>
           </div>
         </q-card-section>
