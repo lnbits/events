@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from fastapi import Query
-from pydantic import BaseModel, EmailStr, Field, validator
+from pydantic import BaseModel, EmailStr, Field, root_validator, validator
 
 
 class PromoCode(BaseModel):
@@ -77,18 +77,33 @@ class TicketExtra(BaseModel):
 
 
 class CreateTicket(BaseModel):
-    name: str
-    email: EmailStr
+    name: str | None = None
+    email: EmailStr | None = None
+    user_id: str | None = None  # LNbits user id (alternative to name+email)
     promo_code: str | None = None
     refund_address: str | None = None
+
+    @root_validator
+    def validate_identifiers(cls, values):
+        name = values.get("name")
+        email = values.get("email")
+        user_id = values.get("user_id")
+        if not user_id and not (name and email):
+            raise ValueError(
+                "Either user_id or both name and email must be provided"
+            )
+        if user_id and (name or email):
+            raise ValueError("Cannot provide both user_id and name/email")
+        return values
 
 
 class Ticket(BaseModel):
     id: str
     wallet: str
     event: str
-    name: str
-    email: str
+    name: str | None = None
+    email: str | None = None
+    user_id: str | None = None
     registered: bool
     paid: bool
     time: datetime
@@ -98,7 +113,7 @@ class Ticket(BaseModel):
 
 class PublicTicket(BaseModel):
     event: str
-    name: str
+    name: str | None = None
     registered: bool
     paid: bool
     time: datetime

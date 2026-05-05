@@ -189,3 +189,14 @@ async def m006_add_extra_fields(db):
     )
     await _alter_add_column_safe(db, "ALTER TABLE events.events ADD COLUMN extra TEXT")
     await _alter_add_column_safe(db, "ALTER TABLE events.ticket ADD COLUMN extra TEXT")
+
+
+async def m007_add_user_id_support(db):
+    """
+    Add user_id column to ticket table so a ticket can reference an LNbits
+    user id instead of (name, email). Application logic enforces that exactly
+    one identifier scheme is used per ticket.
+    """
+    await _alter_add_column_safe(
+        db, "ALTER TABLE events.ticket ADD COLUMN user_id TEXT"
+    )

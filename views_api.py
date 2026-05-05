@@ -33,6 +33,7 @@ from .crud import (
     get_events,
     get_ticket,
     get_tickets,
+    get_tickets_by_user_id,
     purge_unpaid_tickets,
     update_event,
     update_ticket,
@@ -177,6 +178,16 @@ async def api_tickets(
     return await get_tickets(wallet_ids)
 
 
+@tickets_api_router.get("/user/{user_id}")
+async def api_tickets_by_user_id(user_id: str) -> list[Ticket]:
+    """Tickets bound to an LNbits user_id (used by external integrations).
+
+    Declared before /{ticket_id} so FastAPI matches the literal `/user/`
+    prefix instead of treating "user" as a ticket id.
+    """
+    return await get_tickets_by_user_id(user_id)
+
+
 @tickets_api_router.get("/{ticket_id}", response_model=PublicTicket)
 async def api_get_ticket(ticket_id: str) -> Ticket:
     ticket = await get_ticket(ticket_id)
@@ -193,7 +204,9 @@ async def api_get_ticket(ticket_id: str) -> Ticket:
 
 
 @tickets_api_router.post("/{event_id}")
-async def api_ticket_create(event_id: str, data: CreateTicket) -> TicketPaymentRequest:
+async def api_ticket_create(
+    event_id: str, data: CreateTicket
+) -> TicketPaymentRequest:
     event = await get_event(event_id)
     if not event:
         raise HTTPException(
@@ -206,6 +219,14 @@ async def api_ticket_create(event_id: str, data: CreateTicket) -> TicketPaymentR
     if event.amount_tickets > 0 and event.sold >= event.amount_tickets:
         raise HTTPException(status_code=HTTPStatus.GONE, detail="Event is sold out.")
 
+    if data.user_id:
+        return await _create_user_id_ticket(event, data.user_id)
+    return await _create_named_ticket(event, data)
+
+
+async def _create_named_ticket(
+    event: Event, data: CreateTicket
+) -> TicketPaymentRequest:
     name = data.name
     email = data.email
     promo_code = data.promo_code.upper() if data.promo_code else None
@@ -214,12 +235,10 @@ async def api_ticket_create(event_id: str, data: CreateTicket) -> TicketPaymentR
     extra: dict[str, Any] = {"tag": "events", "name": name, "email": email}
 
     if promo_code:
-        # check if promo_code exists in event.extra.promo_codes
         if promo_code not in [pc.code for pc in event.extra.promo_codes]:
             raise HTTPException(
                 status_code=HTTPStatus.BAD_REQUEST, detail="Invalid promo code."
             )
-        # get the promocode
         promo = next(pc for pc in event.extra.promo_codes if pc.code == promo_code)
         extra["promo_code"] = promo.code
         price = event.price_per_ticket * (1 - promo.discount_percent / 100)
@@ -229,13 +248,12 @@ async def api_ticket_create(event_id: str, data: CreateTicket) -> TicketPaymentR
         extra["currency"] = event.currency
         extra["fiatAmount"] = price
         extra["rate"] = await get_fiat_rate_satoshis(event.currency)
-
         price = await fiat_amount_as_satoshis(price, event.currency)
 
     payment = await create_invoice(
         wallet_id=event.wallet,
         amount=price,
-        memo=f"{event_id}",
+        memo=f"{event.id}",
         extra=extra,
     )
     await create_ticket(
@@ -250,7 +268,36 @@ async def api_ticket_create(event_id: str, data: CreateTicket) -> TicketPaymentR
             "sats_paid": int(price),
         },
     )
+    return TicketPaymentRequest(
+        payment_hash=payment.payment_hash, payment_request=payment.bolt11
+    )
 
+
+async def _create_user_id_ticket(
+    event: Event, user_id: str
+) -> TicketPaymentRequest:
+    price = event.price_per_ticket
+    extra: dict[str, Any] = {"tag": "events", "user_id": user_id}
+
+    if event.currency != "sats":
+        price = await fiat_amount_as_satoshis(event.price_per_ticket, event.currency)
+        extra["fiat"] = True
+        extra["currency"] = event.currency
+        extra["fiatAmount"] = event.price_per_ticket
+        extra["rate"] = await get_fiat_rate_satoshis(event.currency)
+
+    payment = await create_invoice(
+        wallet_id=event.wallet,
+        amount=price,
+        memo=f"{event.id}",
+        extra=extra,
+    )
+    await create_ticket(
+        payment_hash=payment.payment_hash,
+        wallet=event.wallet,
+        event=event.id,
+        user_id=user_id,
+    )
     return TicketPaymentRequest(
         payment_hash=payment.payment_hash, payment_request=payment.bolt11
     )
