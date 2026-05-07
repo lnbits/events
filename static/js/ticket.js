@@ -3,7 +3,7 @@ window.PageEventsTicket = {
   data() {
     return {
       ticketId: null,
-      ticketName: null
+      ticket: null
     }
   },
   methods: {
@@ -18,7 +18,7 @@ window.PageEventsTicket = {
         'GET',
         `/events/api/v1/tickets/${this.ticketId}`
       )
-      this.ticketName = data.ticket_name
+      this.ticket = data
     } catch (error) {
       LNbits.utils.notifyApiError(error)
     }
