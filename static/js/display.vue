@@ -16,16 +16,16 @@
         <q-card-section class="q-pa-none">
           <h5 class="q-mt-none">Buy Ticket</h5>
           <q-form @submit="createInvoice()" class="q-gutter-md">
-          <div class="row">
-          <div class="col-12">
-            <q-input
-              filled
-              dense
-              v-model.trim="formDialog.data.name"
-              label="Your name "
-              :rules="[val => nameValidation(val)]"
-            ></q-input>
-</div>
+            <div class="row">
+              <div class="col-12">
+                <q-input
+                  filled
+                  dense
+                  v-model.trim="formDialog.data.name"
+                  label="Your name "
+                  :rules="[val => nameValidation(val)]"
+                ></q-input>
+              </div>
               <div class="col-12 col-md-6 q-pr-sm">
                 <q-input
                   filled

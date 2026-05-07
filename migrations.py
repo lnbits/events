@@ -181,6 +181,7 @@ async def m007_add_allow_fiat(db):
     """
     Add an allow_fiat column so event owners can explicitly enable fiat checkout.
     """
-    await db.execute(
-        "ALTER TABLE events.events ADD COLUMN allow_fiat BOOLEAN NOT NULL DEFAULT FALSE;"
-    )
+    await db.execute("""
+        ALTER TABLE events.events
+        ADD COLUMN allow_fiat BOOLEAN NOT NULL DEFAULT FALSE;
+        """)

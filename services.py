@@ -2,14 +2,13 @@ from __future__ import annotations
 
 from asyncio.tasks import create_task
 
-from lnurl import execute
-from loguru import logger
-
 from lnbits.core.models.users import UserNotifications
-from lnbits.core.services.notifications import send_user_notification
 from lnbits.core.services.nostr import send_nostr_dm
+from lnbits.core.services.notifications import send_user_notification
 from lnbits.settings import settings
 from lnbits.utils.nostr import normalize_private_key, normalize_public_key
+from lnurl import execute
+from loguru import logger
 
 from .crud import (
     get_event,
@@ -83,7 +82,9 @@ async def _send_ticket_notification(ticket: Ticket) -> None:
         and ticket.extra.nostr_identifier
     ):
         try:
-            await _send_nostr_ticket_notification(ticket.extra.nostr_identifier, message)
+            await _send_nostr_ticket_notification(
+                ticket.extra.nostr_identifier, message
+            )
             ticket.extra.nostr_notification_sent = True
             updated = True
         except Exception as exc:

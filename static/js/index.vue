@@ -375,7 +375,9 @@
             v-model="formDialog.data.allow_fiat"
             :disable="
               formDialog.data.currency == null ||
-              ['sat', 'sats'].includes((formDialog.data.currency || '').toLowerCase())
+              ['sat', 'sats'].includes(
+                (formDialog.data.currency || '').toLowerCase()
+              )
             "
             label="Allow fiat checkout"
             left-label
