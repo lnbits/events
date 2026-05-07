@@ -24,6 +24,8 @@ class EventExtra(BaseModel):
     promo_codes: list[PromoCode] = Field(default_factory=list)
     conditional: bool = False
     min_tickets: int = 1
+    email_notifications: bool = False
+    nostr_notifications: bool = False
 
 
 class CreateEvent(BaseModel):
@@ -34,6 +36,7 @@ class CreateEvent(BaseModel):
     event_start_date: str
     event_end_date: str
     currency: str = "sat"
+    allow_fiat: bool = False
     amount_tickets: int = Query(..., ge=0)
     price_per_ticket: float = Query(..., ge=0)
     banner: str | None = None
@@ -50,6 +53,7 @@ class Event(BaseModel):
     event_start_date: str
     event_end_date: str
     currency: str
+    allow_fiat: bool = False
     amount_tickets: int
     price_per_ticket: float
     time: datetime
@@ -66,13 +70,21 @@ class PublicEvent(BaseModel):
     canceled: bool
     event_start_date: str
     event_end_date: str
+    currency: str
+    allow_fiat: bool = False
+    price_per_ticket: float
     banner: str | None
+    extra: EventExtra = Field(default_factory=EventExtra)
 
 
 class TicketExtra(BaseModel):
     applied_promo_code: str | None = None
     sats_paid: int | None = None
     refund_address: str | None = None
+    nostr_identifier: str | None = None
+    ticket_base_url: str | None = None
+    email_notification_sent: bool = False
+    nostr_notification_sent: bool = False
     refunded: bool = False
 
 
@@ -81,6 +93,9 @@ class CreateTicket(BaseModel):
     email: EmailStr
     promo_code: str | None = None
     refund_address: str | None = None
+    nostr_identifier: str | None = None
+    payment_method: str | None = None
+    fiat_provider: str | None = None
 
 
 class Ticket(BaseModel):
@@ -107,4 +122,7 @@ class PublicTicket(BaseModel):
 
 class TicketPaymentRequest(BaseModel):
     payment_hash: str
-    payment_request: str
+    payment_request: str | None = None
+    fiat_payment_request: str | None = None
+    fiat_provider: str | None = None
+    is_fiat: bool = False

@@ -43,7 +43,7 @@ window.PageEvents = {
             align: 'left',
             label: 'Price',
             field: row => {
-              if (row.currency != 'sats') {
+              if (this.isFiatCurrency(row.currency)) {
                 return LNbits.utils.formatCurrency(
                   row.price_per_ticket.toFixed(2),
                   row.currency
@@ -98,6 +98,7 @@ window.PageEvents = {
         show: false,
         data: {
           currency: 'sats',
+          allow_fiat: false,
           extra: {
             promo_codes: []
           }
@@ -106,6 +107,9 @@ window.PageEvents = {
     }
   },
   methods: {
+    isFiatCurrency(currency) {
+      return !['sat', 'sats'].includes((currency || '').toLowerCase())
+    },
     getTickets() {
       LNbits.api
         .request(
@@ -158,10 +162,16 @@ window.PageEvents = {
         id: this.formDialog.data.wallet
       })
       const data = this.formDialog.data
-      if (data.extra && !data.extra.promo_codes) {
+      if (data.extra?.promo_codes) {
         data.extra.promo_codes = data.extra.promo_codes
-          .filter(code => code.trim() !== '')
-          .map(code => code.trim().toUpperCase())
+          .filter(code => code.code?.trim() !== '')
+          .map(code => ({
+            ...code,
+            code: code.code.trim().toUpperCase()
+          }))
+      }
+      if (!this.isFiatCurrency(data.currency)) {
+        data.allow_fiat = false
       }
 
       if (data.id) {
@@ -177,9 +187,12 @@ window.PageEvents = {
       } else {
         this.formDialog.data = {
           currency: 'sats',
+          allow_fiat: false,
           extra: {
             conditional: false,
             min_tickets: 1,
+            email_notifications: false,
+            nostr_notifications: false,
             promo_codes: []
           }
         }
@@ -189,7 +202,11 @@ window.PageEvents = {
     resetEventDialog() {
       this.formDialog.show = false
       this.formDialog.data = {
+        currency: 'sats',
+        allow_fiat: false,
         extra: {
+          email_notifications: false,
+          nostr_notifications: false,
           promo_codes: []
         }
       }

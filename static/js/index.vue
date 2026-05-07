@@ -371,6 +371,16 @@
               ></q-input>
             </div>
           </div>
+          <q-toggle
+            v-model="formDialog.data.allow_fiat"
+            :disable="
+              formDialog.data.currency == null ||
+              ['sat', 'sats'].includes((formDialog.data.currency || '').toLowerCase())
+            "
+            label="Allow fiat checkout"
+            left-label
+            hint="Lets attendees pay through a configured fiat provider using the event currency."
+          ></q-toggle>
           <q-expansion-item
             group="advanced"
             icon="settings"
@@ -473,6 +483,21 @@
                 >Add Promo Code</q-btn
               >
             </div>
+            <q-separator class="q-my-md"></q-separator>
+            <div class="text-subtitle1 q-mb-md">Ticket Delivery</div>
+            <div class="text-caption">
+              Send the paid ticket link automatically by email or Nostr DM.
+            </div>
+            <q-toggle
+              v-model="formDialog.data.extra.email_notifications"
+              label="Email notifications"
+              left-label
+            ></q-toggle>
+            <q-toggle
+              v-model="formDialog.data.extra.nostr_notifications"
+              label="Nostr notifications"
+              left-label
+            ></q-toggle>
           </q-expansion-item>
 
           <div class="row q-mt-lg">

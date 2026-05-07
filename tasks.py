@@ -6,7 +6,7 @@ from loguru import logger
 
 from .crud import get_ticket
 from .models import Ticket
-from .services import set_ticket_paid
+from .services import send_ticket_notification_in_background, set_ticket_paid
 
 payment_listeners: dict[str, list[asyncio.Queue[Ticket]]] = {}
 
@@ -43,6 +43,7 @@ async def on_invoice_paid(payment: Payment) -> None:
         return
 
     ticket = await set_ticket_paid(ticket)
+    send_ticket_notification_in_background(ticket)
     if payment_listeners.get(payment.payment_hash):
         for paid_ticket_queue in payment_listeners[payment.payment_hash]:
             paid_ticket_queue.put_nowait(ticket)
