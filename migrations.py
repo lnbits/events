@@ -185,3 +185,13 @@ async def m007_add_allow_fiat(db):
         ALTER TABLE events.events
         ADD COLUMN allow_fiat BOOLEAN NOT NULL DEFAULT FALSE;
         """)
+
+
+async def m008_add_fiat_currency(db):
+    """
+    Add a fiat_currency column for sat-denominated events using fiat checkout.
+    """
+    await db.execute("""
+        ALTER TABLE events.events
+        ADD COLUMN fiat_currency TEXT NOT NULL DEFAULT 'GBP';
+        """)

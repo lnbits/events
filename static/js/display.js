@@ -41,8 +41,16 @@ window.PageEventsDisplay = {
       return LNbits.utils.convertMarkdown(this.event?.info || '')
     },
     allowFiatCheckout() {
-      const currency = (this.event?.currency || '').toLowerCase()
-      return this.event?.allow_fiat && !['sat', 'sats'].includes(currency)
+      return Boolean(this.event?.allow_fiat)
+    },
+    fiatCheckoutLabel() {
+      if (!this.allowFiatCheckout) return 'Fiat'
+      const unit = ['sat', 'sats'].includes(
+        (this.event?.currency || '').toLowerCase()
+      )
+        ? this.event?.fiat_currency
+        : this.event?.currency
+      return `Fiat (${(unit || 'GBP').toUpperCase()})`
     },
     allowEmailNotifications() {
       return Boolean(this.event?.extra?.email_notifications)

@@ -25,6 +25,7 @@ from lnbits.settings import settings
 from lnbits.utils.exchange_rates import (
     fiat_amount_as_satoshis,
     get_fiat_rate_satoshis,
+    satoshis_amount_as_fiat,
 )
 from lnbits.utils.nostr import normalize_public_key
 
@@ -266,13 +267,18 @@ async def api_ticket_create(
             price = await fiat_amount_as_satoshis(price, event.currency)
 
     invoice_unit = event.currency
+    fiat_amount = price
     fiat_provider = None
     if payment_method == "fiat":
-        if not _is_fiat_currency(event.currency):
-            raise HTTPException(
-                status_code=HTTPStatus.BAD_REQUEST,
-                detail="Fiat checkout requires a fiat-denominated ticket price.",
-            )
+        if _is_fiat_currency(event.currency):
+            invoice_unit = event.currency
+        else:
+            invoice_unit = event.fiat_currency
+            fiat_amount = await satoshis_amount_as_fiat(price, invoice_unit)
+            extra["fiat"] = True
+            extra["currency"] = invoice_unit
+            extra["fiatAmount"] = fiat_amount
+            extra["rate"] = await get_fiat_rate_satoshis(invoice_unit)
         wallet = await get_wallet(event.wallet)
         if not wallet:
             raise HTTPException(
@@ -293,7 +299,7 @@ async def api_ticket_create(
         wallet_id=event.wallet,
         invoice_data=CreateInvoice(
             out=False,
-            amount=price,
+            amount=fiat_amount if payment_method == "fiat" else price,
             unit=invoice_unit,
             fiat_provider=fiat_provider,
             memo=f"{event_id}",

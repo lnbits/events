@@ -99,6 +99,7 @@ window.PageEvents = {
         data: {
           currency: 'sats',
           allow_fiat: false,
+          fiat_currency: 'GBP',
           extra: {
             promo_codes: []
           }
@@ -171,7 +172,9 @@ window.PageEvents = {
           }))
       }
       if (!this.isFiatCurrency(data.currency)) {
-        data.allow_fiat = false
+        if (!data.allow_fiat) {
+          data.fiat_currency = 'GBP'
+        }
       }
 
       if (data.id) {
@@ -188,6 +191,7 @@ window.PageEvents = {
         this.formDialog.data = {
           currency: 'sats',
           allow_fiat: false,
+          fiat_currency: 'GBP',
           extra: {
             conditional: false,
             min_tickets: 1,
@@ -204,6 +208,7 @@ window.PageEvents = {
       this.formDialog.data = {
         currency: 'sats',
         allow_fiat: false,
+        fiat_currency: 'GBP',
         extra: {
           email_notifications: false,
           nostr_notifications: false,

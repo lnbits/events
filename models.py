@@ -37,6 +37,7 @@ class CreateEvent(BaseModel):
     event_end_date: str
     currency: str = "sat"
     allow_fiat: bool = False
+    fiat_currency: str = "GBP"
     amount_tickets: int = Query(..., ge=0)
     price_per_ticket: float = Query(..., ge=0)
     banner: str | None = None
@@ -54,6 +55,7 @@ class Event(BaseModel):
     event_end_date: str
     currency: str
     allow_fiat: bool = False
+    fiat_currency: str = "GBP"
     amount_tickets: int
     price_per_ticket: float
     time: datetime
@@ -72,6 +74,7 @@ class PublicEvent(BaseModel):
     event_end_date: str
     currency: str
     allow_fiat: bool = False
+    fiat_currency: str = "GBP"
     price_per_ticket: float
     banner: str | None
     extra: EventExtra = Field(default_factory=EventExtra)

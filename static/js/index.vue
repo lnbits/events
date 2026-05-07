@@ -373,16 +373,27 @@
           </div>
           <q-toggle
             v-model="formDialog.data.allow_fiat"
-            :disable="
-              formDialog.data.currency == null ||
-              ['sat', 'sats'].includes(
-                (formDialog.data.currency || '').toLowerCase()
-              )
-            "
             label="Allow fiat checkout"
             left-label
             hint="Lets attendees pay through a configured fiat provider using the event currency."
           ></q-toggle>
+          <q-select
+            v-if="
+              formDialog.data.allow_fiat &&
+              ['sat', 'sats'].includes(
+                (formDialog.data.currency || '').toLowerCase()
+              )
+            "
+            filled
+            dense
+            v-model="formDialog.data.fiat_currency"
+            label="Fiat checkout currency"
+            :options="
+              currencies.filter(
+                c => !['sat', 'sats'].includes((c || '').toLowerCase())
+              )
+            "
+          ></q-select>
           <q-expansion-item
             group="advanced"
             icon="settings"

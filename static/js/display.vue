@@ -72,7 +72,7 @@
                   :options="[
                     {label: 'Lightning', value: 'lightning'},
                     {
-                      label: `Fiat (${event.currency.toUpperCase()})`,
+                      label: fiatCheckoutLabel,
                       value: 'fiat'
                     }
                   ]"
