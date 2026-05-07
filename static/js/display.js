@@ -11,7 +11,9 @@ window.PageEventsDisplay = {
         data: {
           name: '',
           email: '',
-          refund: ''
+          refund: '',
+          nostr_identifier: '',
+          payment_method: 'lightning'
         }
       },
       ticketLink: {
@@ -23,7 +25,8 @@ window.PageEventsDisplay = {
       receive: {
         show: false,
         status: 'pending',
-        paymentReq: null
+        paymentReq: null,
+        isFiat: false
       },
       paymentDismissMsg: null,
       paymentWebsocket: null
@@ -35,7 +38,17 @@ window.PageEventsDisplay = {
   },
   computed: {
     formatDescription() {
-      return LNbits.utils.convertMarkdown(this.info)
+      return LNbits.utils.convertMarkdown(this.event?.info || '')
+    },
+    allowFiatCheckout() {
+      const currency = (this.event?.currency || '').toLowerCase()
+      return this.event?.allow_fiat && !['sat', 'sats'].includes(currency)
+    },
+    allowEmailNotifications() {
+      return Boolean(this.event?.extra?.email_notifications)
+    },
+    allowNostrNotifications() {
+      return Boolean(this.event?.extra?.nostr_notifications)
     }
   },
   methods: {
@@ -56,6 +69,8 @@ window.PageEventsDisplay = {
       this.formDialog.data.name = ''
       this.formDialog.data.email = ''
       this.formDialog.data.refund = ''
+      this.formDialog.data.nostr_identifier = ''
+      this.formDialog.data.payment_method = 'lightning'
     },
 
     closeReceiveDialog() {
@@ -87,6 +102,9 @@ window.PageEventsDisplay = {
       this.paymentReq = null
       this.formDialog.data.name = ''
       this.formDialog.data.email = ''
+      this.formDialog.data.refund = ''
+      this.formDialog.data.nostr_identifier = ''
+      this.formDialog.data.payment_method = 'lightning'
       Quasar.Notify.create({
         type: 'positive',
         message: 'Sent, thank you!',
@@ -95,7 +113,8 @@ window.PageEventsDisplay = {
       this.receive = {
         show: false,
         status: 'complete',
-        paymentReq: null
+        paymentReq: null,
+        isFiat: false
       }
       this.ticketLink = {
         show: true,
@@ -103,9 +122,7 @@ window.PageEventsDisplay = {
           link: `/events/ticket/${paymentHash}`
         }
       }
-      setTimeout(() => {
-        window.location.href = `/events/ticket/${paymentHash}`
-      }, 5000)
+      window.open(`/events/ticket/${paymentHash}`, '_blank', 'noopener')
     },
     async createInvoice() {
       try {
@@ -117,10 +134,15 @@ window.PageEventsDisplay = {
             name: this.formDialog.data.name,
             email: this.formDialog.data.email,
             promo_code: this.formDialog.data.promo_code || null,
-            refund_address: this.formDialog.data.refund || null
+            refund_address: this.formDialog.data.refund || null,
+            nostr_identifier: this.formDialog.data.nostr_identifier || null,
+            payment_method: this.formDialog.data.payment_method
           }
         )
-        this.paymentReq = data.payment_request
+        const isFiat = Boolean(data.is_fiat)
+        this.paymentReq = isFiat
+          ? data.fiat_payment_request || null
+          : data.payment_request
         this.paymentHash = data.payment_hash
 
         this.paymentDismissMsg = Quasar.Notify.create({
@@ -130,30 +152,34 @@ window.PageEventsDisplay = {
         this.receive = {
           show: true,
           status: 'pending',
-          paymentReq: this.paymentReq
+          paymentReq: this.paymentReq,
+          isFiat
         }
-        this.websocketListener(this.paymentHash)
+        if (isFiat && this.paymentReq) {
+          window.open(this.paymentReq, '_blank', 'noopener')
+        }
+        this.paymentWatcher(this.paymentHash)
       } catch (error) {
         LNbits.utils.notifyApiError(error)
       }
     },
-    websocketListener(paymentHash) {
+    paymentWatcher(paymentHash) {
       if (this.paymentWebsocket) {
         this.paymentWebsocket.close()
       }
 
       const url = new URL(window.location)
-      url.protocol = url.protocol === 'https:' ? 'wss' : 'ws'
-      url.pathname = `/events/api/v1/tickets/ws/${paymentHash}`
+      url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
+      url.pathname = `/api/v1/ws/${paymentHash}`
       url.search = ''
       url.hash = ''
 
-      const ws = new WebSocket(url)
+      const ws = new WebSocket(url.toString())
       this.paymentWebsocket = ws
 
       ws.onmessage = event => {
         const data = JSON.parse(event.data)
-        if (data.paid) {
+        if (data.pending === false) {
           this.paymentSuccess(paymentHash)
           ws.close()
         }

@@ -8,20 +8,25 @@ from fastapi import (
     Depends,
     HTTPException,
     Query,
+    Request,
     WebSocket,
     WebSocketDisconnect,
 )
 from lnbits.core.crud import get_user
+from lnbits.core.crud.wallets import get_wallet
 from lnbits.core.models import WalletTypeInfo
-from lnbits.core.services import create_invoice
+from lnbits.core.models.payments import CreateInvoice
+from lnbits.core.services import create_payment_request
 from lnbits.decorators import (
     require_admin_key,
     require_invoice_key,
 )
+from lnbits.settings import settings
 from lnbits.utils.exchange_rates import (
     fiat_amount_as_satoshis,
     get_fiat_rate_satoshis,
 )
+from lnbits.utils.nostr import normalize_public_key
 
 from .crud import (
     create_event,
@@ -51,6 +56,10 @@ from .tasks import deregister_payment_listener, register_payment_listener
 
 events_api_router = APIRouter(prefix="/api/v1/events")
 tickets_api_router = APIRouter(prefix="/api/v1/tickets")
+
+
+def _is_fiat_currency(currency: str | None) -> bool:
+    return str(currency or "").lower() not in {"sat", "sats"}
 
 
 @events_api_router.get("")
@@ -193,7 +202,9 @@ async def api_get_ticket(ticket_id: str) -> Ticket:
 
 
 @tickets_api_router.post("/{event_id}")
-async def api_ticket_create(event_id: str, data: CreateTicket) -> TicketPaymentRequest:
+async def api_ticket_create(
+    event_id: str, data: CreateTicket, request: Request
+) -> TicketPaymentRequest:
     event = await get_event(event_id)
     if not event:
         raise HTTPException(
@@ -210,6 +221,21 @@ async def api_ticket_create(event_id: str, data: CreateTicket) -> TicketPaymentR
     email = data.email
     promo_code = data.promo_code.upper() if data.promo_code else None
     refund_address = data.refund_address
+    nostr_identifier = data.nostr_identifier.strip() if data.nostr_identifier else None
+    payment_method = (data.payment_method or "lightning").lower()
+    if payment_method not in {"lightning", "fiat"}:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail="Unsupported payment method.",
+        )
+    if nostr_identifier and "@" not in nostr_identifier:
+        try:
+            nostr_identifier = normalize_public_key(nostr_identifier)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=HTTPStatus.BAD_REQUEST,
+                detail="Invalid Nostr identifier.",
+            ) from exc
     price = event.price_per_ticket
     extra: dict[str, Any] = {"tag": "events", "name": name, "email": email}
 
@@ -224,19 +250,55 @@ async def api_ticket_create(event_id: str, data: CreateTicket) -> TicketPaymentR
         extra["promo_code"] = promo.code
         price = event.price_per_ticket * (1 - promo.discount_percent / 100)
 
-    if event.currency != "sats":
+    if payment_method == "fiat" and not event.allow_fiat:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail="Fiat payments are not enabled for this event.",
+        )
+
+    if _is_fiat_currency(event.currency):
         extra["fiat"] = True
         extra["currency"] = event.currency
         extra["fiatAmount"] = price
         extra["rate"] = await get_fiat_rate_satoshis(event.currency)
 
-        price = await fiat_amount_as_satoshis(price, event.currency)
+        if payment_method != "fiat":
+            price = await fiat_amount_as_satoshis(price, event.currency)
 
-    payment = await create_invoice(
+    invoice_unit = event.currency
+    fiat_provider = None
+    if payment_method == "fiat":
+        if not _is_fiat_currency(event.currency):
+            raise HTTPException(
+                status_code=HTTPStatus.BAD_REQUEST,
+                detail="Fiat checkout requires a fiat-denominated ticket price.",
+            )
+        wallet = await get_wallet(event.wallet)
+        if not wallet:
+            raise HTTPException(
+                status_code=HTTPStatus.NOT_FOUND,
+                detail="Event wallet does not exist.",
+            )
+        providers = settings.get_fiat_providers_for_user(wallet.user)
+        fiat_provider = data.fiat_provider or (providers[0] if providers else None)
+        if not fiat_provider:
+            raise HTTPException(
+                status_code=HTTPStatus.BAD_REQUEST,
+                detail="No fiat payment provider configured for this event.",
+            )
+    else:
+        invoice_unit = "sat"
+
+    payment = await create_payment_request(
         wallet_id=event.wallet,
-        amount=price,
-        memo=f"{event_id}",
-        extra=extra,
+        invoice_data=CreateInvoice(
+            out=False,
+            amount=price,
+            unit=invoice_unit,
+            fiat_provider=fiat_provider,
+            memo=f"{event_id}",
+            extra=extra,
+        ),
     )
     await create_ticket(
         payment_hash=payment.payment_hash,
@@ -247,12 +309,18 @@ async def api_ticket_create(event_id: str, data: CreateTicket) -> TicketPaymentR
         extra={
             "applied_promo_code": promo_code,
             "refund_address": refund_address,
-            "sats_paid": int(price),
+            "nostr_identifier": nostr_identifier,
+            "ticket_base_url": str(request.base_url).rstrip("/"),
+            "sats_paid": payment.sat,
         },
     )
 
     return TicketPaymentRequest(
-        payment_hash=payment.payment_hash, payment_request=payment.bolt11
+        payment_hash=payment.payment_hash,
+        payment_request=getattr(payment, "bolt11", None),
+        fiat_payment_request=getattr(payment, "extra", {}).get("fiat_payment_request"),
+        fiat_provider=getattr(payment, "fiat_provider", None) or fiat_provider,
+        is_fiat=bool(getattr(payment, "fiat_provider", None) or fiat_provider),
     )
 
 
