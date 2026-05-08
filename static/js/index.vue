@@ -513,6 +513,24 @@
             ></q-toggle>
           </q-expansion-item>
 
+          <q-separator class="q-my-md"></q-separator>
+          <q-input
+            filled
+            dense
+            v-model.trim="formDialog.data.extra.notification_subject"
+            type="text"
+            label="Ticket notification subject"
+            hint="Used as the email subject when sending paid ticket links."
+          ></q-input>
+          <q-input
+            filled
+            dense
+            v-model.trim="formDialog.data.extra.notification_body"
+            type="textarea"
+            label="Ticket notification body"
+            hint="Shown before the ticket link in the paid ticket notification."
+          ></q-input>
+
           <div class="row q-mt-lg">
             <q-btn
               v-if="formDialog.data.id"

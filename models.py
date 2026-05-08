@@ -26,6 +26,8 @@ class EventExtra(BaseModel):
     min_tickets: int = 1
     email_notifications: bool = False
     nostr_notifications: bool = False
+    notification_subject: str = ""
+    notification_body: str = ""
 
 
 class CreateEvent(BaseModel):

@@ -101,7 +101,9 @@ window.PageEvents = {
           allow_fiat: false,
           fiat_currency: 'GBP',
           extra: {
-            promo_codes: []
+            promo_codes: [],
+            notification_subject: '',
+            notification_body: ''
           }
         }
       }
@@ -197,7 +199,9 @@ window.PageEvents = {
             min_tickets: 1,
             email_notifications: false,
             nostr_notifications: false,
-            promo_codes: []
+            promo_codes: [],
+            notification_subject: '',
+            notification_body: ''
           }
         }
       }
@@ -212,7 +216,9 @@ window.PageEvents = {
         extra: {
           email_notifications: false,
           nostr_notifications: false,
-          promo_codes: []
+          promo_codes: [],
+          notification_subject: '',
+          notification_body: ''
         }
       }
     },

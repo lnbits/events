@@ -4,7 +4,10 @@ from asyncio.tasks import create_task
 
 from lnbits.core.models.users import UserNotifications
 from lnbits.core.services.nostr import send_nostr_dm
-from lnbits.core.services.notifications import send_user_notification
+from lnbits.core.services.notifications import (
+    send_email_notification,
+    send_user_notification,
+)
 from lnbits.settings import settings
 from lnbits.utils.nostr import normalize_private_key, normalize_public_key
 from lnurl import execute
@@ -53,11 +56,15 @@ async def _send_ticket_notification(ticket: Ticket) -> None:
         return
 
     ticket_url = _ticket_url(ticket)
-    message = (
-        f"{settings.lnbits_site_title}\n"
-        f"Your ticket for '{event.name}' is ready.\n"
-        f"Open it here: {ticket_url}"
+    subject = (
+        event.extra.notification_subject.strip()
+        or f"Your ticket for '{event.name}' is ready"
     )
+    body = (
+        event.extra.notification_body.strip()
+        or f"Your ticket for '{event.name}' is ready."
+    )
+    message = f"{body}\n\nOpen it here: {ticket_url}"
     updated = False
 
     if (
@@ -66,11 +73,7 @@ async def _send_ticket_notification(ticket: Ticket) -> None:
         and ticket.email
     ):
         try:
-            await send_user_notification(
-                UserNotifications(email_address=ticket.email),
-                message,
-                "text_message",
-            )
+            await send_email_notification([ticket.email], message, subject)
             ticket.extra.email_notification_sent = True
             updated = True
         except Exception as exc:
