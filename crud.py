@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from typing import cast
 
 from lnbits.db import Database, Filters, Page
 from lnbits.helpers import urlsafe_short_hash
@@ -107,13 +108,13 @@ async def purge_unpaid_tickets(event_id: str) -> None:
 async def create_event(data: CreateEvent) -> Event:
     event_id = urlsafe_short_hash()
     event = Event(id=event_id, time=datetime.now(timezone.utc), **data.dict())
-    event = sync_event_ticket_waves(event)
+    event = cast(Event, sync_event_ticket_waves(event))
     await db.insert("events.events", event)
     return event
 
 
 async def update_event(event: Event) -> Event:
-    event = sync_event_ticket_waves(event)
+    event = cast(Event, sync_event_ticket_waves(event))
     await db.update("events.events", event)
     return event
 
@@ -124,7 +125,7 @@ async def get_event(event_id: str) -> Event | None:
         {"id": event_id},
         Event,
     )
-    return sync_event_ticket_waves(event) if event else None
+    return cast(Event, sync_event_ticket_waves(event)) if event else None
 
 
 async def get_events(wallet_ids: str | list[str]) -> list[Event]:
@@ -135,7 +136,7 @@ async def get_events(wallet_ids: str | list[str]) -> list[Event]:
         f"SELECT * FROM events.events WHERE wallet IN ({q})",
         model=Event,
     )
-    return [sync_event_ticket_waves(event) for event in events]
+    return [cast(Event, sync_event_ticket_waves(event)) for event in events]
 
 
 async def delete_event(event_id: str) -> None:

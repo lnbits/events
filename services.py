@@ -171,9 +171,9 @@ async def _deliver_ticket_notifications(
         result.nostr.error = "Only NIP-05 Nostr identifiers are supported."
     elif result.nostr.attempted:
         try:
-            await _send_nostr_ticket_notification(
-                ticket.extra.nostr_identifier, text_message
-            )
+            identifier = ticket.extra.nostr_identifier
+            assert identifier is not None
+            await _send_nostr_ticket_notification(identifier, text_message)
             ticket.extra.nostr_notification_sent = True
             result.nostr.sent = True
             updated = True

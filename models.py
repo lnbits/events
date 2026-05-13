@@ -1,5 +1,4 @@
 from datetime import date, datetime
-from typing import ClassVar
 from uuid import uuid4
 
 from fastapi import Query
@@ -171,8 +170,8 @@ class TicketPaymentRequest(BaseModel):
 
 
 class TicketFilters(FilterModel):
-    __search_fields__: ClassVar[list[str]] = ["event", "name", "email", "id"]
-    __sort_fields__: ClassVar[list[str]] = [
+    __search_fields__ = ["event", "name", "email", "id"]  # noqa: RUF012
+    __sort_fields__ = [  # noqa: RUF012
         "time",
         "event",
         "name",
@@ -213,7 +212,7 @@ def ensure_ticket_waves(event: Event | PublicEvent | CreateEvent) -> list[Ticket
             currency=event.currency,
             allow_fiat=event.allow_fiat,
             fiat_currency=event.fiat_currency,
-            amount_tickets=event.amount_tickets,
+            amount_tickets=getattr(event, "amount_tickets", 0),
             price_per_ticket=event.price_per_ticket,
         )
     ]

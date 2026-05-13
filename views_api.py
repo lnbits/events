@@ -5,7 +5,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any
 
-import pyqrcode
+import pyqrcode  # type: ignore[import-untyped]
 from fastapi import (
     APIRouter,
     Depends,
