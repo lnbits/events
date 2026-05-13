@@ -172,9 +172,11 @@
             <template v-slot:header="props">
               <q-tr :props="props">
                 <q-th auto-width></q-th>
+                <q-th auto-width></q-th>
                 <q-th v-for="col in props.cols" :key="col.name" :props="props">
                   <span v-text="col.label"></span>
                 </q-th>
+                <q-th auto-width></q-th>
               </q-tr>
             </template>
             <template v-slot:body="props">
@@ -190,6 +192,20 @@
                     :href="'/events/ticket/' + props.row.id"
                     target="_blank"
                   ></q-btn>
+                </q-td>
+                <q-td auto-width>
+                  <q-btn
+                    flat
+                    dense
+                    size="xs"
+                    @click="resendTicketEmail(props.row)"
+                    icon="email"
+                    color="primary"
+                    :disable="!props.row.paid || !props.row.email"
+                    :loading="resendingTicketEmails.includes(props.row.id)"
+                  >
+                    <q-tooltip>Resend ticket email</q-tooltip>
+                  </q-btn>
                 </q-td>
 
                 <q-td v-for="col in props.cols" :key="col.name" :props="props">

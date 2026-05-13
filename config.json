@@ -1,6 +1,6 @@
 {
   "id": "events",
-  "version": "1.3.0",
+  "version": "1.6.1",
   "name": "Events",
   "repo": "https://github.com/lnbits/events",
   "short_description": "Sell and register event tickets",

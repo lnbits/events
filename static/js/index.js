@@ -4,6 +4,7 @@ window.PageEvents = {
     return {
       events: [],
       tickets: [],
+      resendingTicketEmails: [],
       currencies: [],
       eventsTable: {
         columns: [
@@ -143,6 +144,35 @@ window.PageEvents = {
               })
             })
             .catch(LNbits.utils.notifyApiError)
+        })
+    },
+    resendTicketEmail(ticket) {
+      if (!ticket.paid || !ticket.email) return
+      const wallet = _.findWhere(this.g.user.wallets, {id: ticket.wallet})
+      if (!wallet) return
+
+      this.resendingTicketEmails.push(ticket.id)
+      LNbits.api
+        .request(
+          'POST',
+          '/events/api/v1/tickets/' + ticket.id + '/resend-email',
+          wallet.adminkey
+        )
+        .then(response => {
+          this.tickets = this.tickets.map(obj =>
+            obj.id === ticket.id ? response.data : obj
+          )
+          Quasar.Notify.create({
+            type: 'positive',
+            message: 'Ticket email resent.',
+            icon: null
+          })
+        })
+        .catch(LNbits.utils.notifyApiError)
+        .finally(() => {
+          this.resendingTicketEmails = this.resendingTicketEmails.filter(
+            ticketId => ticketId !== ticket.id
+          )
         })
     },
     exportticketsCSV() {
