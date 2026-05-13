@@ -20,7 +20,7 @@ from .crud import (
     update_event,
     update_ticket,
 )
-from .models import Ticket
+from .models import Event, Ticket
 
 DEFAULT_NOSTR_RELAYS = [
     "wss://relay.damus.io",
@@ -55,16 +55,7 @@ async def _send_ticket_notification(ticket: Ticket) -> None:
         logger.warning(f"Event {ticket.event} not found for ticket notification.")
         return
 
-    ticket_url = _ticket_url(ticket)
-    subject = (
-        event.extra.notification_subject.strip()
-        or f"Your ticket for '{event.name}' is ready"
-    )
-    body = (
-        event.extra.notification_body.strip()
-        or f"Your ticket for '{event.name}' is ready."
-    )
-    message = f"{body}\n\nOpen it here: {ticket_url}"
+    subject, message = _ticket_notification_message(ticket, event)
     updated = False
 
     if (
@@ -95,6 +86,35 @@ async def _send_ticket_notification(ticket: Ticket) -> None:
 
     if updated:
         await update_ticket(ticket)
+
+
+async def resend_ticket_email_notification(ticket: Ticket) -> Ticket:
+    event = await get_event(ticket.event)
+    if not event:
+        raise ValueError("Event does not exist.")
+    if not settings.lnbits_email_notifications_enabled:
+        raise ValueError("Email notifications are not enabled.")
+    if not ticket.email:
+        raise ValueError("Ticket does not have an email address.")
+
+    subject, message = _ticket_notification_message(ticket, event)
+    await send_email_notification([ticket.email], message, subject)
+    ticket.extra.email_notification_sent = True
+    return await update_ticket(ticket)
+
+
+def _ticket_notification_message(ticket: Ticket, event: Event) -> tuple[str, str]:
+    ticket_url = _ticket_url(ticket)
+    subject = (
+        event.extra.notification_subject.strip()
+        or f"Your ticket for '{event.name}' is ready"
+    )
+    body = (
+        event.extra.notification_body.strip()
+        or f"Your ticket for '{event.name}' is ready."
+    )
+
+    return subject, f"{body}\n\nOpen it here: {ticket_url}"
 
 
 async def _send_nostr_ticket_notification(identifier: str, message: str) -> None:

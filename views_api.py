@@ -52,7 +52,7 @@ from .models import (
     Ticket,
     TicketPaymentRequest,
 )
-from .services import refund_tickets
+from .services import refund_tickets, resend_ticket_email_notification
 from .tasks import deregister_payment_listener, register_payment_listener
 
 events_api_router = APIRouter(prefix="/api/v1/events")
@@ -386,6 +386,38 @@ async def api_ticket_delete(
         raise HTTPException(status_code=HTTPStatus.FORBIDDEN, detail="Not your ticket.")
 
     await delete_ticket(ticket_id)
+
+
+@tickets_api_router.post("/{ticket_id}/resend-email")
+async def api_ticket_resend_email(
+    ticket_id: str, wallet: WalletTypeInfo = Depends(require_admin_key)
+) -> Ticket:
+    ticket = await get_ticket(ticket_id)
+    if not ticket:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail="Ticket does not exist."
+        )
+
+    if ticket.wallet != wallet.wallet.id:
+        raise HTTPException(status_code=HTTPStatus.FORBIDDEN, detail="Not your ticket.")
+
+    if not ticket.paid:
+        raise HTTPException(
+            status_code=HTTPStatus.FORBIDDEN,
+            detail="Only paid tickets can be resent by email.",
+        )
+
+    try:
+        return await resend_ticket_email_notification(ticket)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST, detail=str(exc)
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
+            detail="Failed to resend ticket email.",
+        ) from exc
 
 
 @tickets_api_router.put("/register/{ticket_id}")
