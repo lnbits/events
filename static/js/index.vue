@@ -101,13 +101,64 @@
                 <q-td colspan="100%">
                   <div class="q-pa-md">
                     <div class="row items-center q-mb-md">
-                      <div class="text-subtitle1">Promo codes</div>
+                      <div class="text-subtitle1">Ticket waves</div>
                       <q-btn
                         round
                         dense
                         unelevated
                         color="primary"
                         icon="add"
+                        class="q-ml-sm"
+                        @click="openTicketWaveDialog(props.row)"
+                      ></q-btn>
+                    </div>
+                    <div class="column q-mb-lg">
+                      <div class="column">
+                        <div
+                          v-for="(wave, index) in props.row.extra.ticket_waves"
+                          :key="wave.id || index"
+                          class="q-mb-sm"
+                        >
+                          <q-chip
+                            square
+                            clickable
+                            class="q-py-xs"
+                            style="height: auto;"
+                            @click="openTicketWaveDialog(props.row, wave)"
+                          >
+                            <span
+                              style="white-space: normal; line-height: 1.3;"
+                              v-text="
+                                `${wave.title} - ${wave.opening_date} to ${
+                                  wave.closing_date
+                                } - ${
+                                  isFiatCurrency(wave.currency)
+                                    ? LNbits.utils.formatCurrency(
+                                        Number(wave.price_per_ticket || 0).toFixed(
+                                          2
+                                        ),
+                                        wave.currency
+                                      )
+                                    : `${wave.price_per_ticket} sats`
+                                } - ${wave.amount_tickets} tickets - ${soldTicketsForWave(
+                                  props.row.id,
+                                  wave.id
+                                )} sold`
+                              "
+                            ></span>
+                          </q-chip>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="row items-center q-mb-md">
+                      <div class="text-subtitle1">Promo codes</div>
+                      <q-btn
+                        round
+                        dense
+                        unelevated
+                        color="primary"
+                        icon="edit"
                         class="q-ml-sm"
                         @click="openPromoCodesDialog(props.row)"
                       ></q-btn>
@@ -322,17 +373,6 @@
             hint="Optional banner image to display on the event page"
           ></q-input>
           <div class="row q-mt-lg">
-            <div class="col-4">Ticket closing date</div>
-            <div class="col-8">
-              <q-input
-                filled
-                dense
-                v-model.trim="formDialog.data.closing_date"
-                type="date"
-              ></q-input>
-            </div>
-          </div>
-          <div class="row">
             <div class="col-4">Event begins</div>
             <div class="col-8">
               <q-input
@@ -343,7 +383,6 @@
               ></q-input>
             </div>
           </div>
-
           <div class="row">
             <div class="col-4">Event ends</div>
             <div class="col-8">
@@ -352,6 +391,39 @@
                 dense
                 v-model.trim="formDialog.data.event_end_date"
                 type="date"
+              ></q-input>
+            </div>
+          </div>
+          <q-separator class="q-my-md"></q-separator>
+          <div class="text-subtitle1 q-mt-lg q-mb-md">
+            Primary ticket wave (you can add other waves later)
+          </div>
+          <div class="row q-col-gutter-sm">
+            <div class="col-12 col-md-4">
+              <q-input
+                filled
+                dense
+                v-model.trim="primaryTicketWave().title"
+                type="text"
+                label="Wave title"
+              ></q-input>
+            </div>
+            <div class="col-12 col-md-4">
+              <q-input
+                filled
+                dense
+                v-model.trim="primaryTicketWave().opening_date"
+                type="date"
+                label="Ticket opening date"
+              ></q-input>
+            </div>
+            <div class="col-12 col-md-4">
+              <q-input
+                filled
+                dense
+                v-model.trim="formDialog.data.closing_date"
+                type="date"
+                label="Ticket closing date"
               ></q-input>
             </div>
           </div>
@@ -505,6 +577,8 @@
                 formDialog.data.name == null ||
                 formDialog.data.info == null ||
                 formDialog.data.closing_date == null ||
+                primaryTicketWave().title == null ||
+                primaryTicketWave().opening_date == null ||
                 formDialog.data.event_start_date == null ||
                 formDialog.data.event_end_date == null ||
                 formDialog.data.amount_tickets == null ||
@@ -597,6 +671,124 @@
               color="grey"
               class="q-ml-auto"
               @click="resetPromoCodesDialog"
+              >Cancel</q-btn
+            >
+          </div>
+        </q-form>
+      </q-card>
+    </q-dialog>
+
+    <q-dialog v-model="ticketWaveDialog.show" position="top">
+      <q-card class="q-pa-lg q-pt-xl lnbits__dialog-card">
+        <q-form @submit="saveTicketWave" class="q-gutter-md">
+          <div
+            class="text-subtitle1"
+            v-text="
+              ticketWaveDialog.editingWaveId
+                ? 'Edit Ticket Wave'
+                : 'Add Ticket Wave'
+            "
+          ></div>
+          <div class="row q-col-gutter-sm">
+            <div class="col-12 col-md-4">
+              <q-input
+                filled
+                dense
+                v-model.trim="ticketWaveDialog.data.title"
+                type="text"
+                label="Wave title"
+              ></q-input>
+            </div>
+            <div class="col-12 col-md-4">
+              <q-input
+                filled
+                dense
+                v-model.trim="ticketWaveDialog.data.opening_date"
+                type="date"
+                label="Ticket opening date"
+              ></q-input>
+            </div>
+            <div class="col-12 col-md-4">
+              <q-input
+                filled
+                dense
+                v-model.trim="ticketWaveDialog.data.closing_date"
+                type="date"
+                label="Ticket closing date"
+              ></q-input>
+            </div>
+          </div>
+          <div class="row q-col-gutter-sm">
+            <div class="col">
+              <q-select
+                filled
+                dense
+                v-model="ticketWaveDialog.data.currency"
+                type="text"
+                label="Unit"
+                :options="currencies"
+              ></q-select>
+            </div>
+            <div class="col">
+              <q-input
+                filled
+                dense
+                v-model.number="ticketWaveDialog.data.amount_tickets"
+                type="number"
+                label="Amount of tickets"
+              ></q-input>
+            </div>
+            <div class="col">
+              <q-input
+                filled
+                dense
+                v-model.number="ticketWaveDialog.data.price_per_ticket"
+                type="number"
+                :label="'Price (' + ticketWaveDialog.data.currency + ') *'"
+                :step="ticketWaveDialog.data.currency != 'sats' ? '0.01' : '1'"
+                :mask="ticketWaveDialog.data.currency != 'sats' ? '#.##' : '#'"
+                fill-mask="0"
+                reverse-fill-mask
+                :disable="ticketWaveDialog.data.currency == null"
+              ></q-input>
+            </div>
+          </div>
+          <q-toggle
+            v-model="ticketWaveDialog.data.allow_fiat"
+            label="Allow fiat checkout"
+            left-label
+            hint="Lets attendees pay through a configured fiat provider using this wave currency."
+          ></q-toggle>
+          <q-select
+            v-if="
+              ticketWaveDialog.data.allow_fiat &&
+              ['sat', 'sats'].includes(
+                (ticketWaveDialog.data.currency || '').toLowerCase()
+              )
+            "
+            filled
+            dense
+            v-model="ticketWaveDialog.data.fiat_currency"
+            label="Fiat checkout currency"
+            :options="
+              currencies.filter(
+                c => !['sat', 'sats'].includes((c || '').toLowerCase())
+              )
+            "
+          ></q-select>
+          <div class="row q-mt-lg">
+            <q-btn unelevated color="primary" type="submit"
+              >{{
+                ticketWaveDialog.editingWaveId
+                  ? 'Update Ticket Wave'
+                  : 'Save Ticket Wave'
+              }}</q-btn
+            >
+            <q-btn
+              flat
+              color="grey"
+              class="q-ml-auto"
+              @click="resetTicketWaveDialog"
               >Cancel</q-btn
             >
           </div>

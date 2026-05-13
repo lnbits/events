@@ -51,6 +51,7 @@ from .models import (
     PublicTicket,
     Ticket,
     TicketPaymentRequest,
+    get_active_ticket_waves,
 )
 from .services import refund_tickets, resend_ticket_email_notification
 from .tasks import deregister_payment_listener, register_payment_listener
@@ -86,24 +87,29 @@ async def api_get_event(event_id: str) -> Event:
         )
     await purge_unpaid_tickets(event_id)
 
-    is_window_open = datetime.now(timezone.utc) < datetime.strptime(
-        event.closing_date, "%Y-%m-%d"
-    ).replace(tzinfo=timezone.utc)
+    today = datetime.now(timezone.utc).date()
+    active_waves = get_active_ticket_waves(event, today)
+    is_sales_closed = today > datetime.strptime(event.closing_date, "%Y-%m-%d").date()
     is_min_tickets_met = (
         event.sold >= event.extra.min_tickets if event.extra.conditional else True
     )
     if event.amount_tickets < 1:
         raise HTTPException(status_code=HTTPStatus.GONE, detail="Event is sold out.")
-    if event.extra.conditional and not is_min_tickets_met and not is_window_open:
+    if event.extra.conditional and not is_min_tickets_met and is_sales_closed:
         event.canceled = True
         await update_event(event)
         await refund_tickets(event_id)
 
         raise HTTPException(status_code=HTTPStatus.GONE, detail="Event canceled.")
 
-    if not is_window_open:
+    if not active_waves:
         raise HTTPException(
-            status_code=HTTPStatus.GONE, detail="Ticket closing date has passed."
+            status_code=HTTPStatus.GONE,
+            detail=(
+                "Ticket closing date has passed."
+                if is_sales_closed
+                else "No ticket wave is currently open."
+            ),
         )
 
     return event
@@ -127,8 +133,17 @@ async def api_event_create(
             raise HTTPException(
                 status_code=HTTPStatus.FORBIDDEN, detail="Not your event."
             )
-        for k, v in data.dict().items():
-            setattr(event, k, v)
+        event = Event(
+            **{
+                **event.dict(),
+                **data.dict(),
+                "id": event.id,
+                "wallet": event.wallet,
+                "time": event.time,
+                "sold": event.sold,
+                "canceled": event.canceled,
+            }
+        )
         event = await update_event(event)
     else:
         event = await create_event(data)
@@ -215,7 +230,7 @@ async def api_ticket_create(
     if event.canceled:
         raise HTTPException(status_code=HTTPStatus.GONE, detail="Event is canceled.")
 
-    if event.amount_tickets > 0 and event.sold >= event.amount_tickets:
+    if event.amount_tickets < 1:
         raise HTTPException(status_code=HTTPStatus.GONE, detail="Event is sold out.")
 
     name = data.name
@@ -237,7 +252,32 @@ async def api_ticket_create(
                 status_code=HTTPStatus.BAD_REQUEST,
                 detail="Invalid Nostr identifier.",
             ) from exc
-    price = event.price_per_ticket
+    active_waves = get_active_ticket_waves(event)
+    if not active_waves:
+        raise HTTPException(
+            status_code=HTTPStatus.GONE, detail="No ticket wave is currently open."
+        )
+
+    selected_wave = None
+    if data.ticket_wave_id:
+        selected_wave = next(
+            (wave for wave in active_waves if wave.id == data.ticket_wave_id),
+            None,
+        )
+        if not selected_wave:
+            raise HTTPException(
+                status_code=HTTPStatus.BAD_REQUEST,
+                detail="Invalid ticket wave selected.",
+            )
+    elif len(active_waves) == 1:
+        selected_wave = active_waves[0]
+    else:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail="Please select a ticket wave.",
+        )
+
+    price = selected_wave.price_per_ticket
     extra: dict[str, Any] = {"tag": "events", "name": name, "email": email}
 
     if promo_code:
@@ -249,31 +289,31 @@ async def api_ticket_create(
         # get the promocode
         promo = next(pc for pc in event.extra.promo_codes if pc.code == promo_code)
         extra["promo_code"] = promo.code
-        price = event.price_per_ticket * (1 - promo.discount_percent / 100)
+        price = selected_wave.price_per_ticket * (1 - promo.discount_percent / 100)
 
-    if payment_method == "fiat" and not event.allow_fiat:
+    if payment_method == "fiat" and not selected_wave.allow_fiat:
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST,
             detail="Fiat payments are not enabled for this event.",
         )
 
-    if _is_fiat_currency(event.currency):
+    if _is_fiat_currency(selected_wave.currency):
         extra["fiat"] = True
-        extra["currency"] = event.currency
+        extra["currency"] = selected_wave.currency
         extra["fiatAmount"] = price
-        extra["rate"] = await get_fiat_rate_satoshis(event.currency)
+        extra["rate"] = await get_fiat_rate_satoshis(selected_wave.currency)
 
         if payment_method != "fiat":
-            price = await fiat_amount_as_satoshis(price, event.currency)
+            price = await fiat_amount_as_satoshis(price, selected_wave.currency)
 
-    invoice_unit = event.currency
+    invoice_unit = selected_wave.currency
     fiat_amount = price
     fiat_provider = None
     if payment_method == "fiat":
-        if _is_fiat_currency(event.currency):
-            invoice_unit = event.currency
+        if _is_fiat_currency(selected_wave.currency):
+            invoice_unit = selected_wave.currency
         else:
-            invoice_unit = event.fiat_currency
+            invoice_unit = selected_wave.fiat_currency
             fiat_amount = await satoshis_amount_as_fiat(price, invoice_unit)
             extra["fiat"] = True
             extra["currency"] = invoice_unit
@@ -314,6 +354,8 @@ async def api_ticket_create(
         email=email,
         extra={
             "applied_promo_code": promo_code,
+            "ticket_wave_id": selected_wave.id,
+            "ticket_wave_title": selected_wave.title,
             "refund_address": refund_address,
             "nostr_identifier": nostr_identifier,
             "ticket_base_url": str(request.base_url).rstrip("/"),

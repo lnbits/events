@@ -39,7 +39,20 @@ async def set_ticket_paid(ticket: Ticket) -> Ticket:
     event = await get_event(ticket.event)
     assert event, "Couldn't get event from ticket being paid"
     event.sold += 1
-    event.amount_tickets -= 1
+    ticket_waves = event.extra.ticket_waves or []
+    if ticket_waves:
+        selected_wave = next(
+            (
+                wave
+                for wave in ticket_waves
+                if wave.id == ticket.extra.ticket_wave_id
+            ),
+            ticket_waves[0],
+        )
+        if selected_wave.amount_tickets > 0:
+            selected_wave.amount_tickets -= 1
+    elif event.amount_tickets > 0:
+        event.amount_tickets -= 1
     await update_event(event)
 
     return ticket

@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from lnbits.db import Database
 from lnbits.helpers import urlsafe_short_hash
 
-from .models import CreateEvent, Event, Ticket, TicketExtra
+from .models import CreateEvent, Event, Ticket, TicketExtra, sync_event_ticket_waves
 
 db = Database("ext_events")
 
@@ -75,31 +75,35 @@ async def purge_unpaid_tickets(event_id: str) -> None:
 async def create_event(data: CreateEvent) -> Event:
     event_id = urlsafe_short_hash()
     event = Event(id=event_id, time=datetime.now(timezone.utc), **data.dict())
+    event = sync_event_ticket_waves(event)
     await db.insert("events.events", event)
     return event
 
 
 async def update_event(event: Event) -> Event:
+    event = sync_event_ticket_waves(event)
     await db.update("events.events", event)
     return event
 
 
 async def get_event(event_id: str) -> Event | None:
-    return await db.fetchone(
+    event = await db.fetchone(
         "SELECT * FROM events.events WHERE id = :id",
         {"id": event_id},
         Event,
     )
+    return sync_event_ticket_waves(event) if event else None
 
 
 async def get_events(wallet_ids: str | list[str]) -> list[Event]:
     if isinstance(wallet_ids, str):
         wallet_ids = [wallet_ids]
     q = ",".join([f"'{wallet_id}'" for wallet_id in wallet_ids])
-    return await db.fetchall(
+    events = await db.fetchall(
         f"SELECT * FROM events.events WHERE wallet IN ({q})",
         model=Event,
     )
+    return [sync_event_ticket_waves(event) for event in events]
 
 
 async def delete_event(event_id: str) -> None:

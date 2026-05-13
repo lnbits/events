@@ -28,12 +28,6 @@ window.PageEvents = {
             field: 'event_end_date'
           },
           {
-            name: 'closing_date',
-            align: 'left',
-            label: 'Ticket close',
-            field: 'closing_date'
-          },
-          {
             name: 'canceled',
             align: 'left',
             label: 'Canceled',
@@ -43,35 +37,7 @@ window.PageEvents = {
               }
               return 'No'
             }
-          },
-          {
-            name: 'price_per_ticket',
-            align: 'left',
-            label: 'Price',
-            field: row => {
-              if (this.isFiatCurrency(row.currency)) {
-                return LNbits.utils.formatCurrency(
-                  row.price_per_ticket.toFixed(2),
-                  row.currency
-                )
-              }
-              return row.price_per_ticket
-            }
-          },
-          {
-            name: 'amount_tickets',
-            align: 'left',
-            label: 'No tickets',
-            field: 'amount_tickets'
-          },
-          {
-            name: 'sold',
-            align: 'left',
-            label: 'Sold',
-            field: 'sold'
-          },
-          {name: 'info', align: 'left', label: 'Info', field: 'info'},
-          {name: 'banner', align: 'left', label: 'Banner', field: 'banner'}
+          }
         ],
         pagination: {
           rowsPerPage: 10
@@ -112,10 +78,28 @@ window.PageEvents = {
           allow_fiat: false,
           fiat_currency: 'GBP',
           extra: {
+            ticket_waves: [],
             promo_codes: [],
             notification_subject: '',
             notification_body: ''
           }
+        }
+      },
+      ticketWaveDialog: {
+        show: false,
+        eventId: null,
+        wallet: null,
+        editingWaveId: null,
+        data: {
+          id: null,
+          title: '',
+          opening_date: '',
+          closing_date: '',
+          currency: 'sats',
+          allow_fiat: false,
+          fiat_currency: 'GBP',
+          amount_tickets: 0,
+          price_per_ticket: 0
         }
       },
       promoCodesDialog: {
@@ -136,6 +120,54 @@ window.PageEvents = {
       if (!value) return ''
       return value.length > 4 ? `${value.slice(0, 4)}...` : value
     },
+    primaryTicketWave(data = this.formDialog.data) {
+      if (!data.extra) data.extra = {}
+      if (!data.extra.ticket_waves || data.extra.ticket_waves.length === 0) {
+        data.extra.ticket_waves = [
+          {
+            id: 'primary',
+            title: 'Primary wave',
+            opening_date: data.closing_date || '',
+            closing_date: data.closing_date || '',
+            currency: data.currency || 'sats',
+            allow_fiat: Boolean(data.allow_fiat),
+            fiat_currency: data.fiat_currency || 'GBP',
+            amount_tickets: data.amount_tickets || 0,
+            price_per_ticket: data.price_per_ticket || 0
+          }
+        ]
+      }
+      return data.extra.ticket_waves[0]
+    },
+    syncPrimaryWaveFromForm(data = this.formDialog.data) {
+      const primaryWave = this.primaryTicketWave(data)
+      primaryWave.title = primaryWave.title || 'Primary wave'
+      primaryWave.opening_date = primaryWave.opening_date || ''
+      primaryWave.closing_date = data.closing_date || ''
+      primaryWave.currency = data.currency || 'sats'
+      primaryWave.allow_fiat = Boolean(data.allow_fiat)
+      primaryWave.fiat_currency = data.fiat_currency || 'GBP'
+      primaryWave.amount_tickets = Number(data.amount_tickets || 0)
+      primaryWave.price_per_ticket = Number(data.price_per_ticket || 0)
+      return primaryWave
+    },
+    hydrateEventForm(data) {
+      const formData = {
+        ...data,
+        extra: {
+          ...(data.extra || {}),
+          ticket_waves: [...((data.extra && data.extra.ticket_waves) || [])]
+        }
+      }
+      const primaryWave = this.primaryTicketWave(formData)
+      formData.currency = primaryWave.currency || formData.currency || 'sats'
+      formData.allow_fiat = Boolean(primaryWave.allow_fiat)
+      formData.fiat_currency = primaryWave.fiat_currency || 'GBP'
+      formData.amount_tickets = primaryWave.amount_tickets
+      formData.price_per_ticket = primaryWave.price_per_ticket
+      formData.closing_date = primaryWave.closing_date || formData.closing_date || ''
+      return formData
+    },
     isFiatCurrency(currency) {
       return !['sat', 'sats'].includes((currency || '').toLowerCase())
     },
@@ -146,6 +178,14 @@ window.PageEvents = {
           ...code,
           code: code.code.trim().toUpperCase()
         }))
+    },
+    soldTicketsForWave(eventId, waveId) {
+      return this.tickets.filter(
+        ticket =>
+          ticket.event === eventId &&
+          ticket.paid &&
+          ticket.extra?.ticket_wave_id === waveId
+      ).length
     },
     getTickets() {
       LNbits.api
@@ -228,6 +268,7 @@ window.PageEvents = {
         id: this.formDialog.data.wallet
       })
       const data = this.formDialog.data
+      this.syncPrimaryWaveFromForm(data)
       if (data.extra?.promo_codes) {
         data.extra.promo_codes = this.normalizePromoCodes(data.extra.promo_codes)
       }
@@ -236,6 +277,7 @@ window.PageEvents = {
           data.fiat_currency = 'GBP'
         }
       }
+      this.syncPrimaryWaveFromForm(data)
 
       if (data.id) {
         this.updateEvent(wallet, data)
@@ -246,7 +288,7 @@ window.PageEvents = {
 
     openEventDialog(data = false) {
       if (data && data.id) {
-        this.formDialog.data = {...data}
+        this.formDialog.data = this.hydrateEventForm(data)
       } else {
         this.formDialog.data = {
           currency: 'sats',
@@ -257,6 +299,19 @@ window.PageEvents = {
             min_tickets: 1,
             email_notifications: false,
             nostr_notifications: false,
+            ticket_waves: [
+              {
+                id: 'primary',
+                title: 'Primary wave',
+                opening_date: '',
+                closing_date: '',
+                currency: 'sats',
+                allow_fiat: false,
+                fiat_currency: 'GBP',
+                amount_tickets: 0,
+                price_per_ticket: 0
+              }
+            ],
             promo_codes: [],
             notification_subject: '',
             notification_body: ''
@@ -272,8 +327,23 @@ window.PageEvents = {
         allow_fiat: false,
         fiat_currency: 'GBP',
         extra: {
+          conditional: false,
+          min_tickets: 1,
           email_notifications: false,
           nostr_notifications: false,
+          ticket_waves: [
+            {
+              id: 'primary',
+              title: 'Primary wave',
+              opening_date: '',
+              closing_date: '',
+              currency: 'sats',
+              allow_fiat: false,
+              fiat_currency: 'GBP',
+              amount_tickets: 0,
+              price_per_ticket: 0
+            }
+          ],
           promo_codes: [],
           notification_subject: '',
           notification_body: ''
@@ -293,6 +363,107 @@ window.PageEvents = {
     updateformDialog(formId) {
       const link = _.findWhere(this.events, {id: formId})
       this.openEventDialog(link)
+    },
+    openTicketWaveDialog(event, wave = null) {
+      const primaryWave = (event.extra?.ticket_waves || [])[0] || {}
+      const isEditing = Boolean(wave)
+      this.ticketWaveDialog = {
+        show: true,
+        eventId: event.id,
+        wallet: event.wallet,
+        editingWaveId: wave?.id || null,
+        data: {
+          id: wave?.id || null,
+          title: wave?.title || '',
+          opening_date: wave?.opening_date || '',
+          closing_date: wave?.closing_date || '',
+          currency: wave?.currency || primaryWave.currency || event.currency || 'sats',
+          allow_fiat: isEditing
+            ? Boolean(wave?.allow_fiat)
+            : Boolean(primaryWave.allow_fiat ?? event.allow_fiat),
+          fiat_currency:
+            wave?.fiat_currency ||
+            primaryWave.fiat_currency ||
+            event.fiat_currency ||
+            'GBP',
+          amount_tickets: wave?.amount_tickets || 0,
+          price_per_ticket:
+            wave?.price_per_ticket ||
+            primaryWave.price_per_ticket ||
+            event.price_per_ticket ||
+            0
+        }
+      }
+    },
+    resetTicketWaveDialog() {
+      this.ticketWaveDialog = {
+        show: false,
+        eventId: null,
+        wallet: null,
+        editingWaveId: null,
+        data: {
+          id: null,
+          title: '',
+          opening_date: '',
+          closing_date: '',
+          currency: 'sats',
+          allow_fiat: false,
+          fiat_currency: 'GBP',
+          amount_tickets: 0,
+          price_per_ticket: 0
+        }
+      }
+    },
+    saveTicketWave() {
+      const event = _.findWhere(this.events, {id: this.ticketWaveDialog.eventId})
+      const wallet = _.findWhere(this.g.user.wallets, {
+        id: this.ticketWaveDialog.wallet
+      })
+      if (!event || !wallet) return
+
+      const payload = {
+        ...event,
+        extra: {
+          ...event.extra,
+          ticket_waves: (event.extra?.ticket_waves || []).map(existingWave =>
+            existingWave.id === this.ticketWaveDialog.editingWaveId
+              ? {...this.ticketWaveDialog.data}
+              : existingWave
+          )
+        }
+      }
+
+      if (!this.ticketWaveDialog.editingWaveId) {
+        payload.extra.ticket_waves.push({...this.ticketWaveDialog.data})
+      }
+
+      if (payload.extra?.promo_codes) {
+        payload.extra.promo_codes = this.normalizePromoCodes(
+          payload.extra.promo_codes
+        )
+      }
+
+      LNbits.api
+        .request(
+          'PUT',
+          '/events/api/v1/events/' + payload.id,
+          wallet.adminkey,
+          payload
+        )
+        .then(response => {
+          this.events = this.events.map(item =>
+            item.id === payload.id ? response.data : item
+          )
+          Quasar.Notify.create({
+            type: 'positive',
+            message: this.ticketWaveDialog.editingWaveId
+              ? 'Ticket wave updated.'
+              : 'Ticket wave added.',
+            icon: null
+          })
+          this.resetTicketWaveDialog()
+        })
+        .catch(LNbits.utils.notifyApiError)
     },
     openPromoCodesDialog(event) {
       this.promoCodesDialog.data = {

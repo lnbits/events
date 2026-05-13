@@ -64,6 +64,21 @@
               lazy-rules
               :hint="`If minimum tickets (${event.extra?.min_tickets}) are not met, refund will be sent.`"
             ></q-input>
+            <q-select
+              v-if="showTicketWaveSelector"
+              filled
+              dense
+              v-model="formDialog.data.ticket_wave_id"
+              emit-value
+              map-options
+              label="Ticket wave"
+              :options="
+                activeTicketWaves.map(wave => ({
+                  label: `${wave.title} - ${wave.price_per_ticket} ${wave.currency}`,
+                  value: wave.id
+                }))
+              "
+            ></q-select>
             <div class="row q-col-gutter-md q-pt-lg items-center">
               <div v-if="allowFiatCheckout" class="col-auto">
                 <q-option-group
@@ -94,6 +109,7 @@
                 :disable="
                   formDialog.data.name == '' ||
                   formDialog.data.email == '' ||
+                  (showTicketWaveSelector && !formDialog.data.ticket_wave_id) ||
                   Boolean(paymentReq)
                 "
                 type="submit"
