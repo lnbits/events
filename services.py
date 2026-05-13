@@ -64,42 +64,7 @@ async def _send_ticket_notification(ticket: Ticket) -> None:
         logger.warning(f"Event {ticket.event} not found for ticket notification.")
         return
 
-    subject, message = _ticket_notification_message(ticket, event)
-    email_message = _ticket_email_message(ticket, event, message)
-    email_html_message = _ticket_email_html_message(ticket, event, message)
-    updated = False
-
-    if (
-        event.extra.email_notifications
-        and settings.lnbits_email_notifications_enabled
-        and ticket.email
-    ):
-        try:
-            await _send_ticket_email_notification(
-                [ticket.email], email_message, subject, email_html_message
-            )
-            ticket.extra.email_notification_sent = True
-            updated = True
-        except Exception as exc:
-            logger.warning(f"Failed to email ticket {ticket.id}: {exc}")
-
-    if (
-        event.extra.nostr_notifications
-        and settings.is_nostr_notifications_configured()
-        and ticket.extra.nostr_identifier
-    ):
-        try:
-            nostr_message = _ticket_delivery_message(ticket, event, message)
-            await _send_nostr_ticket_notification(
-                ticket.extra.nostr_identifier, nostr_message
-            )
-            ticket.extra.nostr_notification_sent = True
-            updated = True
-        except Exception as exc:
-            logger.warning(f"Failed to send nostr DM for ticket {ticket.id}: {exc}")
-
-    if updated:
-        await update_ticket(ticket)
+    await _deliver_ticket_notifications(ticket, event)
 
 
 async def resend_ticket_email_notification(
@@ -115,44 +80,7 @@ async def resend_ticket_email_notification(
     if base_url:
         ticket.extra.ticket_base_url = base_url.rstrip("/")
 
-    subject, message = _ticket_notification_message(ticket, event)
-    email_message = _ticket_email_message(ticket, event, message)
-    email_html_message = _ticket_email_html_message(ticket, event, message)
-    result = TicketResendResult(
-        ticket=ticket,
-        email=NotificationDeliveryResult(attempted=True),
-    )
-
-    try:
-        await _send_ticket_email_notification(
-            [ticket.email], email_message, subject, email_html_message
-        )
-        ticket.extra.email_notification_sent = True
-        result.email.sent = True
-    except Exception as exc:
-        logger.warning(f"Failed to resend email for ticket {ticket.id}: {exc}")
-        result.email.error = str(exc)
-
-    if (
-        event.extra.nostr_notifications
-        and settings.is_nostr_notifications_configured()
-        and ticket.extra.nostr_identifier
-    ):
-        result.nostr.attempted = True
-        try:
-            nostr_message = _ticket_delivery_message(ticket, event, message)
-            await _send_nostr_ticket_notification(
-                ticket.extra.nostr_identifier, nostr_message
-            )
-            ticket.extra.nostr_notification_sent = True
-            result.nostr.sent = True
-        except Exception as exc:
-            logger.warning(f"Failed to resend nostr DM for ticket {ticket.id}: {exc}")
-            result.nostr.error = str(exc)
-
-    updated_ticket = await update_ticket(ticket)
-    result.ticket = updated_ticket
-    return result
+    return await _deliver_ticket_notifications(ticket, event)
 
 
 def _ticket_notification_message(ticket: Ticket, event: Event) -> tuple[str, str]:
@@ -193,6 +121,61 @@ def _ticket_email_html_message(ticket: Ticket, event: Event, base_message: str) 
         f'<p><img src="{escape(ticket_image_url, quote=True)}" alt="Ticket image" '
         'style="max-width: 100%; height: auto;" /></p>'
     )
+
+
+def _ticket_notification_payload(ticket: Ticket, event: Event) -> tuple[str, str, str]:
+    subject, base_message = _ticket_notification_message(ticket, event)
+    text_message = _ticket_email_message(ticket, event, base_message)
+    html_message = _ticket_email_html_message(ticket, event, base_message)
+    return subject, text_message, html_message
+
+
+async def _deliver_ticket_notifications(
+    ticket: Ticket, event: Event
+) -> TicketResendResult:
+    subject, text_message, html_message = _ticket_notification_payload(ticket, event)
+    result = TicketResendResult(
+        ticket=ticket,
+        email=NotificationDeliveryResult(
+            attempted=bool(
+                event.extra.email_notifications
+                and settings.lnbits_email_notifications_enabled
+                and ticket.email
+            )
+        ),
+        nostr=NotificationDeliveryResult(
+            attempted=bool(
+                event.extra.nostr_notifications
+                and settings.is_nostr_notifications_configured()
+                and ticket.extra.nostr_identifier
+            )
+        ),
+    )
+
+    if result.email.attempted:
+        try:
+            await _send_ticket_email_notification(
+                [ticket.email], text_message, subject, html_message
+            )
+            ticket.extra.email_notification_sent = True
+            result.email.sent = True
+        except Exception as exc:
+            logger.warning(f"Failed to email ticket {ticket.id}: {exc}")
+            result.email.error = str(exc)
+
+    if result.nostr.attempted:
+        try:
+            await _send_nostr_ticket_notification(
+                ticket.extra.nostr_identifier, text_message
+            )
+            ticket.extra.nostr_notification_sent = True
+            result.nostr.sent = True
+        except Exception as exc:
+            logger.warning(f"Failed to send nostr DM for ticket {ticket.id}: {exc}")
+            result.nostr.error = str(exc)
+
+    result.ticket = await update_ticket(ticket)
+    return result
 
 
 async def _send_nostr_ticket_notification(identifier: str, message: str) -> None:
