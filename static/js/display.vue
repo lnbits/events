@@ -49,7 +49,7 @@
                   filled
                   dense
                   v-model.trim="formDialog.data.nostr_identifier"
-                  label="(optional) Nostr NIP-05 or npub"
+                  label="(optional) Nostr NIP-05"
                   hint="If provided, we'll DM your ticket link after payment."
                 ></q-input>
               </div>

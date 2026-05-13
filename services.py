@@ -105,10 +105,6 @@ def _ticket_delivery_message(ticket: Ticket, event: Event, base_message: str) ->
     return f"{base_message}\n\nTicket image: {ticket_image_url}"
 
 
-def _ticket_email_message(ticket: Ticket, event: Event, base_message: str) -> str:
-    return _ticket_delivery_message(ticket, event, base_message)
-
-
 def _ticket_email_html_message(ticket: Ticket, event: Event, base_message: str) -> str:
     text_message = _ticket_delivery_message(ticket, event, base_message)
     html_message = f"<p>{escape(text_message).replace(chr(10), '<br />')}</p>"
@@ -119,21 +115,26 @@ def _ticket_email_html_message(ticket: Ticket, event: Event, base_message: str) 
     return (
         f"{html_message}"
         f'<p><img src="{escape(ticket_image_url, quote=True)}" alt="Ticket image" '
-        'style="max-width: 100%; height: auto;" /></p>'
+        'style="max-width: 200px; height: auto;" /></p>'
     )
 
 
 def _ticket_notification_payload(ticket: Ticket, event: Event) -> tuple[str, str, str]:
     subject, base_message = _ticket_notification_message(ticket, event)
-    text_message = _ticket_email_message(ticket, event, base_message)
+    text_message = _ticket_delivery_message(ticket, event, base_message)
     html_message = _ticket_email_html_message(ticket, event, base_message)
     return subject, text_message, html_message
+
+
+def _supports_nostr_delivery(identifier: str | None) -> bool:
+    return bool(identifier and "@" in identifier)
 
 
 async def _deliver_ticket_notifications(
     ticket: Ticket, event: Event
 ) -> TicketResendResult:
     subject, text_message, html_message = _ticket_notification_payload(ticket, event)
+    updated = False
     result = TicketResendResult(
         ticket=ticket,
         email=NotificationDeliveryResult(
@@ -159,22 +160,29 @@ async def _deliver_ticket_notifications(
             )
             ticket.extra.email_notification_sent = True
             result.email.sent = True
+            updated = True
         except Exception as exc:
             logger.warning(f"Failed to email ticket {ticket.id}: {exc}")
             result.email.error = str(exc)
 
-    if result.nostr.attempted:
+    if result.nostr.attempted and not _supports_nostr_delivery(
+        ticket.extra.nostr_identifier
+    ):
+        result.nostr.error = "Only NIP-05 Nostr identifiers are supported."
+    elif result.nostr.attempted:
         try:
             await _send_nostr_ticket_notification(
                 ticket.extra.nostr_identifier, text_message
             )
             ticket.extra.nostr_notification_sent = True
             result.nostr.sent = True
+            updated = True
         except Exception as exc:
             logger.warning(f"Failed to send nostr DM for ticket {ticket.id}: {exc}")
             result.nostr.error = str(exc)
 
-    result.ticket = await update_ticket(ticket)
+    if updated:
+        result.ticket = await update_ticket(ticket)
     return result
 
 

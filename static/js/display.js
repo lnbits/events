@@ -221,7 +221,7 @@ window.PageEventsDisplay = {
 
       const url = new URL(window.location)
       url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
-      url.pathname = `/api/v1/ws/${paymentHash}`
+      url.pathname = `/events/api/v1/tickets/ws/${paymentHash}`
       url.search = ''
       url.hash = ''
 
@@ -230,7 +230,7 @@ window.PageEventsDisplay = {
 
       ws.onmessage = event => {
         const data = JSON.parse(event.data)
-        if (data.pending === false) {
+        if (data.paid === true) {
           this.paymentSuccess(paymentHash)
           ws.close()
         }

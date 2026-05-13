@@ -1,7 +1,9 @@
 from datetime import date, datetime
+from typing import ClassVar
 from uuid import uuid4
 
 from fastapi import Query
+from lnbits.db import FilterModel
 from pydantic import BaseModel, EmailStr, Field, validator
 
 
@@ -166,6 +168,25 @@ class TicketPaymentRequest(BaseModel):
     fiat_payment_request: str | None = None
     fiat_provider: str | None = None
     is_fiat: bool = False
+
+
+class TicketFilters(FilterModel):
+    __search_fields__: ClassVar[list[str]] = ["event", "name", "email", "id"]
+    __sort_fields__: ClassVar[list[str]] = [
+        "time",
+        "event",
+        "name",
+        "email",
+        "registered",
+        "id",
+    ]
+
+    event: str | None = None
+    name: str | None = None
+    email: str | None = None
+    registered: bool | None = None
+    paid: bool | None = None
+    id: str | None = None
 
 
 def _parse_date(value: str) -> date:

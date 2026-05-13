@@ -1,9 +1,16 @@
 from datetime import datetime, timedelta, timezone
 
-from lnbits.db import Database
+from lnbits.db import Database, Filters, Page
 from lnbits.helpers import urlsafe_short_hash
 
-from .models import CreateEvent, Event, Ticket, TicketExtra, sync_event_ticket_waves
+from .models import (
+    CreateEvent,
+    Event,
+    Ticket,
+    TicketExtra,
+    TicketFilters,
+    sync_event_ticket_waves,
+)
 
 db = Database("ext_events")
 
@@ -48,6 +55,31 @@ async def get_tickets(wallet_ids: str | list[str]) -> list[Ticket]:
     return await db.fetchall(
         f"SELECT * FROM events.ticket WHERE wallet IN ({q})",
         model=Ticket,
+    )
+
+
+async def get_tickets_paginated(
+    wallet_ids: str | list[str], filters: Filters[TicketFilters] | None = None
+) -> Page[Ticket]:
+    if isinstance(wallet_ids, str):
+        wallet_ids = [wallet_ids]
+
+    wallet_where = []
+    values = {}
+    for idx, wallet_id in enumerate(wallet_ids):
+        key = f"wallet_id_{idx}"
+        wallet_where.append(f":{key}")
+        values[key] = wallet_id
+
+    where = [f"wallet IN ({', '.join(wallet_where)})", "paid = true"]
+
+    return await db.fetch_page(
+        "SELECT * FROM events.ticket",
+        where=where,
+        values=values,
+        filters=filters,
+        model=Ticket,
+        table_name="events.ticket",
     )
 
 

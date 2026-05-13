@@ -22,17 +22,19 @@ from lnbits.core.crud.wallets import get_wallet
 from lnbits.core.models import WalletTypeInfo
 from lnbits.core.models.payments import CreateInvoice
 from lnbits.core.services import create_payment_request
+from lnbits.db import Filters, Page
 from lnbits.decorators import (
+    parse_filters,
     require_admin_key,
     require_invoice_key,
 )
+from lnbits.helpers import generate_filter_params_openapi
 from lnbits.settings import settings
 from lnbits.utils.exchange_rates import (
     fiat_amount_as_satoshis,
     get_fiat_rate_satoshis,
     satoshis_amount_as_fiat,
 )
-from lnbits.utils.nostr import normalize_public_key
 from PIL import Image, ImageDraw
 
 from .crud import (
@@ -45,6 +47,7 @@ from .crud import (
     get_events,
     get_ticket,
     get_tickets,
+    get_tickets_paginated,
     purge_unpaid_tickets,
     update_event,
     update_ticket,
@@ -56,6 +59,7 @@ from .models import (
     PublicEvent,
     PublicTicket,
     Ticket,
+    TicketFilters,
     TicketPaymentRequest,
     TicketResendResult,
     ensure_ticket_waves,
@@ -67,6 +71,7 @@ from .tasks import deregister_payment_listener, register_payment_listener
 events_api_router = APIRouter(prefix="/api/v1/events")
 tickets_api_router = APIRouter(prefix="/api/v1/tickets")
 qr_api_router = APIRouter(prefix="/api/v1")
+tickets_filters = parse_filters(TicketFilters)
 
 
 def _is_fiat_currency(currency: str | None) -> bool:
@@ -239,6 +244,31 @@ async def api_tickets(
     return await get_tickets(wallet_ids)
 
 
+@tickets_api_router.get(
+    "/paginated",
+    summary="Get paginated list of tickets",
+    openapi_extra=generate_filter_params_openapi(TicketFilters),
+    response_model=Page[Ticket],
+)
+async def api_tickets_paginated(
+    all_wallets: bool = Query(False),
+    filters: Filters = Depends(tickets_filters),
+    key_info: WalletTypeInfo = Depends(require_admin_key),
+) -> Page[Ticket]:
+    wallet_ids = [key_info.wallet.id]
+
+    if all_wallets:
+        user = await get_user(key_info.wallet.user)
+        wallet_ids = user.wallet_ids if user else []
+
+    if not filters.sortby:
+        filters.sortby = "time"
+    if not filters.direction:
+        filters.direction = "desc"
+
+    return await get_tickets_paginated(wallet_ids, filters)
+
+
 @tickets_api_router.get("/{ticket_id}", response_model=PublicTicket)
 async def api_get_ticket(ticket_id: str) -> Ticket:
     ticket = await get_ticket(ticket_id)
@@ -347,13 +377,10 @@ async def api_ticket_create(
             detail="Unsupported payment method.",
         )
     if nostr_identifier and "@" not in nostr_identifier:
-        try:
-            nostr_identifier = normalize_public_key(nostr_identifier)
-        except Exception as exc:
-            raise HTTPException(
-                status_code=HTTPStatus.BAD_REQUEST,
-                detail="Invalid Nostr identifier.",
-            ) from exc
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail="Only NIP-05 Nostr identifiers are supported.",
+        )
     active_waves = get_active_ticket_waves(event)
     if not active_waves:
         raise HTTPException(

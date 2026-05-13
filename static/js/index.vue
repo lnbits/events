@@ -222,9 +222,11 @@
             dense
             flat
             :rows="tickets"
+            :loading="ticketsTable.loading"
             row-key="id"
             :columns="ticketsTable.columns"
             v-model:pagination="ticketsTable.pagination"
+            @request="getTickets"
           >
             <template v-slot:header="props">
               <q-tr :props="props">

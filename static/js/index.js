@@ -4,6 +4,7 @@ window.PageEvents = {
     return {
       events: [],
       tickets: [],
+      allPaidTickets: [],
       resendingTicketEmails: [],
       isUploadingTicketTemplate: false,
       ticketImageUploadTarget: null,
@@ -46,6 +47,7 @@ window.PageEvents = {
         }
       },
       ticketsTable: {
+        loading: false,
         columns: [
           {
             name: 'event',
@@ -76,7 +78,11 @@ window.PageEvents = {
           {name: 'id', align: 'left', label: 'ID', field: 'id'}
         ],
         pagination: {
-          rowsPerPage: 10
+          sortBy: 'time',
+          descending: true,
+          page: 1,
+          rowsPerPage: 10,
+          rowsNumber: 10
         }
       },
       formDialog: {
@@ -242,7 +248,7 @@ window.PageEvents = {
       }
     },
     soldTicketsForWave(eventId, waveId) {
-      return this.tickets.filter(
+      return this.allPaidTickets.filter(
         ticket =>
           ticket.event === eventId &&
           ticket.paid &&
@@ -250,16 +256,34 @@ window.PageEvents = {
             (!ticket.extra?.ticket_wave_id && waveId === 'primary'))
       ).length
     },
-    getTickets() {
-      LNbits.api
-        .request(
+    async getAllTickets() {
+      try {
+        const {data} = await LNbits.api.request(
           'GET',
           '/events/api/v1/tickets?all_wallets=true',
           this.g.user.wallets[0].adminkey
         )
-        .then(response => {
-          this.tickets = response.data.filter(e => e.paid)
-        })
+        this.allPaidTickets = data.filter(ticket => ticket.paid)
+      } catch (error) {
+        LNbits.utils.notifyApiError(error)
+      }
+    },
+    async getTickets(props) {
+      try {
+        this.ticketsTable.loading = true
+        const params = LNbits.utils.prepareFilterQuery(this.ticketsTable, props)
+        const {data} = await LNbits.api.request(
+          'GET',
+          `/events/api/v1/tickets/paginated?all_wallets=true&${params}`,
+          this.g.user.wallets[0].adminkey
+        )
+        this.tickets = data.data
+        this.ticketsTable.pagination.rowsNumber = data.total
+      } catch (error) {
+        LNbits.utils.notifyApiError(error)
+      } finally {
+        this.ticketsTable.loading = false
+      }
     },
     deleteTicket(ticketId) {
       const tickets = _.findWhere(this.tickets, {id: ticketId})
@@ -274,10 +298,9 @@ window.PageEvents = {
               '/events/api/v1/tickets/' + ticketId,
               wallet.adminkey
             )
-            .then(response => {
-              this.tickets = _.reject(this.tickets, function (obj) {
-                return obj.id == ticketId
-              })
+            .then(async () => {
+              await this.getTickets()
+              await this.getAllTickets()
             })
             .catch(LNbits.utils.notifyApiError)
         })
@@ -328,7 +351,7 @@ window.PageEvents = {
         })
     },
     exportticketsCSV() {
-      LNbits.utils.exportCSV(this.ticketsTable.columns, this.tickets)
+      LNbits.utils.exportCSV(this.ticketsTable.columns, this.allPaidTickets)
     },
     getEvents() {
       LNbits.api
@@ -686,6 +709,7 @@ window.PageEvents = {
   async created() {
     if (this.g.user.wallets.length) {
       this.getTickets()
+      this.getAllTickets()
       this.getEvents()
       if (this.g.allowedCurrencies && this.g.allowedCurrencies.length > 0) {
         this.currencies = ['sats', ...this.g.allowedCurrencies]
