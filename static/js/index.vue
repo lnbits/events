@@ -100,44 +100,47 @@
               <q-tr v-show="props.expand" :props="props">
                 <q-td colspan="100%">
                   <div class="q-pa-md">
-                    <div class="text-subtitle1 q-mb-md">Promo codes</div>
+                    <div class="row items-center q-mb-md">
+                      <div class="text-subtitle1">Promo codes</div>
+                      <q-btn
+                        round
+                        dense
+                        unelevated
+                        color="primary"
+                        icon="add"
+                        class="q-ml-sm"
+                        @click="openPromoCodesDialog(props.row)"
+                      ></q-btn>
+                    </div>
                     <div class="column">
                       <div
-                        v-if="props.row.extra.promo_codes.length == 0"
+                        v-if="
+                          props.row.extra.promo_codes.filter(code => code.active)
+                            .length == 0
+                        "
                         class="text-caption"
                       >
-                        No promo codes for this event.
+                        No active promo codes for this event.
                       </div>
-                      <div
-                        v-for="(code, index) in props.row.extra.promo_codes"
-                        :key="index"
-                        class="row items-center q-col-gutter-sm q-mb-sm"
-                      >
-                        <div class="col-auto">
+                      <div class="row q-col-gutter-sm">
+                        <div
+                          v-for="(code, index) in props.row.extra.promo_codes.filter(
+                            code => code.active
+                          )"
+                          :key="index"
+                          class="col-auto q-mb-sm"
+                        >
                           <q-chip
                             square
-                            size="md"
                             clickable
                             @click="utils.copyText(code.code.toUpperCase())"
                           >
-                            <q-avatar
-                              icon="bookmark"
-                              :color="code.active ? 'green' : 'grey'"
-                              text-color="white"
-                            ></q-avatar>
-                            <span v-text="code.code.toUpperCase()"></span>
+                            <span
+                              v-text="
+                                `${code.code.toUpperCase()} - ${code.discount_percent}%`
+                              "
+                            ></span>
                           </q-chip>
-                        </div>
-                        <div class="col-auto">
-                          Discount:
-                          <span v-text="code.discount_percent"></span>%
-                        </div>
-                        <div class="col-auto">
-                          Status:
-                          <span
-                            :class="code.active ? 'text-green' : 'text-grey'"
-                            v-text="code.active ? 'Active' : 'Inactive'"
-                          ></span>
                         </div>
                       </div>
                     </div>
@@ -441,78 +444,6 @@
               </div>
             </div>
             <q-separator class="q-my-md"></q-separator>
-            <div class="text-subtitle1 q-mb-md">Promo Codes</div>
-            <div class="text-caption">
-              Allow users to enter a promo code for discounts.
-            </div>
-
-            <div
-              v-for="(code, index) in formDialog.data.extra.promo_codes"
-              :key="index"
-              class="row q-col-gutter-sm q-mt-md"
-            >
-              <q-input
-                class="col-8"
-                filled
-                dense
-                v-model.trim="formDialog.data.extra.promo_codes[index].code"
-                type="text"
-                label="Promo Code"
-              >
-                <template v-slot:before>
-                  <q-checkbox
-                    left-label
-                    v-model="formDialog.data.extra.promo_codes[index].active"
-                    checked-icon="radio_button_checked"
-                    unchecked-icon="radio_button_unchecked"
-                  ></q-checkbox>
-                  <q-tooltip>
-                    <span
-                      v-text="
-                        formDialog.data.extra.promo_codes[index].active
-                          ? 'Active'
-                          : 'Inactive'
-                      "
-                    ></span>
-                  </q-tooltip>
-                </template>
-              </q-input>
-              <q-input
-                class="col-4"
-                filled
-                dense
-                v-model.number="
-                  formDialog.data.extra.promo_codes[index].discount_percent
-                "
-                type="number"
-                label="Discount (%)"
-                min="0"
-                max="100"
-              >
-                <template v-slot:after>
-                  <q-btn
-                    round
-                    dense
-                    flat
-                    icon="delete"
-                    @click="formDialog.data.extra.promo_codes.splice(index, 1)"
-                  ></q-btn>
-                </template>
-              </q-input>
-            </div>
-            <div class="col-12 q-mt-md">
-              <q-btn
-                @click="
-                  formDialog.data.extra.promo_codes.push({
-                    code: '',
-                    discount_percent: 0,
-                    active: true
-                  })
-                "
-                >Add Promo Code</q-btn
-              >
-            </div>
-            <q-separator class="q-my-md"></q-separator>
             <div class="text-subtitle1 q-mb-md">Ticket Delivery</div>
             <div class="text-caption">
               Send the paid ticket link automatically by email or Nostr DM.
@@ -583,6 +514,89 @@
               >Create Event</q-btn
             >
             <q-btn v-close-popup flat color="grey" class="q-ml-auto"
+              >Cancel</q-btn
+            >
+          </div>
+        </q-form>
+      </q-card>
+    </q-dialog>
+
+    <q-dialog v-model="promoCodesDialog.show" position="top">
+      <q-card class="q-pa-lg q-pt-xl lnbits__dialog-card">
+        <q-form @submit="savePromoCodes" class="q-gutter-md">
+          <div class="text-subtitle1">Promo Codes</div>
+          <div class="text-caption">
+            Allow users to enter a promo code for discounts.
+          </div>
+
+          <div
+            v-for="(code, index) in promoCodesDialog.data.extra.promo_codes"
+            :key="index"
+            class="row q-col-gutter-sm q-mt-md"
+          >
+            <q-input
+              class="col-8"
+              filled
+              dense
+              v-model.trim="promoCodesDialog.data.extra.promo_codes[index].code"
+              type="text"
+              label="Promo Code"
+            >
+              <template v-slot:before>
+                <q-checkbox
+                  left-label
+                  v-model="promoCodesDialog.data.extra.promo_codes[index].active"
+                  checked-icon="radio_button_checked"
+                  unchecked-icon="radio_button_unchecked"
+                ></q-checkbox>
+                <q-tooltip>
+                  <span
+                    v-text="
+                      promoCodesDialog.data.extra.promo_codes[index].active
+                        ? 'Active'
+                        : 'Inactive'
+                    "
+                  ></span>
+                </q-tooltip>
+              </template>
+            </q-input>
+            <q-input
+              class="col-4"
+              filled
+              dense
+              v-model.number="
+                promoCodesDialog.data.extra.promo_codes[index].discount_percent
+              "
+              type="number"
+              label="Discount (%)"
+              min="0"
+              max="100"
+            >
+              <template v-slot:after>
+                <q-btn
+                  round
+                  dense
+                  flat
+                  icon="delete"
+                  @click="promoCodesDialog.data.extra.promo_codes.splice(index, 1)"
+                ></q-btn>
+              </template>
+            </q-input>
+          </div>
+
+          <div class="col-12 q-mt-md">
+            <q-btn @click="addPromoCodeToDialog">Add Promo Code</q-btn>
+          </div>
+
+          <div class="row q-mt-lg">
+            <q-btn unelevated color="primary" type="submit"
+              >Save Promo Codes</q-btn
+            >
+            <q-btn
+              flat
+              color="grey"
+              class="q-ml-auto"
+              @click="resetPromoCodesDialog"
               >Cancel</q-btn
             >
           </div>

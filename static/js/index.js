@@ -8,7 +8,12 @@ window.PageEvents = {
       currencies: [],
       eventsTable: {
         columns: [
-          {name: 'id', align: 'left', label: 'ID', field: 'id'},
+          {
+            name: 'id',
+            align: 'left',
+            label: 'ID',
+            field: row => this.shortenId(row.id)
+          },
           {name: 'name', align: 'left', label: 'Name', field: 'name'},
           {
             name: 'event_start_date',
@@ -74,7 +79,12 @@ window.PageEvents = {
       },
       ticketsTable: {
         columns: [
-          {name: 'event', align: 'left', label: 'Event', field: 'event'},
+          {
+            name: 'event',
+            align: 'left',
+            label: 'Event',
+            field: row => this.shortenId(row.event)
+          },
           {name: 'name', align: 'left', label: 'Name', field: 'name'},
           {name: 'email', align: 'left', label: 'Email', field: 'email'},
           {
@@ -107,12 +117,35 @@ window.PageEvents = {
             notification_body: ''
           }
         }
+      },
+      promoCodesDialog: {
+        show: false,
+        data: {
+          id: null,
+          wallet: null,
+          name: '',
+          extra: {
+            promo_codes: []
+          }
+        }
       }
     }
   },
   methods: {
+    shortenId(value) {
+      if (!value) return ''
+      return value.length > 4 ? `${value.slice(0, 4)}...` : value
+    },
     isFiatCurrency(currency) {
       return !['sat', 'sats'].includes((currency || '').toLowerCase())
+    },
+    normalizePromoCodes(promoCodes = []) {
+      return promoCodes
+        .filter(code => code.code?.trim() !== '')
+        .map(code => ({
+          ...code,
+          code: code.code.trim().toUpperCase()
+        }))
     },
     getTickets() {
       LNbits.api
@@ -196,12 +229,7 @@ window.PageEvents = {
       })
       const data = this.formDialog.data
       if (data.extra?.promo_codes) {
-        data.extra.promo_codes = data.extra.promo_codes
-          .filter(code => code.code?.trim() !== '')
-          .map(code => ({
-            ...code,
-            code: code.code.trim().toUpperCase()
-          }))
+        data.extra.promo_codes = this.normalizePromoCodes(data.extra.promo_codes)
       }
       if (!this.isFiatCurrency(data.currency)) {
         if (!data.allow_fiat) {
@@ -265,6 +293,69 @@ window.PageEvents = {
     updateformDialog(formId) {
       const link = _.findWhere(this.events, {id: formId})
       this.openEventDialog(link)
+    },
+    openPromoCodesDialog(event) {
+      this.promoCodesDialog.data = {
+        ...event,
+        extra: {
+          ...event.extra,
+          promo_codes: [...(event.extra?.promo_codes || [])]
+        }
+      }
+      this.promoCodesDialog.show = true
+    },
+    resetPromoCodesDialog() {
+      this.promoCodesDialog.show = false
+      this.promoCodesDialog.data = {
+        id: null,
+        wallet: null,
+        name: '',
+        extra: {
+          promo_codes: []
+        }
+      }
+    },
+    addPromoCodeToDialog() {
+      this.promoCodesDialog.data.extra.promo_codes.push({
+        code: '',
+        discount_percent: 0,
+        active: true
+      })
+    },
+    savePromoCodes() {
+      const data = this.promoCodesDialog.data
+      const wallet = _.findWhere(this.g.user.wallets, {
+        id: data.wallet
+      })
+      if (!wallet) return
+
+      const payload = {
+        ...data,
+        extra: {
+          ...data.extra,
+          promo_codes: this.normalizePromoCodes(data.extra?.promo_codes || [])
+        }
+      }
+
+      LNbits.api
+        .request(
+          'PUT',
+          '/events/api/v1/events/' + data.id,
+          wallet.adminkey,
+          payload
+        )
+        .then(response => {
+          this.events = this.events.map(event =>
+            event.id === data.id ? response.data : event
+          )
+          Quasar.Notify.create({
+            type: 'positive',
+            message: 'Promo codes updated.',
+            icon: null
+          })
+          this.resetPromoCodesDialog()
+        })
+        .catch(LNbits.utils.notifyApiError)
     },
     updateEvent(wallet, data) {
       LNbits.api
