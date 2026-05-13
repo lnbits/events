@@ -517,35 +517,45 @@
             <div class="text-caption">
               Send the paid ticket link automatically by email or Nostr DM.
             </div>
-            <q-toggle
-              v-model="formDialog.data.extra.email_notifications"
-              label="Email notifications"
-              left-label
-            ></q-toggle>
-            <q-toggle
-              v-model="formDialog.data.extra.nostr_notifications"
-              label="Nostr notifications"
-              left-label
-            ></q-toggle>
+            <div class="row items-center q-col-gutter-md">
+              <div class="col-auto">
+                <q-toggle
+                  v-model="formDialog.data.extra.email_notifications"
+                  label="Email notifications"
+                  left-label
+                ></q-toggle>
+              </div>
+              <div class="col-auto">
+                <q-toggle
+                  v-model="formDialog.data.extra.nostr_notifications"
+                  label="Nostr notifications"
+                  left-label
+                ></q-toggle>
+              </div>
+            </div>
+            <div
+              v-if="formDialog.data.extra.email_notifications"
+              class="q-mt-md"
+            >
+              <q-input
+                filled
+                dense
+                v-model.trim="formDialog.data.extra.notification_subject"
+                type="text"
+                label="Ticket notification subject"
+                hint="Used as the email subject when sending paid ticket links."
+              ></q-input>
+              <q-input
+                class="q-mt-md"
+                filled
+                dense
+                v-model.trim="formDialog.data.extra.notification_body"
+                type="textarea"
+                label="Ticket notification body"
+                hint="Shown before the ticket link in the paid ticket notification."
+              ></q-input>
+            </div>
           </q-expansion-item>
-
-          <q-separator class="q-my-md"></q-separator>
-          <q-input
-            filled
-            dense
-            v-model.trim="formDialog.data.extra.notification_subject"
-            type="text"
-            label="Ticket notification subject"
-            hint="Used as the email subject when sending paid ticket links."
-          ></q-input>
-          <q-input
-            filled
-            dense
-            v-model.trim="formDialog.data.extra.notification_body"
-            type="textarea"
-            label="Ticket notification body"
-            hint="Shown before the ticket link in the paid ticket notification."
-          ></q-input>
 
           <div class="row q-mt-lg">
             <q-btn
