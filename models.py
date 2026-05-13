@@ -198,8 +198,9 @@ def ensure_ticket_waves(event: Event | PublicEvent | CreateEvent) -> list[Ticket
         return ticket_waves
 
     fallback_opening_date = None
-    if hasattr(event, "time") and getattr(event, "time", None):
-        fallback_opening_date = event.time.date().isoformat()
+    event_time = getattr(event, "time", None)
+    if event_time:
+        fallback_opening_date = event_time.date().isoformat()
     if not fallback_opening_date:
         fallback_opening_date = event.closing_date
 
