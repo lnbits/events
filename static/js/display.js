@@ -54,7 +54,9 @@ window.PageEventsDisplay = {
       return (
         this.activeTicketWaves.find(
           wave => wave.id === this.formDialog.data.ticket_wave_id
-        ) || this.activeTicketWaves[0] || null
+        ) ||
+        this.activeTicketWaves[0] ||
+        null
       )
     },
     showTicketWaveSelector() {
@@ -109,7 +111,9 @@ window.PageEventsDisplay = {
       this.formDialog.data.refund = ''
       this.formDialog.data.nostr_identifier = ''
       this.formDialog.data.ticket_wave_id =
-        this.activeTicketWaves.length === 1 ? this.activeTicketWaves[0].id : null
+        this.activeTicketWaves.length === 1
+          ? this.activeTicketWaves[0].id
+          : null
       this.formDialog.data.payment_method = 'lightning'
     },
 
@@ -145,7 +149,9 @@ window.PageEventsDisplay = {
       this.formDialog.data.refund = ''
       this.formDialog.data.nostr_identifier = ''
       this.formDialog.data.ticket_wave_id =
-        this.activeTicketWaves.length === 1 ? this.activeTicketWaves[0].id : null
+        this.activeTicketWaves.length === 1
+          ? this.activeTicketWaves[0].id
+          : null
       this.formDialog.data.payment_method = 'lightning'
       Quasar.Notify.create({
         type: 'positive',

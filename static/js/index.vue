@@ -123,20 +123,20 @@
                             square
                             clickable
                             class="q-py-xs"
-                            style="height: auto;"
+                            style="height: auto"
                             @click="openTicketWaveDialog(props.row, wave)"
                           >
                             <span
-                              style="white-space: normal; line-height: 1.3;"
+                              style="white-space: normal; line-height: 1.3"
                               v-text="
                                 `${wave.title} - ${wave.opening_date} to ${
                                   wave.closing_date
                                 } - ${
                                   isFiatCurrency(wave.currency)
                                     ? LNbits.utils.formatCurrency(
-                                        Number(wave.price_per_ticket || 0).toFixed(
-                                          2
-                                        ),
+                                        Number(
+                                          wave.price_per_ticket || 0
+                                        ).toFixed(2),
                                         wave.currency
                                       )
                                     : `${wave.price_per_ticket} sats`
@@ -166,8 +166,9 @@
                     <div class="column">
                       <div
                         v-if="
-                          props.row.extra.promo_codes.filter(code => code.active)
-                            .length == 0
+                          props.row.extra.promo_codes.filter(
+                            code => code.active
+                          ).length == 0
                         "
                         class="text-caption"
                       >
@@ -175,7 +176,9 @@
                       </div>
                       <div class="row q-col-gutter-sm">
                         <div
-                          v-for="(code, index) in props.row.extra.promo_codes.filter(
+                          v-for="(
+                            code, index
+                          ) in props.row.extra.promo_codes.filter(
                             code => code.active
                           )"
                           :key="index"
@@ -463,6 +466,43 @@
             </div>
           </div>
           <q-toggle
+            v-model="primaryTicketWave().use_ticket_image"
+            label="Use ticket image"
+            left-label
+          ></q-toggle>
+          <div
+            v-if="primaryTicketWave().use_ticket_image"
+            class="row items-center q-col-gutter-sm q-mb-sm"
+          >
+            <div class="col-auto">
+              <q-btn
+                unelevated
+                color="primary"
+                type="a"
+                :href="templateDownloadUrl()"
+                download="ticket.jpg"
+              >
+                Download template
+                <q-tooltip>400/733 jpg</q-tooltip>
+              </q-btn>
+            </div>
+            <div class="col-auto">
+              <q-btn
+                outline
+                color="primary"
+                :loading="isUploadingTicketTemplate"
+                @click="triggerTicketImageUpload('primary')"
+                >Replace</q-btn
+              >
+            </div>
+            <div
+              v-if="primaryTicketWave().ticket_image_id"
+              class="col-12 text-caption"
+            >
+              Custom ticket template uploaded.
+            </div>
+          </div>
+          <q-toggle
             v-model="formDialog.data.allow_fiat"
             label="Allow fiat checkout"
             left-label
@@ -619,7 +659,9 @@
               <template v-slot:before>
                 <q-checkbox
                   left-label
-                  v-model="promoCodesDialog.data.extra.promo_codes[index].active"
+                  v-model="
+                    promoCodesDialog.data.extra.promo_codes[index].active
+                  "
                   checked-icon="radio_button_checked"
                   unchecked-icon="radio_button_unchecked"
                 ></q-checkbox>
@@ -652,7 +694,9 @@
                   dense
                   flat
                   icon="delete"
-                  @click="promoCodesDialog.data.extra.promo_codes.splice(index, 1)"
+                  @click="
+                    promoCodesDialog.data.extra.promo_codes.splice(index, 1)
+                  "
                 ></q-btn>
               </template>
             </q-input>
@@ -754,6 +798,43 @@
             </div>
           </div>
           <q-toggle
+            v-model="ticketWaveDialog.data.use_ticket_image"
+            label="Use ticket image"
+            left-label
+          ></q-toggle>
+          <div
+            v-if="ticketWaveDialog.data.use_ticket_image"
+            class="row items-center q-col-gutter-sm q-mb-sm"
+          >
+            <div class="col-auto">
+              <q-btn
+                unelevated
+                color="primary"
+                type="a"
+                :href="templateDownloadUrl()"
+                download="ticket.jpg"
+              >
+                Download template
+                <q-tooltip>400/733 jpg</q-tooltip>
+              </q-btn>
+            </div>
+            <div class="col-auto">
+              <q-btn
+                outline
+                color="primary"
+                :loading="isUploadingTicketTemplate"
+                @click="triggerTicketImageUpload('dialog')"
+                >Replace</q-btn
+              >
+            </div>
+            <div
+              v-if="ticketWaveDialog.data.ticket_image_id"
+              class="col-12 text-caption"
+            >
+              Custom ticket template uploaded.
+            </div>
+          </div>
+          <q-toggle
             v-model="ticketWaveDialog.data.allow_fiat"
             label="Allow fiat checkout"
             left-label
@@ -777,13 +858,11 @@
             "
           ></q-select>
           <div class="row q-mt-lg">
-            <q-btn unelevated color="primary" type="submit"
-              >{{
-                ticketWaveDialog.editingWaveId
-                  ? 'Update Ticket Wave'
-                  : 'Save Ticket Wave'
-              }}</q-btn
-            >
+            <q-btn unelevated color="primary" type="submit">{{
+              ticketWaveDialog.editingWaveId
+                ? 'Update Ticket Wave'
+                : 'Save Ticket Wave'
+            }}</q-btn>
             <q-btn
               flat
               color="grey"
@@ -795,5 +874,12 @@
         </q-form>
       </q-card>
     </q-dialog>
+    <input
+      ref="ticketImageUpload"
+      type="file"
+      accept="image/png,image/jpeg,image/webp"
+      style="display: none"
+      @change="handleTicketImageSelected"
+    />
   </div>
 </template>

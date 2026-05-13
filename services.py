@@ -1,15 +1,15 @@
 from __future__ import annotations
 
+import smtplib
 from asyncio.tasks import create_task
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from html import escape
 
 from lnbits.core.models.users import UserNotifications
-from lnbits.core.services.nostr import send_nostr_dm
-from lnbits.core.services.notifications import (
-    send_email_notification,
-    send_user_notification,
-)
+from lnbits.core.services.notifications import send_user_notification
+from lnbits.helpers import is_valid_email_address
 from lnbits.settings import settings
-from lnbits.utils.nostr import normalize_private_key, normalize_public_key
 from lnurl import execute
 from loguru import logger
 
@@ -20,13 +20,13 @@ from .crud import (
     update_event,
     update_ticket,
 )
-from .models import Event, Ticket
-
-DEFAULT_NOSTR_RELAYS = [
-    "wss://relay.damus.io",
-    "wss://relay.primal.net",
-    "wss://relay.nostr.band",
-]
+from .models import (
+    Event,
+    NotificationDeliveryResult,
+    Ticket,
+    TicketResendResult,
+    ensure_ticket_waves,
+)
 
 
 async def set_ticket_paid(ticket: Ticket) -> Ticket:
@@ -42,11 +42,7 @@ async def set_ticket_paid(ticket: Ticket) -> Ticket:
     ticket_waves = event.extra.ticket_waves or []
     if ticket_waves:
         selected_wave = next(
-            (
-                wave
-                for wave in ticket_waves
-                if wave.id == ticket.extra.ticket_wave_id
-            ),
+            (wave for wave in ticket_waves if wave.id == ticket.extra.ticket_wave_id),
             ticket_waves[0],
         )
         if selected_wave.amount_tickets > 0:
@@ -69,6 +65,8 @@ async def _send_ticket_notification(ticket: Ticket) -> None:
         return
 
     subject, message = _ticket_notification_message(ticket, event)
+    email_message = _ticket_email_message(ticket, event, message)
+    email_html_message = _ticket_email_html_message(ticket, event, message)
     updated = False
 
     if (
@@ -77,7 +75,9 @@ async def _send_ticket_notification(ticket: Ticket) -> None:
         and ticket.email
     ):
         try:
-            await send_email_notification([ticket.email], message, subject)
+            await _send_ticket_email_notification(
+                [ticket.email], email_message, subject, email_html_message
+            )
             ticket.extra.email_notification_sent = True
             updated = True
         except Exception as exc:
@@ -89,8 +89,9 @@ async def _send_ticket_notification(ticket: Ticket) -> None:
         and ticket.extra.nostr_identifier
     ):
         try:
+            nostr_message = _ticket_delivery_message(ticket, event, message)
             await _send_nostr_ticket_notification(
-                ticket.extra.nostr_identifier, message
+                ticket.extra.nostr_identifier, nostr_message
             )
             ticket.extra.nostr_notification_sent = True
             updated = True
@@ -101,7 +102,9 @@ async def _send_ticket_notification(ticket: Ticket) -> None:
         await update_ticket(ticket)
 
 
-async def resend_ticket_email_notification(ticket: Ticket) -> Ticket:
+async def resend_ticket_email_notification(
+    ticket: Ticket, base_url: str | None = None
+) -> TicketResendResult:
     event = await get_event(ticket.event)
     if not event:
         raise ValueError("Event does not exist.")
@@ -109,11 +112,47 @@ async def resend_ticket_email_notification(ticket: Ticket) -> Ticket:
         raise ValueError("Email notifications are not enabled.")
     if not ticket.email:
         raise ValueError("Ticket does not have an email address.")
+    if base_url:
+        ticket.extra.ticket_base_url = base_url.rstrip("/")
 
     subject, message = _ticket_notification_message(ticket, event)
-    await send_email_notification([ticket.email], message, subject)
-    ticket.extra.email_notification_sent = True
-    return await update_ticket(ticket)
+    email_message = _ticket_email_message(ticket, event, message)
+    email_html_message = _ticket_email_html_message(ticket, event, message)
+    result = TicketResendResult(
+        ticket=ticket,
+        email=NotificationDeliveryResult(attempted=True),
+    )
+
+    try:
+        await _send_ticket_email_notification(
+            [ticket.email], email_message, subject, email_html_message
+        )
+        ticket.extra.email_notification_sent = True
+        result.email.sent = True
+    except Exception as exc:
+        logger.warning(f"Failed to resend email for ticket {ticket.id}: {exc}")
+        result.email.error = str(exc)
+
+    if (
+        event.extra.nostr_notifications
+        and settings.is_nostr_notifications_configured()
+        and ticket.extra.nostr_identifier
+    ):
+        result.nostr.attempted = True
+        try:
+            nostr_message = _ticket_delivery_message(ticket, event, message)
+            await _send_nostr_ticket_notification(
+                ticket.extra.nostr_identifier, nostr_message
+            )
+            ticket.extra.nostr_notification_sent = True
+            result.nostr.sent = True
+        except Exception as exc:
+            logger.warning(f"Failed to resend nostr DM for ticket {ticket.id}: {exc}")
+            result.nostr.error = str(exc)
+
+    updated_ticket = await update_ticket(ticket)
+    result.ticket = updated_ticket
+    return result
 
 
 def _ticket_notification_message(ticket: Ticket, event: Event) -> tuple[str, str]:
@@ -130,23 +169,99 @@ def _ticket_notification_message(ticket: Ticket, event: Event) -> tuple[str, str
     return subject, f"{body}\n\nOpen it here: {ticket_url}"
 
 
-async def _send_nostr_ticket_notification(identifier: str, message: str) -> None:
-    if "@" in identifier:
-        await send_user_notification(
-            UserNotifications(nostr_identifier=identifier),
-            message,
-            "text_message",
-        )
-        return
+def _ticket_delivery_message(ticket: Ticket, event: Event, base_message: str) -> str:
+    ticket_image_url = _ticket_image_url(ticket, event)
+    if not ticket_image_url:
+        return base_message
 
-    private_key = normalize_private_key(settings.lnbits_nostr_notifications_private_key)
-    public_key = normalize_public_key(identifier)
-    await send_nostr_dm(private_key, public_key, message, DEFAULT_NOSTR_RELAYS)
+    return f"{base_message}\n\nTicket image: {ticket_image_url}"
+
+
+def _ticket_email_message(ticket: Ticket, event: Event, base_message: str) -> str:
+    return _ticket_delivery_message(ticket, event, base_message)
+
+
+def _ticket_email_html_message(ticket: Ticket, event: Event, base_message: str) -> str:
+    text_message = _ticket_delivery_message(ticket, event, base_message)
+    html_message = f"<p>{escape(text_message).replace(chr(10), '<br />')}</p>"
+    ticket_image_url = _ticket_image_url(ticket, event)
+    if not ticket_image_url:
+        return html_message
+
+    return (
+        f"{html_message}"
+        f'<p><img src="{escape(ticket_image_url, quote=True)}" alt="Ticket image" '
+        'style="max-width: 100%; height: auto;" /></p>'
+    )
+
+
+async def _send_nostr_ticket_notification(identifier: str, message: str) -> None:
+    await send_user_notification(
+        UserNotifications(nostr_identifier=identifier),
+        message,
+        "text_message",
+    )
+
+
+async def _send_ticket_email_notification(
+    to_emails: list[str],
+    message: str,
+    subject: str,
+    html_message: str | None = None,
+) -> None:
+    if not settings.lnbits_email_notifications_enabled:
+        raise ValueError("Email notifications are disabled")
+    if not is_valid_email_address(settings.lnbits_email_notifications_email):
+        raise ValueError(
+            f"Invalid from email address: {settings.lnbits_email_notifications_email}"
+        )
+    if not to_emails:
+        raise ValueError("No email addresses provided")
+    for email in to_emails:
+        if not is_valid_email_address(email):
+            raise ValueError(f"Invalid email address: {email}")
+
+    msg = MIMEMultipart("alternative")
+    msg["From"] = settings.lnbits_email_notifications_email
+    msg["To"] = ", ".join(to_emails)
+    msg["Subject"] = subject
+    msg.attach(MIMEText(message, "plain"))
+    if html_message:
+        msg.attach(MIMEText(html_message, "html"))
+
+    username = (
+        settings.lnbits_email_notifications_username
+        or settings.lnbits_email_notifications_email
+    )
+    with smtplib.SMTP(
+        settings.lnbits_email_notifications_server,
+        settings.lnbits_email_notifications_port,
+    ) as smtp_server:
+        smtp_server.starttls()
+        smtp_server.login(username, settings.lnbits_email_notifications_password)
+        smtp_server.sendmail(
+            settings.lnbits_email_notifications_email,
+            to_emails,
+            msg.as_string(),
+        )
 
 
 def _ticket_url(ticket: Ticket) -> str:
     base_url = (ticket.extra.ticket_base_url or settings.lnbits_baseurl).rstrip("/")
     return f"{base_url}/events/ticket/{ticket.id}"
+
+
+def _ticket_image_url(ticket: Ticket, event: Event) -> str | None:
+    waves = ensure_ticket_waves(event)
+    wave = next(
+        (wave for wave in waves if wave.id == ticket.extra.ticket_wave_id),
+        waves[0],
+    )
+    if not wave.use_ticket_image:
+        return None
+
+    base_url = (ticket.extra.ticket_base_url or settings.lnbits_baseurl).rstrip("/")
+    return f"{base_url}/events/api/v1/qr/{ticket.id}"
 
 
 async def refund_tickets(event_id: str):

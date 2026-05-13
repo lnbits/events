@@ -27,6 +27,8 @@ class TicketWave(BaseModel):
     opening_date: str
     closing_date: str
     currency: str = "sat"
+    use_ticket_image: bool = False
+    ticket_image_id: str | None = None
     allow_fiat: bool = False
     fiat_currency: str = "GBP"
     amount_tickets: int = Field(default=0, ge=0)
@@ -133,6 +135,22 @@ class Ticket(BaseModel):
     extra: TicketExtra = Field(default_factory=TicketExtra)
 
 
+class NotificationDeliveryResult(BaseModel):
+    attempted: bool = False
+    sent: bool = False
+    error: str | None = None
+
+
+class TicketResendResult(BaseModel):
+    ticket: Ticket
+    email: NotificationDeliveryResult = Field(
+        default_factory=NotificationDeliveryResult
+    )
+    nostr: NotificationDeliveryResult = Field(
+        default_factory=NotificationDeliveryResult
+    )
+
+
 class PublicTicket(BaseModel):
     event: str
     name: str
@@ -163,19 +181,19 @@ def ensure_ticket_waves(event: Event | PublicEvent | CreateEvent) -> list[Ticket
     if hasattr(event, "time") and getattr(event, "time", None):
         fallback_opening_date = event.time.date().isoformat()
     if not fallback_opening_date:
-        fallback_opening_date = getattr(event, "closing_date")
+        fallback_opening_date = event.closing_date
 
     return [
         TicketWave(
             id="primary",
             title="Primary wave",
             opening_date=fallback_opening_date,
-            closing_date=getattr(event, "closing_date"),
-            currency=getattr(event, "currency"),
-            allow_fiat=getattr(event, "allow_fiat"),
-            fiat_currency=getattr(event, "fiat_currency"),
-            amount_tickets=getattr(event, "amount_tickets"),
-            price_per_ticket=getattr(event, "price_per_ticket"),
+            closing_date=event.closing_date,
+            currency=event.currency,
+            allow_fiat=event.allow_fiat,
+            fiat_currency=event.fiat_currency,
+            amount_tickets=event.amount_tickets,
+            price_per_ticket=event.price_per_ticket,
         )
     ]
 
@@ -202,6 +220,8 @@ def get_active_ticket_waves(
     return [
         wave
         for wave in ensure_ticket_waves(event)
-        if _parse_date(wave.opening_date) <= current_day <= _parse_date(wave.closing_date)
+        if _parse_date(wave.opening_date)
+        <= current_day
+        <= _parse_date(wave.closing_date)
         and wave.amount_tickets > 0
     ]
