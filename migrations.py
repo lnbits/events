@@ -245,7 +245,27 @@ async def m010_add_events_settings(db):
     )
 
 
-async def m011_add_location_and_categories(db):
+
+async def m011_add_allow_fiat(db):
+    """
+    Add an allow_fiat column so event owners can explicitly enable fiat checkout.
+    """
+    await db.execute("""
+        ALTER TABLE events.events
+        ADD COLUMN allow_fiat BOOLEAN NOT NULL DEFAULT FALSE;
+        """)
+
+
+async def m012_add_fiat_currency(db):
+    """
+    Add a fiat_currency column for sat-denominated events using fiat checkout.
+    """
+    await db.execute("""
+        ALTER TABLE events.events
+        ADD COLUMN fiat_currency TEXT NOT NULL DEFAULT 'GBP';
+        """)
+
+async def m013_add_location_and_categories(db):
     """
     Add NIP-52 calendar metadata (location and a JSON-encoded category list).
     """

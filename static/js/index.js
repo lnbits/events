@@ -4,6 +4,10 @@ window.PageEvents = {
     return {
       events: [],
       tickets: [],
+      allPaidTickets: [],
+      resendingTicketEmails: [],
+      isUploadingTicketTemplate: false,
+      ticketImageUploadTarget: null,
       currencies: [],
       pendingEvents: [],
       allUserEvents: [],
@@ -13,7 +17,12 @@ window.PageEvents = {
       },
       eventsTable: {
         columns: [
-          {name: 'id', align: 'left', label: 'ID', field: 'id'},
+          {
+            name: 'id',
+            align: 'left',
+            label: 'ID',
+            field: row => this.shortenId(row.id)
+          },
           {name: 'name', align: 'left', label: 'Name', field: 'name'},
           {
             name: 'event_start_date',
@@ -28,12 +37,6 @@ window.PageEvents = {
             field: 'event_end_date'
           },
           {
-            name: 'closing_date',
-            align: 'left',
-            label: 'Ticket close',
-            field: 'closing_date'
-          },
-          {
             name: 'canceled',
             align: 'left',
             label: 'Canceled',
@@ -43,44 +46,21 @@ window.PageEvents = {
               }
               return 'No'
             }
-          },
-          {
-            name: 'price_per_ticket',
-            align: 'left',
-            label: 'Price',
-            field: row => {
-              if (row.currency != 'sats') {
-                return LNbits.utils.formatCurrency(
-                  row.price_per_ticket.toFixed(2),
-                  row.currency
-                )
-              }
-              return row.price_per_ticket
-            }
-          },
-          {
-            name: 'amount_tickets',
-            align: 'left',
-            label: 'No tickets',
-            field: 'amount_tickets'
-          },
-          {
-            name: 'sold',
-            align: 'left',
-            label: 'Sold',
-            field: 'sold'
-          },
-          {name: 'info', align: 'left', label: 'Info', field: 'info'},
-          {name: 'banner', align: 'left', label: 'Banner', field: 'banner'},
-          {name: 'status', align: 'left', label: 'Status', field: 'status'}
+          }
         ],
         pagination: {
           rowsPerPage: 10
         }
       },
       ticketsTable: {
+        loading: false,
         columns: [
-          {name: 'event', align: 'left', label: 'Event', field: 'event'},
+          {
+            name: 'event',
+            align: 'left',
+            label: 'Event',
+            field: row => this.shortenId(row.event)
+          },
           {name: 'name', align: 'left', label: 'Name', field: 'name'},
           {name: 'email', align: 'left', label: 'Email', field: 'email'},
           {
@@ -88,6 +68,12 @@ window.PageEvents = {
             align: 'left',
             label: 'Registered',
             field: 'registered'
+          },
+          {
+            name: 'nostr',
+            align: 'left',
+            label: 'Nostr',
+            field: row => row.extra?.nostr_identifier || ''
           },
           {
             name: 'promo_code',
@@ -98,13 +84,52 @@ window.PageEvents = {
           {name: 'id', align: 'left', label: 'ID', field: 'id'}
         ],
         pagination: {
-          rowsPerPage: 10
+          sortBy: 'time',
+          descending: true,
+          page: 1,
+          rowsPerPage: 10,
+          rowsNumber: 10
         }
       },
       formDialog: {
         show: false,
         data: {
           currency: 'sats',
+          allow_fiat: false,
+          fiat_currency: 'GBP',
+          extra: {
+            ticket_waves: [],
+            promo_codes: [],
+            notification_subject: '',
+            notification_body: ''
+          }
+        }
+      },
+      ticketWaveDialog: {
+        show: false,
+        eventId: null,
+        wallet: null,
+        editingWaveId: null,
+        data: {
+          id: null,
+          title: '',
+          opening_date: '',
+          closing_date: '',
+          currency: 'sats',
+          use_ticket_image: false,
+          ticket_image_id: null,
+          allow_fiat: false,
+          fiat_currency: 'GBP',
+          amount_tickets: 0,
+          price_per_ticket: 0
+        }
+      },
+      promoCodesDialog: {
+        show: false,
+        data: {
+          id: null,
+          wallet: null,
+          name: '',
           extra: {
             promo_codes: []
           }
@@ -113,16 +138,158 @@ window.PageEvents = {
     }
   },
   methods: {
-    getTickets() {
-      LNbits.api
-        .request(
+    shortenId(value) {
+      if (!value) return ''
+      return value.length > 4 ? `${value.slice(0, 4)}...` : value
+    },
+    primaryTicketWave(data = this.formDialog.data) {
+      if (!data.extra) data.extra = {}
+      if (!data.extra.ticket_waves || data.extra.ticket_waves.length === 0) {
+        data.extra.ticket_waves = [
+          {
+            id: 'primary',
+            title: 'Primary wave',
+            opening_date: data.closing_date || '',
+            closing_date: data.closing_date || '',
+            currency: data.currency || 'sats',
+            use_ticket_image: false,
+            ticket_image_id: null,
+            allow_fiat: Boolean(data.allow_fiat),
+            fiat_currency: data.fiat_currency || 'GBP',
+            amount_tickets: data.amount_tickets || 0,
+            price_per_ticket: data.price_per_ticket || 0
+          }
+        ]
+      }
+      return data.extra.ticket_waves[0]
+    },
+    syncPrimaryWaveFromForm(data = this.formDialog.data) {
+      const primaryWave = this.primaryTicketWave(data)
+      primaryWave.title = primaryWave.title || 'Primary wave'
+      primaryWave.opening_date = primaryWave.opening_date || ''
+      primaryWave.closing_date = data.closing_date || ''
+      primaryWave.currency = data.currency || 'sats'
+      primaryWave.use_ticket_image = Boolean(primaryWave.use_ticket_image)
+      primaryWave.ticket_image_id = primaryWave.ticket_image_id || null
+      primaryWave.allow_fiat = Boolean(data.allow_fiat)
+      primaryWave.fiat_currency = data.fiat_currency || 'GBP'
+      primaryWave.amount_tickets = Number(data.amount_tickets || 0)
+      primaryWave.price_per_ticket = Number(data.price_per_ticket || 0)
+      return primaryWave
+    },
+    hydrateEventForm(data) {
+      const formData = {
+        ...data,
+        extra: {
+          ...(data.extra || {}),
+          ticket_waves: [...((data.extra && data.extra.ticket_waves) || [])]
+        }
+      }
+      const primaryWave = this.primaryTicketWave(formData)
+      formData.currency = primaryWave.currency || formData.currency || 'sats'
+      formData.allow_fiat = Boolean(primaryWave.allow_fiat)
+      formData.fiat_currency = primaryWave.fiat_currency || 'GBP'
+      formData.amount_tickets = primaryWave.amount_tickets
+      formData.price_per_ticket = primaryWave.price_per_ticket
+      formData.closing_date =
+        primaryWave.closing_date || formData.closing_date || ''
+      return formData
+    },
+    isFiatCurrency(currency) {
+      return !['sat', 'sats'].includes((currency || '').toLowerCase())
+    },
+    normalizePromoCodes(promoCodes = []) {
+      return promoCodes
+        .filter(code => code.code?.trim() !== '')
+        .map(code => ({
+          ...code,
+          code: code.code.trim().toUpperCase()
+        }))
+    },
+    templateDownloadUrl() {
+      return '/events/static/image/ticket.jpg'
+    },
+    async uploadAssetFile(file) {
+      const form = new FormData()
+      form.append('file', file)
+      form.append('public_asset', 'true')
+      const {data} = await LNbits.api.request(
+        'POST',
+        '/api/v1/assets?public_asset=true',
+        null,
+        form
+      )
+      return data.id
+    },
+    triggerTicketImageUpload(target) {
+      this.ticketImageUploadTarget = target
+      this.$refs.ticketImageUpload.value = null
+      this.$refs.ticketImageUpload.click()
+    },
+    async handleTicketImageSelected(event) {
+      const file = event.target.files?.[0]
+      if (!file || !this.ticketImageUploadTarget) return
+
+      this.isUploadingTicketTemplate = true
+      try {
+        const assetId = await this.uploadAssetFile(file)
+        if (this.ticketImageUploadTarget === 'primary') {
+          const wave = this.primaryTicketWave()
+          wave.use_ticket_image = true
+          wave.ticket_image_id = assetId
+        } else if (this.ticketImageUploadTarget === 'dialog') {
+          this.ticketWaveDialog.data.use_ticket_image = true
+          this.ticketWaveDialog.data.ticket_image_id = assetId
+        }
+        Quasar.Notify.create({
+          type: 'positive',
+          message: 'Ticket template uploaded.',
+          icon: null
+        })
+      } catch (error) {
+        LNbits.utils.notifyApiError(error)
+      } finally {
+        this.isUploadingTicketTemplate = false
+        this.ticketImageUploadTarget = null
+      }
+    },
+    soldTicketsForWave(eventId, waveId) {
+      return this.allPaidTickets.filter(
+        ticket =>
+          ticket.event === eventId &&
+          ticket.paid &&
+          (ticket.extra?.ticket_wave_id === waveId ||
+            (!ticket.extra?.ticket_wave_id && waveId === 'primary'))
+      ).length
+    },
+    async getAllTickets() {
+      try {
+        const {data} = await LNbits.api.request(
           'GET',
           '/events/api/v1/tickets?all_wallets=true',
           this.g.user.wallets[0].adminkey
         )
-        .then(response => {
-          this.tickets = response.data.filter(e => e.paid)
-        })
+        this.allPaidTickets = data.filter(ticket => ticket.paid)
+      } catch (error) {
+        LNbits.utils.notifyApiError(error)
+      }
+    },
+    async getTickets(props) {
+      try {
+        this.ticketsTable.loading = true
+        const params = LNbits.utils.prepareFilterQuery(this.ticketsTable, props)
+        const {data} = await LNbits.api.request(
+          'GET',
+          `/events/api/v1/tickets/paginated?all_wallets=true&${params}`,
+          this.g.user.wallets[0].adminkey
+        )
+        this.tickets = data.data
+        this.ticketsTable.pagination.rowsNumber = data.total
+      } catch (error) {
+        LNbits.utils.notifyApiError(error)
+      } finally {
+        this.ticketsTable.loading = false
+      }
     },
     deleteTicket(ticketId) {
       const tickets = _.findWhere(this.tickets, {id: ticketId})
@@ -137,16 +304,60 @@ window.PageEvents = {
               '/events/api/v1/tickets/' + ticketId,
               wallet.adminkey
             )
-            .then(response => {
-              this.tickets = _.reject(this.tickets, function (obj) {
-                return obj.id == ticketId
-              })
+            .then(async () => {
+              await this.getTickets()
+              await this.getAllTickets()
             })
             .catch(LNbits.utils.notifyApiError)
         })
     },
+    resendTicketEmail(ticket) {
+      if (!ticket.paid || !ticket.email) return
+      const wallet = _.findWhere(this.g.user.wallets, {id: ticket.wallet})
+      if (!wallet) return
+
+      this.resendingTicketEmails.push(ticket.id)
+      LNbits.api
+        .request(
+          'POST',
+          '/events/api/v1/tickets/' + ticket.id + '/resend-email',
+          wallet.adminkey
+        )
+        .then(response => {
+          const result = response.data
+          this.tickets = this.tickets.map(obj =>
+            obj.id === ticket.id ? result.ticket : obj
+          )
+
+          if (result.email?.attempted) {
+            Quasar.Notify.create({
+              type: result.email.sent ? 'positive' : 'negative',
+              message: result.email.sent
+                ? 'Ticket email resent.'
+                : `Ticket email failed: ${result.email.error || 'Unknown error.'}`,
+              icon: null
+            })
+          }
+
+          if (result.nostr?.attempted) {
+            Quasar.Notify.create({
+              type: result.nostr.sent ? 'positive' : 'negative',
+              message: result.nostr.sent
+                ? 'Ticket Nostr DM resent.'
+                : `Ticket Nostr DM failed: ${result.nostr.error || 'Unknown error.'}`,
+              icon: null
+            })
+          }
+        })
+        .catch(LNbits.utils.notifyApiError)
+        .finally(() => {
+          this.resendingTicketEmails = this.resendingTicketEmails.filter(
+            ticketId => ticketId !== ticket.id
+          )
+        })
+    },
     exportticketsCSV() {
-      LNbits.utils.exportCSV(this.ticketsTable.columns, this.tickets)
+      LNbits.utils.exportCSV(this.ticketsTable.columns, this.allPaidTickets)
     },
     getEvents() {
       LNbits.api
@@ -238,11 +449,18 @@ window.PageEvents = {
         id: this.formDialog.data.wallet
       })
       const data = this.formDialog.data
-      if (data.extra && !data.extra.promo_codes) {
-        data.extra.promo_codes = data.extra.promo_codes
-          .filter(code => code.trim() !== '')
-          .map(code => code.trim().toUpperCase())
+      this.syncPrimaryWaveFromForm(data)
+      if (data.extra?.promo_codes) {
+        data.extra.promo_codes = this.normalizePromoCodes(
+          data.extra.promo_codes
+        )
       }
+      if (!this.isFiatCurrency(data.currency)) {
+        if (!data.allow_fiat) {
+          data.fiat_currency = 'GBP'
+        }
+      }
+      this.syncPrimaryWaveFromForm(data)
 
       if (data.id) {
         this.updateEvent(wallet, data)
@@ -253,14 +471,35 @@ window.PageEvents = {
 
     openEventDialog(data = false) {
       if (data && data.id) {
-        this.formDialog.data = {...data}
+        this.formDialog.data = this.hydrateEventForm(data)
       } else {
         this.formDialog.data = {
           currency: 'sats',
+          allow_fiat: false,
+          fiat_currency: 'GBP',
           extra: {
             conditional: false,
             min_tickets: 1,
-            promo_codes: []
+            email_notifications: false,
+            nostr_notifications: false,
+            ticket_waves: [
+              {
+                id: 'primary',
+                title: 'Primary wave',
+                opening_date: '',
+                closing_date: '',
+                currency: 'sats',
+                use_ticket_image: false,
+                ticket_image_id: null,
+                allow_fiat: false,
+                fiat_currency: 'GBP',
+                amount_tickets: 0,
+                price_per_ticket: 0
+              }
+            ],
+            promo_codes: [],
+            notification_subject: '',
+            notification_body: ''
           }
         }
       }
@@ -269,8 +508,32 @@ window.PageEvents = {
     resetEventDialog() {
       this.formDialog.show = false
       this.formDialog.data = {
+        currency: 'sats',
+        allow_fiat: false,
+        fiat_currency: 'GBP',
         extra: {
-          promo_codes: []
+          conditional: false,
+          min_tickets: 1,
+          email_notifications: false,
+          nostr_notifications: false,
+          ticket_waves: [
+            {
+              id: 'primary',
+              title: 'Primary wave',
+              opening_date: '',
+              closing_date: '',
+              currency: 'sats',
+              use_ticket_image: false,
+              ticket_image_id: null,
+              allow_fiat: false,
+              fiat_currency: 'GBP',
+              amount_tickets: 0,
+              price_per_ticket: 0
+            }
+          ],
+          promo_codes: [],
+          notification_subject: '',
+          notification_body: ''
         }
       }
     },
@@ -287,6 +550,177 @@ window.PageEvents = {
     updateformDialog(formId) {
       const link = _.findWhere(this.events, {id: formId})
       this.openEventDialog(link)
+    },
+    openTicketWaveDialog(event, wave = null) {
+      const primaryWave = (event.extra?.ticket_waves || [])[0] || {}
+      const isEditing = Boolean(wave)
+      this.ticketWaveDialog = {
+        show: true,
+        eventId: event.id,
+        wallet: event.wallet,
+        editingWaveId: wave?.id || null,
+        data: {
+          id: wave?.id || null,
+          title: wave?.title || '',
+          opening_date: wave?.opening_date || '',
+          closing_date: wave?.closing_date || '',
+          currency:
+            wave?.currency || primaryWave.currency || event.currency || 'sats',
+          use_ticket_image: Boolean(wave?.use_ticket_image),
+          ticket_image_id: wave?.ticket_image_id || null,
+          allow_fiat: isEditing
+            ? Boolean(wave?.allow_fiat)
+            : Boolean(primaryWave.allow_fiat ?? event.allow_fiat),
+          fiat_currency:
+            wave?.fiat_currency ||
+            primaryWave.fiat_currency ||
+            event.fiat_currency ||
+            'GBP',
+          amount_tickets: wave?.amount_tickets || 0,
+          price_per_ticket:
+            wave?.price_per_ticket ||
+            primaryWave.price_per_ticket ||
+            event.price_per_ticket ||
+            0
+        }
+      }
+    },
+    resetTicketWaveDialog() {
+      this.ticketWaveDialog = {
+        show: false,
+        eventId: null,
+        wallet: null,
+        editingWaveId: null,
+        data: {
+          id: null,
+          title: '',
+          opening_date: '',
+          closing_date: '',
+          currency: 'sats',
+          use_ticket_image: false,
+          ticket_image_id: null,
+          allow_fiat: false,
+          fiat_currency: 'GBP',
+          amount_tickets: 0,
+          price_per_ticket: 0
+        }
+      }
+    },
+    saveTicketWave() {
+      const event = _.findWhere(this.events, {
+        id: this.ticketWaveDialog.eventId
+      })
+      const wallet = _.findWhere(this.g.user.wallets, {
+        id: this.ticketWaveDialog.wallet
+      })
+      if (!event || !wallet) return
+
+      const payload = {
+        ...event,
+        extra: {
+          ...event.extra,
+          ticket_waves: (event.extra?.ticket_waves || []).map(existingWave =>
+            existingWave.id === this.ticketWaveDialog.editingWaveId
+              ? {...this.ticketWaveDialog.data}
+              : existingWave
+          )
+        }
+      }
+
+      if (!this.ticketWaveDialog.editingWaveId) {
+        payload.extra.ticket_waves.push({...this.ticketWaveDialog.data})
+      }
+
+      if (payload.extra?.promo_codes) {
+        payload.extra.promo_codes = this.normalizePromoCodes(
+          payload.extra.promo_codes
+        )
+      }
+
+      LNbits.api
+        .request(
+          'PUT',
+          '/events/api/v1/events/' + payload.id,
+          wallet.adminkey,
+          payload
+        )
+        .then(response => {
+          this.events = this.events.map(item =>
+            item.id === payload.id ? response.data : item
+          )
+          Quasar.Notify.create({
+            type: 'positive',
+            message: this.ticketWaveDialog.editingWaveId
+              ? 'Ticket wave updated.'
+              : 'Ticket wave added.',
+            icon: null
+          })
+          this.resetTicketWaveDialog()
+        })
+        .catch(LNbits.utils.notifyApiError)
+    },
+    openPromoCodesDialog(event) {
+      this.promoCodesDialog.data = {
+        ...event,
+        extra: {
+          ...event.extra,
+          promo_codes: [...(event.extra?.promo_codes || [])]
+        }
+      }
+      this.promoCodesDialog.show = true
+    },
+    resetPromoCodesDialog() {
+      this.promoCodesDialog.show = false
+      this.promoCodesDialog.data = {
+        id: null,
+        wallet: null,
+        name: '',
+        extra: {
+          promo_codes: []
+        }
+      }
+    },
+    addPromoCodeToDialog() {
+      this.promoCodesDialog.data.extra.promo_codes.push({
+        code: '',
+        discount_percent: 0,
+        active: true
+      })
+    },
+    savePromoCodes() {
+      const data = this.promoCodesDialog.data
+      const wallet = _.findWhere(this.g.user.wallets, {
+        id: data.wallet
+      })
+      if (!wallet) return
+
+      const payload = {
+        ...data,
+        extra: {
+          ...data.extra,
+          promo_codes: this.normalizePromoCodes(data.extra?.promo_codes || [])
+        }
+      }
+
+      LNbits.api
+        .request(
+          'PUT',
+          '/events/api/v1/events/' + data.id,
+          wallet.adminkey,
+          payload
+        )
+        .then(response => {
+          this.events = this.events.map(event =>
+            event.id === data.id ? response.data : event
+          )
+          Quasar.Notify.create({
+            type: 'positive',
+            message: 'Promo codes updated.',
+            icon: null
+          })
+          this.resetPromoCodesDialog()
+        })
+        .catch(LNbits.utils.notifyApiError)
     },
     updateEvent(wallet, data) {
       LNbits.api
@@ -354,6 +788,7 @@ window.PageEvents = {
   async created() {
     if (this.g.user.wallets.length) {
       this.getTickets()
+      this.getAllTickets()
       this.getEvents()
       this.getSettings()
       this.getPendingEvents()
