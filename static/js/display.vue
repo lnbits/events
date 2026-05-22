@@ -110,7 +110,7 @@
                   formDialog.data.name == '' ||
                   formDialog.data.email == '' ||
                   (showTicketWaveSelector && !formDialog.data.ticket_wave_id) ||
-                  Boolean(paymentReq)
+                  (receive.show && Boolean(paymentReq))
                 "
                 type="submit"
                 >Submit</q-btn
