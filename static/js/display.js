@@ -126,6 +126,13 @@ window.PageEventsDisplay = {
         this.paymentWebsocket.close()
         this.paymentWebsocket = null
       }
+      this.paymentReq = null
+      this.receive = {
+        show: false,
+        status: 'pending',
+        paymentReq: null,
+        isFiat: false
+      }
     },
     nameValidation(val) {
       const regex = /[`!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~]/g
