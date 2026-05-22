@@ -100,44 +100,101 @@
               <q-tr v-show="props.expand" :props="props">
                 <q-td colspan="100%">
                   <div class="q-pa-md">
-                    <div class="text-subtitle1 q-mb-md">Promo codes</div>
-                    <div class="column">
-                      <div
-                        v-if="props.row.extra.promo_codes.length == 0"
-                        class="text-caption"
-                      >
-                        No promo codes for this event.
-                      </div>
-                      <div
-                        v-for="(code, index) in props.row.extra.promo_codes"
-                        :key="index"
-                        class="row items-center q-col-gutter-sm q-mb-sm"
-                      >
-                        <div class="col-auto">
+                    <div class="row items-center q-mb-md">
+                      <div class="text-subtitle1">Ticket waves</div>
+                      <q-btn
+                        round
+                        dense
+                        unelevated
+                        color="primary"
+                        icon="add"
+                        class="q-ml-sm"
+                        @click="openTicketWaveDialog(props.row)"
+                      ></q-btn>
+                    </div>
+                    <div class="column q-mb-lg">
+                      <div class="column">
+                        <div
+                          v-for="(wave, index) in props.row.extra.ticket_waves"
+                          :key="wave.id || index"
+                          class="q-mb-sm"
+                        >
                           <q-chip
                             square
-                            size="md"
+                            clickable
+                            class="q-py-xs"
+                            style="height: auto"
+                            @click="openTicketWaveDialog(props.row, wave)"
+                          >
+                            <span
+                              style="white-space: normal; line-height: 1.3"
+                              v-text="
+                                `${wave.title} - ${wave.opening_date} to ${
+                                  wave.closing_date
+                                } - ${
+                                  isFiatCurrency(wave.currency)
+                                    ? LNbits.utils.formatCurrency(
+                                        Number(
+                                          wave.price_per_ticket || 0
+                                        ).toFixed(2),
+                                        wave.currency
+                                      )
+                                    : `${wave.price_per_ticket} sats`
+                                } - ${wave.amount_tickets} tickets - ${soldTicketsForWave(
+                                  props.row.id,
+                                  wave.id
+                                )} sold`
+                              "
+                            ></span>
+                          </q-chip>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="row items-center q-mb-md">
+                      <div class="text-subtitle1">Promo codes</div>
+                      <q-btn
+                        round
+                        dense
+                        unelevated
+                        color="primary"
+                        icon="edit"
+                        class="q-ml-sm"
+                        @click="openPromoCodesDialog(props.row)"
+                      ></q-btn>
+                    </div>
+                    <div class="column">
+                      <div
+                        v-if="
+                          props.row.extra.promo_codes.filter(
+                            code => code.active
+                          ).length == 0
+                        "
+                        class="text-caption"
+                      >
+                        No active promo codes for this event.
+                      </div>
+                      <div class="row q-col-gutter-sm">
+                        <div
+                          v-for="(
+                            code, index
+                          ) in props.row.extra.promo_codes.filter(
+                            code => code.active
+                          )"
+                          :key="index"
+                          class="col-auto q-mb-sm"
+                        >
+                          <q-chip
+                            square
                             clickable
                             @click="utils.copyText(code.code.toUpperCase())"
                           >
-                            <q-avatar
-                              icon="bookmark"
-                              :color="code.active ? 'green' : 'grey'"
-                              text-color="white"
-                            ></q-avatar>
-                            <span v-text="code.code.toUpperCase()"></span>
+                            <span
+                              v-text="
+                                `${code.code.toUpperCase()} - ${code.discount_percent}%`
+                              "
+                            ></span>
                           </q-chip>
-                        </div>
-                        <div class="col-auto">
-                          Discount:
-                          <span v-text="code.discount_percent"></span>%
-                        </div>
-                        <div class="col-auto">
-                          Status:
-                          <span
-                            :class="code.active ? 'text-green' : 'text-grey'"
-                            v-text="code.active ? 'Active' : 'Inactive'"
-                          ></span>
                         </div>
                       </div>
                     </div>
@@ -165,9 +222,11 @@
             dense
             flat
             :rows="tickets"
+            :loading="ticketsTable.loading"
             row-key="id"
             :columns="ticketsTable.columns"
             v-model:pagination="ticketsTable.pagination"
+            @request="getTickets"
           >
             <template v-slot:header="props">
               <q-tr :props="props">
@@ -319,17 +378,6 @@
             hint="Optional banner image to display on the event page"
           ></q-input>
           <div class="row q-mt-lg">
-            <div class="col-4">Ticket closing date</div>
-            <div class="col-8">
-              <q-input
-                filled
-                dense
-                v-model.trim="formDialog.data.closing_date"
-                type="date"
-              ></q-input>
-            </div>
-          </div>
-          <div class="row">
             <div class="col-4">Event begins</div>
             <div class="col-8">
               <q-input
@@ -340,7 +388,6 @@
               ></q-input>
             </div>
           </div>
-
           <div class="row">
             <div class="col-4">Event ends</div>
             <div class="col-8">
@@ -349,6 +396,39 @@
                 dense
                 v-model.trim="formDialog.data.event_end_date"
                 type="date"
+              ></q-input>
+            </div>
+          </div>
+          <q-separator class="q-my-md"></q-separator>
+          <div class="text-subtitle1 q-mt-lg q-mb-md">
+            Primary ticket wave (you can add other waves later)
+          </div>
+          <div class="row q-col-gutter-sm">
+            <div class="col-12 col-md-4">
+              <q-input
+                filled
+                dense
+                v-model.trim="primaryTicketWave().title"
+                type="text"
+                label="Wave title"
+              ></q-input>
+            </div>
+            <div class="col-12 col-md-4">
+              <q-input
+                filled
+                dense
+                v-model.trim="primaryTicketWave().opening_date"
+                type="date"
+                label="Ticket opening date"
+              ></q-input>
+            </div>
+            <div class="col-12 col-md-4">
+              <q-input
+                filled
+                dense
+                v-model.trim="formDialog.data.closing_date"
+                type="date"
+                label="Ticket closing date"
               ></q-input>
             </div>
           </div>
@@ -385,6 +465,43 @@
                 reverse-fill-mask
                 :disable="formDialog.data.currency == null"
               ></q-input>
+            </div>
+          </div>
+          <q-toggle
+            v-model="primaryTicketWave().use_ticket_image"
+            label="Use ticket image"
+            left-label
+          ></q-toggle>
+          <div
+            v-if="primaryTicketWave().use_ticket_image"
+            class="row items-center q-col-gutter-sm q-mb-sm"
+          >
+            <div class="col-auto">
+              <q-btn
+                unelevated
+                color="primary"
+                type="a"
+                :href="templateDownloadUrl()"
+                download="ticket.jpg"
+              >
+                Download template
+                <q-tooltip>400/733 jpg</q-tooltip>
+              </q-btn>
+            </div>
+            <div class="col-auto">
+              <q-btn
+                outline
+                color="primary"
+                :loading="isUploadingTicketTemplate"
+                @click="triggerTicketImageUpload('primary')"
+                >Replace</q-btn
+              >
+            </div>
+            <div
+              v-if="primaryTicketWave().ticket_image_id"
+              class="col-12 text-caption"
+            >
+              Custom ticket template uploaded.
             </div>
           </div>
           <q-toggle
@@ -441,111 +558,49 @@
               </div>
             </div>
             <q-separator class="q-my-md"></q-separator>
-            <div class="text-subtitle1 q-mb-md">Promo Codes</div>
-            <div class="text-caption">
-              Allow users to enter a promo code for discounts.
-            </div>
-
-            <div
-              v-for="(code, index) in formDialog.data.extra.promo_codes"
-              :key="index"
-              class="row q-col-gutter-sm q-mt-md"
-            >
-              <q-input
-                class="col-8"
-                filled
-                dense
-                v-model.trim="formDialog.data.extra.promo_codes[index].code"
-                type="text"
-                label="Promo Code"
-              >
-                <template v-slot:before>
-                  <q-checkbox
-                    left-label
-                    v-model="formDialog.data.extra.promo_codes[index].active"
-                    checked-icon="radio_button_checked"
-                    unchecked-icon="radio_button_unchecked"
-                  ></q-checkbox>
-                  <q-tooltip>
-                    <span
-                      v-text="
-                        formDialog.data.extra.promo_codes[index].active
-                          ? 'Active'
-                          : 'Inactive'
-                      "
-                    ></span>
-                  </q-tooltip>
-                </template>
-              </q-input>
-              <q-input
-                class="col-4"
-                filled
-                dense
-                v-model.number="
-                  formDialog.data.extra.promo_codes[index].discount_percent
-                "
-                type="number"
-                label="Discount (%)"
-                min="0"
-                max="100"
-              >
-                <template v-slot:after>
-                  <q-btn
-                    round
-                    dense
-                    flat
-                    icon="delete"
-                    @click="formDialog.data.extra.promo_codes.splice(index, 1)"
-                  ></q-btn>
-                </template>
-              </q-input>
-            </div>
-            <div class="col-12 q-mt-md">
-              <q-btn
-                @click="
-                  formDialog.data.extra.promo_codes.push({
-                    code: '',
-                    discount_percent: 0,
-                    active: true
-                  })
-                "
-                >Add Promo Code</q-btn
-              >
-            </div>
-            <q-separator class="q-my-md"></q-separator>
             <div class="text-subtitle1 q-mb-md">Ticket Delivery</div>
             <div class="text-caption">
               Send the paid ticket link automatically by email or Nostr DM.
             </div>
-            <q-toggle
-              v-model="formDialog.data.extra.email_notifications"
-              label="Email notifications"
-              left-label
-            ></q-toggle>
-            <q-toggle
-              v-model="formDialog.data.extra.nostr_notifications"
-              label="Nostr notifications"
-              left-label
-            ></q-toggle>
+            <div class="row items-center q-col-gutter-md">
+              <div class="col-auto">
+                <q-toggle
+                  v-model="formDialog.data.extra.email_notifications"
+                  label="Email notifications"
+                  left-label
+                ></q-toggle>
+              </div>
+              <div class="col-auto">
+                <q-toggle
+                  v-model="formDialog.data.extra.nostr_notifications"
+                  label="Nostr notifications"
+                  left-label
+                ></q-toggle>
+              </div>
+            </div>
+            <div
+              v-if="formDialog.data.extra.email_notifications"
+              class="q-mt-md"
+            >
+              <q-input
+                filled
+                dense
+                v-model.trim="formDialog.data.extra.notification_subject"
+                type="text"
+                label="Ticket notification subject"
+                hint="Used as the email subject when sending paid ticket links."
+              ></q-input>
+              <q-input
+                class="q-mt-md"
+                filled
+                dense
+                v-model.trim="formDialog.data.extra.notification_body"
+                type="textarea"
+                label="Ticket notification body"
+                hint="Shown before the ticket link in the paid ticket notification."
+              ></q-input>
+            </div>
           </q-expansion-item>
-
-          <q-separator class="q-my-md"></q-separator>
-          <q-input
-            filled
-            dense
-            v-model.trim="formDialog.data.extra.notification_subject"
-            type="text"
-            label="Ticket notification subject"
-            hint="Used as the email subject when sending paid ticket links."
-          ></q-input>
-          <q-input
-            filled
-            dense
-            v-model.trim="formDialog.data.extra.notification_body"
-            type="textarea"
-            label="Ticket notification body"
-            hint="Shown before the ticket link in the paid ticket notification."
-          ></q-input>
 
           <div class="row q-mt-lg">
             <q-btn
@@ -564,6 +619,8 @@
                 formDialog.data.name == null ||
                 formDialog.data.info == null ||
                 formDialog.data.closing_date == null ||
+                primaryTicketWave().title == null ||
+                primaryTicketWave().opening_date == null ||
                 formDialog.data.event_start_date == null ||
                 formDialog.data.event_end_date == null ||
                 formDialog.data.amount_tickets == null ||
@@ -579,5 +636,252 @@
         </q-form>
       </q-card>
     </q-dialog>
+
+    <q-dialog v-model="promoCodesDialog.show" position="top">
+      <q-card class="q-pa-lg q-pt-xl lnbits__dialog-card">
+        <q-form @submit="savePromoCodes" class="q-gutter-md">
+          <div class="text-subtitle1">Promo Codes</div>
+          <div class="text-caption">
+            Allow users to enter a promo code for discounts.
+          </div>
+
+          <div
+            v-for="(code, index) in promoCodesDialog.data.extra.promo_codes"
+            :key="index"
+            class="row q-col-gutter-sm q-mt-md"
+          >
+            <q-input
+              class="col-8"
+              filled
+              dense
+              v-model.trim="promoCodesDialog.data.extra.promo_codes[index].code"
+              type="text"
+              label="Promo Code"
+            >
+              <template v-slot:before>
+                <q-checkbox
+                  left-label
+                  v-model="
+                    promoCodesDialog.data.extra.promo_codes[index].active
+                  "
+                  checked-icon="radio_button_checked"
+                  unchecked-icon="radio_button_unchecked"
+                ></q-checkbox>
+                <q-tooltip>
+                  <span
+                    v-text="
+                      promoCodesDialog.data.extra.promo_codes[index].active
+                        ? 'Active'
+                        : 'Inactive'
+                    "
+                  ></span>
+                </q-tooltip>
+              </template>
+            </q-input>
+            <q-input
+              class="col-4"
+              filled
+              dense
+              v-model.number="
+                promoCodesDialog.data.extra.promo_codes[index].discount_percent
+              "
+              type="number"
+              label="Discount (%)"
+              min="0"
+              max="100"
+            >
+              <template v-slot:after>
+                <q-btn
+                  round
+                  dense
+                  flat
+                  icon="delete"
+                  @click="
+                    promoCodesDialog.data.extra.promo_codes.splice(index, 1)
+                  "
+                ></q-btn>
+              </template>
+            </q-input>
+          </div>
+
+          <div class="col-12 q-mt-md">
+            <q-btn @click="addPromoCodeToDialog">Add Promo Code</q-btn>
+          </div>
+
+          <div class="row q-mt-lg">
+            <q-btn unelevated color="primary" type="submit"
+              >Save Promo Codes</q-btn
+            >
+            <q-btn
+              flat
+              color="grey"
+              class="q-ml-auto"
+              @click="resetPromoCodesDialog"
+              >Cancel</q-btn
+            >
+          </div>
+        </q-form>
+      </q-card>
+    </q-dialog>
+
+    <q-dialog v-model="ticketWaveDialog.show" position="top">
+      <q-card class="q-pa-lg q-pt-xl lnbits__dialog-card">
+        <q-form @submit="saveTicketWave" class="q-gutter-md">
+          <div
+            class="text-subtitle1"
+            v-text="
+              ticketWaveDialog.editingWaveId
+                ? 'Edit Ticket Wave'
+                : 'Add Ticket Wave'
+            "
+          ></div>
+          <div class="row q-col-gutter-sm">
+            <div class="col-12 col-md-4">
+              <q-input
+                filled
+                dense
+                v-model.trim="ticketWaveDialog.data.title"
+                type="text"
+                label="Wave title"
+              ></q-input>
+            </div>
+            <div class="col-12 col-md-4">
+              <q-input
+                filled
+                dense
+                v-model.trim="ticketWaveDialog.data.opening_date"
+                type="date"
+                label="Ticket opening date"
+              ></q-input>
+            </div>
+            <div class="col-12 col-md-4">
+              <q-input
+                filled
+                dense
+                v-model.trim="ticketWaveDialog.data.closing_date"
+                type="date"
+                label="Ticket closing date"
+              ></q-input>
+            </div>
+          </div>
+          <div class="row q-col-gutter-sm">
+            <div class="col">
+              <q-select
+                filled
+                dense
+                v-model="ticketWaveDialog.data.currency"
+                type="text"
+                label="Unit"
+                :options="currencies"
+              ></q-select>
+            </div>
+            <div class="col">
+              <q-input
+                filled
+                dense
+                v-model.number="ticketWaveDialog.data.amount_tickets"
+                type="number"
+                label="Amount of tickets"
+              ></q-input>
+            </div>
+            <div class="col">
+              <q-input
+                filled
+                dense
+                v-model.number="ticketWaveDialog.data.price_per_ticket"
+                type="number"
+                :label="'Price (' + ticketWaveDialog.data.currency + ') *'"
+                :step="ticketWaveDialog.data.currency != 'sats' ? '0.01' : '1'"
+                :mask="ticketWaveDialog.data.currency != 'sats' ? '#.##' : '#'"
+                fill-mask="0"
+                reverse-fill-mask
+                :disable="ticketWaveDialog.data.currency == null"
+              ></q-input>
+            </div>
+          </div>
+          <q-toggle
+            v-model="ticketWaveDialog.data.use_ticket_image"
+            label="Use ticket image"
+            left-label
+          ></q-toggle>
+          <div
+            v-if="ticketWaveDialog.data.use_ticket_image"
+            class="row items-center q-col-gutter-sm q-mb-sm"
+          >
+            <div class="col-auto">
+              <q-btn
+                unelevated
+                color="primary"
+                type="a"
+                :href="templateDownloadUrl()"
+                download="ticket.jpg"
+              >
+                Download template
+                <q-tooltip>400/733 jpg</q-tooltip>
+              </q-btn>
+            </div>
+            <div class="col-auto">
+              <q-btn
+                outline
+                color="primary"
+                :loading="isUploadingTicketTemplate"
+                @click="triggerTicketImageUpload('dialog')"
+                >Replace</q-btn
+              >
+            </div>
+            <div
+              v-if="ticketWaveDialog.data.ticket_image_id"
+              class="col-12 text-caption"
+            >
+              Custom ticket template uploaded.
+            </div>
+          </div>
+          <q-toggle
+            v-model="ticketWaveDialog.data.allow_fiat"
+            label="Allow fiat checkout"
+            left-label
+            hint="Lets attendees pay through a configured fiat provider using this wave currency."
+          ></q-toggle>
+          <q-select
+            v-if="
+              ticketWaveDialog.data.allow_fiat &&
+              ['sat', 'sats'].includes(
+                (ticketWaveDialog.data.currency || '').toLowerCase()
+              )
+            "
+            filled
+            dense
+            v-model="ticketWaveDialog.data.fiat_currency"
+            label="Fiat checkout currency"
+            :options="
+              currencies.filter(
+                c => !['sat', 'sats'].includes((c || '').toLowerCase())
+              )
+            "
+          ></q-select>
+          <div class="row q-mt-lg">
+            <q-btn unelevated color="primary" type="submit">{{
+              ticketWaveDialog.editingWaveId
+                ? 'Update Ticket Wave'
+                : 'Save Ticket Wave'
+            }}</q-btn>
+            <q-btn
+              flat
+              color="grey"
+              class="q-ml-auto"
+              @click="resetTicketWaveDialog"
+              >Cancel</q-btn
+            >
+          </div>
+        </q-form>
+      </q-card>
+    </q-dialog>
+    <input
+      ref="ticketImageUpload"
+      type="file"
+      accept="image/png,image/jpeg,image/webp"
+      style="display: none"
+      @change="handleTicketImageSelected"
+    />
   </div>
 </template>

@@ -1,8 +1,11 @@
 import asyncio
 from datetime import datetime, timezone
 from http import HTTPStatus
+from io import BytesIO
+from pathlib import Path
 from typing import Any
 
+import pyqrcode  # type: ignore[import-untyped]
 from fastapi import (
     APIRouter,
     Depends,
@@ -12,22 +15,27 @@ from fastapi import (
     WebSocket,
     WebSocketDisconnect,
 )
+from fastapi.responses import StreamingResponse
 from lnbits.core.crud import get_user
+from lnbits.core.crud.assets import get_public_asset
 from lnbits.core.crud.wallets import get_wallet
 from lnbits.core.models import WalletTypeInfo
 from lnbits.core.models.payments import CreateInvoice
 from lnbits.core.services import create_payment_request
+from lnbits.db import Filters, Page
 from lnbits.decorators import (
+    parse_filters,
     require_admin_key,
     require_invoice_key,
 )
+from lnbits.helpers import generate_filter_params_openapi
 from lnbits.settings import settings
 from lnbits.utils.exchange_rates import (
     fiat_amount_as_satoshis,
     get_fiat_rate_satoshis,
     satoshis_amount_as_fiat,
 )
-from lnbits.utils.nostr import normalize_public_key
+from PIL import Image, ImageDraw
 
 from .crud import (
     create_event,
@@ -39,6 +47,7 @@ from .crud import (
     get_events,
     get_ticket,
     get_tickets,
+    get_tickets_paginated,
     purge_unpaid_tickets,
     update_event,
     update_ticket,
@@ -50,17 +59,51 @@ from .models import (
     PublicEvent,
     PublicTicket,
     Ticket,
+    TicketFilters,
     TicketPaymentRequest,
+    TicketResendResult,
+    ensure_ticket_waves,
+    get_active_ticket_waves,
 )
 from .services import refund_tickets, resend_ticket_email_notification
 from .tasks import deregister_payment_listener, register_payment_listener
 
 events_api_router = APIRouter(prefix="/api/v1/events")
 tickets_api_router = APIRouter(prefix="/api/v1/tickets")
+qr_api_router = APIRouter(prefix="/api/v1")
+tickets_filters = parse_filters(TicketFilters)
 
 
 def _is_fiat_currency(currency: str | None) -> bool:
     return str(currency or "").lower() not in {"sat", "sats"}
+
+
+def make_qr_png(data: str, size: int = 235, border: int = 4) -> Image.Image:
+    qr = pyqrcode.create(data)
+    matrix = qr.code
+    modules = len(matrix)
+
+    total_modules = modules + border * 2
+    box_size = max(1, size // total_modules)
+    img_size = total_modules * box_size
+
+    img = Image.new("RGBA", (img_size, img_size), "white")
+    draw = ImageDraw.Draw(img)
+
+    for y, row in enumerate(matrix):
+        for x, cell in enumerate(row):
+            if cell:
+                x0 = (x + border) * box_size
+                y0 = (y + border) * box_size
+                draw.rectangle(
+                    [x0, y0, x0 + box_size - 1, y0 + box_size - 1],
+                    fill="black",
+                )
+
+    if img_size != size:
+        img = img.resize((size, size), Image.Resampling.NEAREST)
+
+    return img
 
 
 @events_api_router.get("")
@@ -86,24 +129,29 @@ async def api_get_event(event_id: str) -> Event:
         )
     await purge_unpaid_tickets(event_id)
 
-    is_window_open = datetime.now(timezone.utc) < datetime.strptime(
-        event.closing_date, "%Y-%m-%d"
-    ).replace(tzinfo=timezone.utc)
+    today = datetime.now(timezone.utc).date()
+    active_waves = get_active_ticket_waves(event, today)
+    is_sales_closed = today > datetime.strptime(event.closing_date, "%Y-%m-%d").date()
     is_min_tickets_met = (
         event.sold >= event.extra.min_tickets if event.extra.conditional else True
     )
     if event.amount_tickets < 1:
         raise HTTPException(status_code=HTTPStatus.GONE, detail="Event is sold out.")
-    if event.extra.conditional and not is_min_tickets_met and not is_window_open:
+    if event.extra.conditional and not is_min_tickets_met and is_sales_closed:
         event.canceled = True
         await update_event(event)
         await refund_tickets(event_id)
 
         raise HTTPException(status_code=HTTPStatus.GONE, detail="Event canceled.")
 
-    if not is_window_open:
+    if not active_waves:
         raise HTTPException(
-            status_code=HTTPStatus.GONE, detail="Ticket closing date has passed."
+            status_code=HTTPStatus.GONE,
+            detail=(
+                "Ticket closing date has passed."
+                if is_sales_closed
+                else "No ticket wave is currently open."
+            ),
         )
 
     return event
@@ -127,8 +175,17 @@ async def api_event_create(
             raise HTTPException(
                 status_code=HTTPStatus.FORBIDDEN, detail="Not your event."
             )
-        for k, v in data.dict().items():
-            setattr(event, k, v)
+        event = Event(
+            **{
+                **event.dict(),
+                **data.dict(),
+                "id": event.id,
+                "wallet": event.wallet,
+                "time": event.time,
+                "sold": event.sold,
+                "canceled": event.canceled,
+            }
+        )
         event = await update_event(event)
     else:
         event = await create_event(data)
@@ -187,6 +244,31 @@ async def api_tickets(
     return await get_tickets(wallet_ids)
 
 
+@tickets_api_router.get(
+    "/paginated",
+    summary="Get paginated list of tickets",
+    openapi_extra=generate_filter_params_openapi(TicketFilters),
+    response_model=Page[Ticket],
+)
+async def api_tickets_paginated(
+    all_wallets: bool = Query(False),
+    filters: Filters = Depends(tickets_filters),
+    key_info: WalletTypeInfo = Depends(require_admin_key),
+) -> Page[Ticket]:
+    wallet_ids = [key_info.wallet.id]
+
+    if all_wallets:
+        user = await get_user(key_info.wallet.user)
+        wallet_ids = user.wallet_ids if user else []
+
+    if not filters.sortby:
+        filters.sortby = "time"
+    if not filters.direction:
+        filters.direction = "desc"
+
+    return await get_tickets_paginated(wallet_ids, filters)
+
+
 @tickets_api_router.get("/{ticket_id}", response_model=PublicTicket)
 async def api_get_ticket(ticket_id: str) -> Ticket:
     ticket = await get_ticket(ticket_id)
@@ -202,6 +284,71 @@ async def api_get_ticket(ticket_id: str) -> Ticket:
     return ticket
 
 
+@qr_api_router.get("/qr/{ticket_id}", response_class=StreamingResponse)
+async def api_ticket_qr(ticket_id: str):
+    ticket = await get_ticket(ticket_id)
+    if not ticket:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail="Ticket does not exist."
+        )
+
+    event = await get_event(ticket.event)
+    if not event:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail="Event does not exist."
+        )
+
+    waves = ensure_ticket_waves(event)
+    wave = next(
+        (wave for wave in waves if wave.id == ticket.extra.ticket_wave_id),
+        waves[0],
+    )
+
+    qr_img = make_qr_png(f"ticket://{ticket_id}", size=157)
+    output = BytesIO()
+
+    if not wave.use_ticket_image:
+        qr_img.save(output, format="PNG")
+        output.seek(0)
+        return StreamingResponse(
+            output,
+            media_type="image/png",
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0",
+            },
+        )
+
+    background_bytes = None
+    if wave.ticket_image_id:
+        asset = await get_public_asset(wave.ticket_image_id)
+        if asset:
+            background_bytes = asset.data
+
+    if background_bytes:
+        ticket_image = Image.open(BytesIO(background_bytes)).convert("RGBA")
+    else:
+        default_template = (
+            Path(__file__).resolve().parent / "static" / "image" / "ticket.jpg"
+        )
+        ticket_image = Image.open(default_template).convert("RGBA")
+
+    ticket_image.paste(qr_img, (122, 505))
+    ticket_image.save(output, format="PNG")
+    output.seek(0)
+
+    return StreamingResponse(
+        output,
+        media_type="image/png",
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
+    )
+
+
 @tickets_api_router.post("/{event_id}")
 async def api_ticket_create(
     event_id: str, data: CreateTicket, request: Request
@@ -215,7 +362,7 @@ async def api_ticket_create(
     if event.canceled:
         raise HTTPException(status_code=HTTPStatus.GONE, detail="Event is canceled.")
 
-    if event.amount_tickets > 0 and event.sold >= event.amount_tickets:
+    if event.amount_tickets < 1:
         raise HTTPException(status_code=HTTPStatus.GONE, detail="Event is sold out.")
 
     name = data.name
@@ -230,14 +377,36 @@ async def api_ticket_create(
             detail="Unsupported payment method.",
         )
     if nostr_identifier and "@" not in nostr_identifier:
-        try:
-            nostr_identifier = normalize_public_key(nostr_identifier)
-        except Exception as exc:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail="Only NIP-05 Nostr identifiers are supported.",
+        )
+    active_waves = get_active_ticket_waves(event)
+    if not active_waves:
+        raise HTTPException(
+            status_code=HTTPStatus.GONE, detail="No ticket wave is currently open."
+        )
+
+    selected_wave = None
+    if data.ticket_wave_id:
+        selected_wave = next(
+            (wave for wave in active_waves if wave.id == data.ticket_wave_id),
+            None,
+        )
+        if not selected_wave:
             raise HTTPException(
                 status_code=HTTPStatus.BAD_REQUEST,
-                detail="Invalid Nostr identifier.",
-            ) from exc
-    price = event.price_per_ticket
+                detail="Invalid ticket wave selected.",
+            )
+    elif len(active_waves) == 1:
+        selected_wave = active_waves[0]
+    else:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail="Please select a ticket wave.",
+        )
+
+    price = selected_wave.price_per_ticket
     extra: dict[str, Any] = {"tag": "events", "name": name, "email": email}
 
     if promo_code:
@@ -249,31 +418,31 @@ async def api_ticket_create(
         # get the promocode
         promo = next(pc for pc in event.extra.promo_codes if pc.code == promo_code)
         extra["promo_code"] = promo.code
-        price = event.price_per_ticket * (1 - promo.discount_percent / 100)
+        price = selected_wave.price_per_ticket * (1 - promo.discount_percent / 100)
 
-    if payment_method == "fiat" and not event.allow_fiat:
+    if payment_method == "fiat" and not selected_wave.allow_fiat:
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST,
             detail="Fiat payments are not enabled for this event.",
         )
 
-    if _is_fiat_currency(event.currency):
+    if _is_fiat_currency(selected_wave.currency):
         extra["fiat"] = True
-        extra["currency"] = event.currency
+        extra["currency"] = selected_wave.currency
         extra["fiatAmount"] = price
-        extra["rate"] = await get_fiat_rate_satoshis(event.currency)
+        extra["rate"] = await get_fiat_rate_satoshis(selected_wave.currency)
 
         if payment_method != "fiat":
-            price = await fiat_amount_as_satoshis(price, event.currency)
+            price = await fiat_amount_as_satoshis(price, selected_wave.currency)
 
-    invoice_unit = event.currency
+    invoice_unit = selected_wave.currency
     fiat_amount = price
     fiat_provider = None
     if payment_method == "fiat":
-        if _is_fiat_currency(event.currency):
-            invoice_unit = event.currency
+        if _is_fiat_currency(selected_wave.currency):
+            invoice_unit = selected_wave.currency
         else:
-            invoice_unit = event.fiat_currency
+            invoice_unit = selected_wave.fiat_currency
             fiat_amount = await satoshis_amount_as_fiat(price, invoice_unit)
             extra["fiat"] = True
             extra["currency"] = invoice_unit
@@ -314,6 +483,8 @@ async def api_ticket_create(
         email=email,
         extra={
             "applied_promo_code": promo_code,
+            "ticket_wave_id": selected_wave.id,
+            "ticket_wave_title": selected_wave.title,
             "refund_address": refund_address,
             "nostr_identifier": nostr_identifier,
             "ticket_base_url": str(request.base_url).rstrip("/"),
@@ -388,10 +559,12 @@ async def api_ticket_delete(
     await delete_ticket(ticket_id)
 
 
-@tickets_api_router.post("/{ticket_id}/resend-email")
+@tickets_api_router.post("/{ticket_id}/resend-email", response_model=TicketResendResult)
 async def api_ticket_resend_email(
-    ticket_id: str, wallet: WalletTypeInfo = Depends(require_admin_key)
-) -> Ticket:
+    ticket_id: str,
+    request: Request,
+    wallet: WalletTypeInfo = Depends(require_admin_key),
+) -> TicketResendResult:
     ticket = await get_ticket(ticket_id)
     if not ticket:
         raise HTTPException(
@@ -408,15 +581,12 @@ async def api_ticket_resend_email(
         )
 
     try:
-        return await resend_ticket_email_notification(ticket)
+        return await resend_ticket_email_notification(
+            ticket, str(request.base_url).rstrip("/")
+        )
     except ValueError as exc:
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST, detail=str(exc)
-        ) from exc
-    except Exception as exc:
-        raise HTTPException(
-            status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
-            detail="Failed to resend ticket email.",
         ) from exc
 
 
