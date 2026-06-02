@@ -638,7 +638,7 @@
                 label="Watchonly wallet"
                 :options="onchainWallets"
                 option-value="id"
-                option-label="name"
+                option-label="title"
                 emit-value
                 map-options
                 hint="Bitcoin watchonly wallet for receiving onchain payments"

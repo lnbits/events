@@ -134,7 +134,7 @@
 
     <q-dialog v-model="receive.show" position="top" @hide="closeReceiveDialog">
       <q-card
-        v-if="!receive.paymentReq"
+        v-if="!receive.paymentReq && !receive.isOnchain"
         class="q-pa-lg q-pt-xl lnbits__dialog-card"
       >
       </q-card>
