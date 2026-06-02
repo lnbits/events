@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from http import HTTPStatus
 from io import BytesIO
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import pyqrcode  # type: ignore[import-untyped]
 from fastapi import (
@@ -19,10 +19,9 @@ from fastapi.responses import StreamingResponse
 from lnbits.core.crud import get_standalone_payment, get_user
 from lnbits.core.crud.assets import get_public_asset
 from lnbits.core.crud.wallets import get_wallet
-from lnbits.core.models import Payment, WalletTypeInfo
+from lnbits.core.models import WalletTypeInfo
 from lnbits.core.models.payments import CreateInvoice
 from lnbits.core.services import create_payment_request
-from lnbits.tasks import internal_invoice_queue_put
 from lnbits.db import Filters, Page
 from lnbits.decorators import (
     parse_filters,
@@ -31,6 +30,7 @@ from lnbits.decorators import (
 )
 from lnbits.helpers import generate_filter_params_openapi
 from lnbits.settings import settings
+from lnbits.tasks import internal_invoice_queue_put
 from lnbits.utils.exchange_rates import (
     fiat_amount_as_satoshis,
     get_fiat_rate_satoshis,
@@ -577,7 +577,7 @@ async def api_ticket_create(
             wallet_id=event.wallet,
             invoice_data=CreateInvoice(
                 out=False,
-                amount=onchain_amount_sat,
+                amount=float(onchain_amount_sat or 0),
                 unit="sat",
                 internal=True,
                 labels=["onchain"],
@@ -610,7 +610,9 @@ async def api_ticket_create(
             "refund_address": refund_address,
             "nostr_identifier": nostr_identifier,
             "ticket_base_url": str(request.base_url).rstrip("/"),
-            "sats_paid": onchain_amount_sat if payment_method == "onchain" else payment.sat,
+            "sats_paid": (
+                onchain_amount_sat if payment_method == "onchain" else payment.sat
+            ),
             "onchain": payment_method == "onchain",
         },
     )
@@ -711,7 +713,7 @@ async def api_ticket_onchain_confirm(
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND, detail="Payment does not exist."
         )
-    await internal_invoice_queue_put(cast(Payment, payment))
+    await internal_invoice_queue_put(payment_hash)
     return ticket
 
 

@@ -621,7 +621,8 @@
           >
             <div class="q-mt-lg">
               <div class="text-caption q-mb-md">
-                Accept Bitcoin onchain payments. Requires the Watchonly extension.
+                Accept Bitcoin onchain payments. Requires the Watchonly
+                extension.
               </div>
               <q-toggle
                 v-model="formDialog.data.extra.onchain_enabled"
@@ -636,9 +637,12 @@
                 class="q-mt-md"
                 v-model="formDialog.data.extra.onchain_wallet_id"
                 label="Watchonly wallet"
-                :options="onchainWallets"
-                option-value="id"
-                option-label="title"
+                :options="
+                  onchainWallets.map(w => ({
+                    label: w.title || w.id,
+                    value: w.id
+                  }))
+                "
                 emit-value
                 map-options
                 hint="Bitcoin watchonly wallet for receiving onchain payments"

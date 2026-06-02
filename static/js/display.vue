@@ -87,7 +87,11 @@
                   :options="paymentMethodOptions"
                 ></q-option-group>
               </div>
-              <div :class="showPaymentMethodSelector ? 'col-12 col-md-3' : 'col-12'">
+              <div
+                :class="
+                  showPaymentMethodSelector ? 'col-12 col-md-3' : 'col-12'
+                "
+              >
                 <q-input
                   filled
                   dense
@@ -169,7 +173,10 @@
           <q-btn v-close-popup flat color="grey" class="q-ml-auto">Close</q-btn>
         </div>
       </q-card>
-      <q-card v-else-if="receive.isOnchain" class="q-pa-lg q-pt-xl lnbits__dialog-card">
+      <q-card
+        v-else-if="receive.isOnchain"
+        class="q-pa-lg q-pt-xl lnbits__dialog-card"
+      >
         <div class="text-center q-mb-lg">
           <div class="text-h6 q-mb-sm">Pay with Bitcoin</div>
           <lnbits-qrcode
@@ -177,9 +184,17 @@
             :value="onchainPaymentUri.toUpperCase()"
           ></lnbits-qrcode>
           <div class="text-body1 q-mt-md">
-            <strong>{{ (receive.onchainAmountSat / 100000000).toFixed(8) }} BTC</strong>
+            <strong
+              >{{
+                (receive.onchainAmountSat / 100000000).toFixed(8)
+              }}
+              BTC</strong
+            >
           </div>
-          <div class="text-caption text-grey q-mt-xs" style="word-break: break-all">
+          <div
+            class="text-caption text-grey q-mt-xs"
+            style="word-break: break-all"
+          >
             {{ receive.onchainAddress }}
           </div>
         </div>

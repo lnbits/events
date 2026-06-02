@@ -106,7 +106,8 @@ window.PageEventsDisplay = {
       return `bitcoin:${this.receive.onchainAddress}?amount=${btc}`
     },
     mempoolAddressUrl() {
-      if (!this.receive.onchainAddress || !this.receive.mempoolEndpoint) return null
+      if (!this.receive.onchainAddress || !this.receive.mempoolEndpoint)
+        return null
       return `${this.receive.mempoolEndpoint}/address/${this.receive.onchainAddress}`
     }
   },
