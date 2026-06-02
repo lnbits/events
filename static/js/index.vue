@@ -265,6 +265,18 @@
                   >
                     <q-tooltip>Resend ticket email</q-tooltip>
                   </q-btn>
+                  <q-btn
+                    v-if="props.row.extra?.onchain && !props.row.paid"
+                    flat
+                    dense
+                    size="xs"
+                    @click="confirmOnchainTicket(props.row)"
+                    icon="currency_bitcoin"
+                    color="orange"
+                    class="q-ml-xs"
+                  >
+                    <q-tooltip>Confirm onchain payment</q-tooltip>
+                  </q-btn>
                 </q-td>
 
                 <q-td v-for="col in props.cols" :key="col.name" :props="props">
@@ -599,6 +611,38 @@
                 label="Ticket notification body"
                 hint="Shown before the ticket link in the paid ticket notification."
               ></q-input>
+            </div>
+          </q-expansion-item>
+
+          <q-expansion-item
+            group="advanced"
+            icon="currency_bitcoin"
+            label="Onchain payments"
+          >
+            <div class="q-mt-lg">
+              <div class="text-caption q-mb-md">
+                Accept Bitcoin onchain payments. Requires the Watchonly extension.
+              </div>
+              <q-toggle
+                v-model="formDialog.data.extra.onchain_enabled"
+                label="Accept onchain payments"
+                left-label
+                @update:model-value="val => val && loadOnchainWallets()"
+              ></q-toggle>
+              <q-select
+                v-if="formDialog.data.extra.onchain_enabled"
+                filled
+                dense
+                class="q-mt-md"
+                v-model="formDialog.data.extra.onchain_wallet_id"
+                label="Watchonly wallet"
+                :options="onchainWallets"
+                option-value="id"
+                option-label="name"
+                emit-value
+                map-options
+                hint="Bitcoin watchonly wallet for receiving onchain payments"
+              ></q-select>
             </div>
           </q-expansion-item>
 

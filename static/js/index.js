@@ -128,13 +128,50 @@ window.PageEvents = {
             promo_codes: []
           }
         }
-      }
+      },
+      onchainWallets: []
     }
   },
   methods: {
     shortenId(value) {
       if (!value) return ''
       return value.length > 4 ? `${value.slice(0, 4)}...` : value
+    },
+    async loadOnchainWallets() {
+      const wallet = _.findWhere(this.g.user.wallets, {
+        id: this.formDialog.data.wallet
+      })
+      if (!wallet) return
+      try {
+        const {data} = await LNbits.api.request(
+          'GET',
+          '/events/api/v1/events/onchain/status',
+          wallet.adminkey
+        )
+        this.onchainWallets = data.available ? data.wallets || [] : []
+      } catch {
+        this.onchainWallets = []
+      }
+    },
+    async confirmOnchainTicket(ticket) {
+      const wallet = _.findWhere(this.g.user.wallets, {id: ticket.wallet})
+      if (!wallet) return
+      try {
+        await LNbits.api.request(
+          'PUT',
+          `/events/api/v1/tickets/${ticket.id}/onchain-confirm`,
+          wallet.adminkey
+        )
+        Quasar.Notify.create({
+          type: 'positive',
+          message: 'Onchain payment confirmed.',
+          icon: null
+        })
+        await this.getTickets()
+        await this.getAllTickets()
+      } catch (error) {
+        LNbits.utils.notifyApiError(error)
+      }
     },
     primaryTicketWave(data = this.formDialog.data) {
       if (!data.extra) data.extra = {}
@@ -403,6 +440,8 @@ window.PageEvents = {
             min_tickets: 1,
             email_notifications: false,
             nostr_notifications: false,
+            onchain_enabled: false,
+            onchain_wallet_id: null,
             ticket_waves: [
               {
                 id: 'primary',
@@ -425,6 +464,12 @@ window.PageEvents = {
         }
       }
       this.formDialog.show = true
+      if (
+        this.formDialog.data.wallet &&
+        this.formDialog.data.extra?.onchain_enabled
+      ) {
+        this.loadOnchainWallets()
+      }
     },
     resetEventDialog() {
       this.formDialog.show = false
@@ -437,6 +482,8 @@ window.PageEvents = {
           min_tickets: 1,
           email_notifications: false,
           nostr_notifications: false,
+          onchain_enabled: false,
+          onchain_wallet_id: null,
           ticket_waves: [
             {
               id: 'primary',
