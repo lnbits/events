@@ -27,7 +27,11 @@ window.PageEventsDisplay = {
         show: false,
         status: 'pending',
         paymentReq: null,
-        isFiat: false
+        isFiat: false,
+        isOnchain: false,
+        onchainAddress: null,
+        onchainAmountSat: 0,
+        mempoolEndpoint: null
       },
       paymentDismissMsg: null,
       paymentWebsocket: null
@@ -79,6 +83,32 @@ window.PageEventsDisplay = {
     },
     allowNostrNotifications() {
       return Boolean(this.event?.extra?.nostr_notifications)
+    },
+    allowOnchain() {
+      return Boolean(this.event?.extra?.onchain_enabled)
+    },
+    showPaymentMethodSelector() {
+      return this.allowFiatCheckout || this.allowOnchain
+    },
+    paymentMethodOptions() {
+      const options = [{label: 'Lightning', value: 'lightning'}]
+      if (this.allowFiatCheckout) {
+        options.push({label: this.fiatCheckoutLabel, value: 'fiat'})
+      }
+      if (this.allowOnchain) {
+        options.push({label: 'Bitcoin', value: 'onchain'})
+      }
+      return options
+    },
+    onchainPaymentUri() {
+      if (!this.receive.onchainAddress) return ''
+      const btc = (this.receive.onchainAmountSat / 100000000).toFixed(8)
+      return `bitcoin:${this.receive.onchainAddress}?amount=${btc}`
+    },
+    mempoolAddressUrl() {
+      if (!this.receive.onchainAddress || !this.receive.mempoolEndpoint)
+        return null
+      return `${this.receive.mempoolEndpoint}/address/${this.receive.onchainAddress}`
     }
   },
   methods: {
@@ -131,7 +161,11 @@ window.PageEventsDisplay = {
         show: false,
         status: 'pending',
         paymentReq: null,
-        isFiat: false
+        isFiat: false,
+        isOnchain: false,
+        onchainAddress: null,
+        onchainAmountSat: 0,
+        mempoolEndpoint: null
       }
     },
     nameValidation(val) {
@@ -169,7 +203,11 @@ window.PageEventsDisplay = {
         show: false,
         status: 'complete',
         paymentReq: null,
-        isFiat: false
+        isFiat: false,
+        isOnchain: false,
+        onchainAddress: null,
+        onchainAmountSat: 0,
+        mempoolEndpoint: null
       }
       this.ticketLink = {
         show: true,
@@ -192,15 +230,18 @@ window.PageEventsDisplay = {
             promo_code: this.formDialog.data.promo_code || null,
             refund_address: this.formDialog.data.refund || null,
             nostr_identifier: this.formDialog.data.nostr_identifier || null,
-            payment_method: this.allowFiatCheckout
+            payment_method: this.showPaymentMethodSelector
               ? this.formDialog.data.payment_method
               : 'lightning'
           }
         )
-        const isFiat = Boolean(data.is_fiat)
+        const isOnchain = Boolean(data.onchain_address)
+        const isFiat = !isOnchain && Boolean(data.is_fiat)
         this.paymentReq = isFiat
           ? data.fiat_payment_request || null
-          : data.payment_request
+          : isOnchain
+            ? null
+            : data.payment_request
         this.paymentHash = data.payment_hash
 
         this.paymentDismissMsg = Quasar.Notify.create({
@@ -211,7 +252,11 @@ window.PageEventsDisplay = {
           show: true,
           status: 'pending',
           paymentReq: this.paymentReq,
-          isFiat
+          isFiat,
+          isOnchain,
+          onchainAddress: data.onchain_address || null,
+          onchainAmountSat: data.onchain_amount_sat || 0,
+          mempoolEndpoint: data.onchain_mempool_endpoint || null
         }
         if (isFiat && this.paymentReq) {
           window.open(this.paymentReq, '_blank', 'noopener')

@@ -5,7 +5,9 @@ from asyncio.tasks import create_task
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from html import escape
+from typing import Any
 
+import httpx
 from lnbits.core.models.users import UserNotifications
 from lnbits.core.services.notifications import send_user_notification
 from lnbits.helpers import is_valid_email_address
@@ -27,6 +29,47 @@ from .models import (
     TicketResendResult,
     ensure_ticket_waves,
 )
+
+
+async def fetch_watchonly_config(api_key: str) -> dict[str, Any]:
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            url=f"http://{settings.host}:{settings.port}/watchonly/api/v1/config",
+            headers={"X-API-KEY": api_key},
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+
+async def fetch_watchonly_wallets(api_key: str, network: str) -> list[dict[str, Any]]:
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            url=f"http://{settings.host}:{settings.port}/watchonly/api/v1/wallet",
+            headers={"X-API-KEY": api_key},
+            params={"network": network},
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+
+async def fetch_watchonly_wallet(api_key: str, wallet_id: str) -> dict[str, Any]:
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            url=f"http://{settings.host}:{settings.port}/watchonly/api/v1/wallet/{wallet_id}",
+            headers={"X-API-KEY": api_key},
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+
+async def fetch_onchain_address(api_key: str, wallet_id: str) -> dict[str, Any]:
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            url=f"http://{settings.host}:{settings.port}/watchonly/api/v1/address/{wallet_id}",
+            headers={"X-API-KEY": api_key},
+        )
+        resp.raise_for_status()
+        return resp.json()
 
 
 async def set_ticket_paid(ticket: Ticket) -> Ticket:

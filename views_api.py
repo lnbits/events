@@ -16,7 +16,7 @@ from fastapi import (
     WebSocketDisconnect,
 )
 from fastapi.responses import StreamingResponse
-from lnbits.core.crud import get_user
+from lnbits.core.crud import get_standalone_payment, get_user
 from lnbits.core.crud.assets import get_public_asset
 from lnbits.core.crud.wallets import get_wallet
 from lnbits.core.models import WalletTypeInfo
@@ -30,6 +30,7 @@ from lnbits.decorators import (
 )
 from lnbits.helpers import generate_filter_params_openapi
 from lnbits.settings import settings
+from lnbits.tasks import internal_invoice_queue_put
 from lnbits.utils.exchange_rates import (
     fiat_amount_as_satoshis,
     get_fiat_rate_satoshis,
@@ -65,13 +66,90 @@ from .models import (
     ensure_ticket_waves,
     get_active_ticket_waves,
 )
-from .services import refund_tickets, resend_ticket_email_notification
+from .services import (
+    fetch_onchain_address,
+    fetch_watchonly_config,
+    fetch_watchonly_wallet,
+    fetch_watchonly_wallets,
+    refund_tickets,
+    resend_ticket_email_notification,
+)
 from .tasks import deregister_payment_listener, register_payment_listener
 
 events_api_router = APIRouter(prefix="/api/v1/events")
 tickets_api_router = APIRouter(prefix="/api/v1/tickets")
 qr_api_router = APIRouter(prefix="/api/v1")
 tickets_filters = parse_filters(TicketFilters)
+
+
+async def _get_watchonly_status(wallet) -> dict[str, Any]:
+    try:
+        config = await fetch_watchonly_config(wallet.inkey)
+        network = config.get("network")
+        if not network:
+            raise HTTPException(
+                status_code=HTTPStatus.BAD_REQUEST,
+                detail="Watchonly extension returned an invalid network.",
+            )
+        wallets = await fetch_watchonly_wallets(wallet.inkey, network)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        return {
+            "available": False,
+            "message": f"Watchonly extension is not reachable: {exc!s}",
+            "network": None,
+            "wallets": [],
+            "mempool_endpoint": None,
+        }
+    return {
+        "available": True,
+        "message": None,
+        "network": network,
+        "wallets": wallets,
+        "mempool_endpoint": config.get("mempool_endpoint"),
+    }
+
+
+async def _validate_watchonly_settings(
+    *,
+    wallet,
+    onchain_enabled: bool,
+    onchain_wallet_id: str | None,
+) -> dict[str, Any]:
+    if not onchain_enabled:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail="Onchain payments are not enabled for this event.",
+        )
+    if not onchain_wallet_id:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail="No watchonly wallet configured for onchain payments.",
+        )
+    status = await _get_watchonly_status(wallet)
+    if not status["available"]:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail=status["message"] or "Watchonly extension is not available.",
+        )
+    try:
+        watch_wallet = await fetch_watchonly_wallet(wallet.inkey, onchain_wallet_id)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail=f"Cannot access watchonly wallet: {exc!s}",
+        ) from exc
+    if watch_wallet.get("network") != status["network"]:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail="Watchonly wallet network does not match user watchonly config.",
+        )
+    return {
+        "watch_wallet": watch_wallet,
+        "network": status["network"],
+        "mempool_endpoint": status["mempool_endpoint"],
+    }
 
 
 def _is_fiat_currency(currency: str | None) -> bool:
@@ -118,6 +196,13 @@ async def api_events(
         wallet_ids = user.wallet_ids if user else []
 
     return await get_events(wallet_ids)
+
+
+@events_api_router.get("/onchain/status")
+async def api_onchain_status(
+    wallet: WalletTypeInfo = Depends(require_admin_key),
+) -> dict[str, Any]:
+    return await _get_watchonly_status(wallet.wallet)
 
 
 @events_api_router.get("/{event_id}", response_model=PublicEvent)
@@ -371,7 +456,7 @@ async def api_ticket_create(
     refund_address = data.refund_address
     nostr_identifier = data.nostr_identifier.strip() if data.nostr_identifier else None
     payment_method = (data.payment_method or "lightning").lower()
-    if payment_method not in {"lightning", "fiat"}:
+    if payment_method not in {"lightning", "fiat", "onchain"}:
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST,
             detail="Unsupported payment method.",
@@ -438,6 +523,10 @@ async def api_ticket_create(
     invoice_unit = selected_wave.currency
     fiat_amount = price
     fiat_provider = None
+    onchain_address = None
+    onchain_mempool_endpoint = None
+    onchain_amount_sat = None
+
     if payment_method == "fiat":
         if _is_fiat_currency(selected_wave.currency):
             invoice_unit = selected_wave.currency
@@ -461,20 +550,53 @@ async def api_ticket_create(
                 status_code=HTTPStatus.BAD_REQUEST,
                 detail="No fiat payment provider configured for this event.",
             )
+    elif payment_method == "onchain":
+        invoice_unit = "sat"
+        onchain_amount_sat = int(price)
+        wallet_record = await get_wallet(event.wallet)
+        if not wallet_record:
+            raise HTTPException(
+                status_code=HTTPStatus.NOT_FOUND,
+                detail="Event wallet does not exist.",
+            )
+        validation = await _validate_watchonly_settings(
+            wallet=wallet_record,
+            onchain_enabled=event.extra.onchain_enabled,
+            onchain_wallet_id=event.extra.onchain_wallet_id,
+        )
+        address_data = await fetch_onchain_address(
+            wallet_record.inkey, event.extra.onchain_wallet_id or ""
+        )
+        onchain_address = address_data.get("address")
+        onchain_mempool_endpoint = validation.get("mempool_endpoint")
     else:
         invoice_unit = "sat"
 
-    payment = await create_payment_request(
-        wallet_id=event.wallet,
-        invoice_data=CreateInvoice(
-            out=False,
-            amount=fiat_amount if payment_method == "fiat" else price,
-            unit=invoice_unit,
-            fiat_provider=fiat_provider,
-            memo=f"{event_id}",
-            extra=extra,
-        ),
-    )
+    if payment_method == "onchain":
+        payment = await create_payment_request(
+            wallet_id=event.wallet,
+            invoice_data=CreateInvoice(
+                out=False,
+                amount=float(onchain_amount_sat or 0),
+                unit="sat",
+                internal=True,
+                labels=["onchain"],
+                memo=f"{event_id}",
+                extra=extra,
+            ),
+        )
+    else:
+        payment = await create_payment_request(
+            wallet_id=event.wallet,
+            invoice_data=CreateInvoice(
+                out=False,
+                amount=fiat_amount if payment_method == "fiat" else price,
+                unit=invoice_unit,
+                fiat_provider=fiat_provider,
+                memo=f"{event_id}",
+                extra=extra,
+            ),
+        )
     await create_ticket(
         payment_hash=payment.payment_hash,
         wallet=event.wallet,
@@ -488,7 +610,10 @@ async def api_ticket_create(
             "refund_address": refund_address,
             "nostr_identifier": nostr_identifier,
             "ticket_base_url": str(request.base_url).rstrip("/"),
-            "sats_paid": payment.sat,
+            "sats_paid": (
+                onchain_amount_sat if payment_method == "onchain" else payment.sat
+            ),
+            "onchain": payment_method == "onchain",
         },
     )
 
@@ -498,6 +623,9 @@ async def api_ticket_create(
         fiat_payment_request=getattr(payment, "extra", {}).get("fiat_payment_request"),
         fiat_provider=getattr(payment, "fiat_provider", None) or fiat_provider,
         is_fiat=bool(getattr(payment, "fiat_provider", None) or fiat_provider),
+        onchain_address=onchain_address,
+        onchain_mempool_endpoint=onchain_mempool_endpoint,
+        onchain_amount_sat=onchain_amount_sat,
     )
 
 
@@ -557,6 +685,36 @@ async def api_ticket_delete(
         raise HTTPException(status_code=HTTPStatus.FORBIDDEN, detail="Not your ticket.")
 
     await delete_ticket(ticket_id)
+
+
+@tickets_api_router.put("/{payment_hash}/onchain-confirm")
+async def api_ticket_onchain_confirm(
+    payment_hash: str,
+    wallet: WalletTypeInfo = Depends(require_admin_key),
+) -> Ticket:
+    ticket = await get_ticket(payment_hash)
+    if not ticket:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail="Ticket does not exist."
+        )
+    if ticket.wallet != wallet.wallet.id:
+        raise HTTPException(status_code=HTTPStatus.FORBIDDEN, detail="Not your ticket.")
+    if ticket.paid:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST, detail="Ticket already paid."
+        )
+    if not ticket.extra.onchain:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail="Ticket is not an onchain payment.",
+        )
+    payment = await get_standalone_payment(payment_hash)
+    if not payment:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail="Payment does not exist."
+        )
+    await internal_invoice_queue_put(payment_hash)
+    return ticket
 
 
 @tickets_api_router.post("/{ticket_id}/resend-email", response_model=TicketResendResult)
