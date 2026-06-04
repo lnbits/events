@@ -72,6 +72,29 @@ async def fetch_onchain_address(api_key: str, wallet_id: str) -> dict[str, Any]:
         return resp.json()
 
 
+async def check_onchain_payment(ticket: Ticket) -> bool:
+    address = ticket.extra.onchain_address
+    endpoint = ticket.extra.onchain_mempool_endpoint
+    expected_sats = ticket.extra.sats_paid or 0
+    if not address or not endpoint:
+        return False
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            f"{endpoint}/api/address/{address}/txs",
+            timeout=10.0,
+        )
+        resp.raise_for_status()
+        txs = resp.json()
+    for tx in txs:
+        for vout in tx.get("vout", []):
+            if (
+                vout.get("scriptpubkey_address") == address
+                and vout.get("value", 0) >= expected_sats
+            ):
+                return True
+    return False
+
+
 async def set_ticket_paid(ticket: Ticket) -> Ticket:
     if ticket.paid:
         return ticket

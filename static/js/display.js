@@ -34,7 +34,8 @@ window.PageEventsDisplay = {
         mempoolEndpoint: null
       },
       paymentDismissMsg: null,
-      paymentWebsocket: null
+      paymentWebsocket: null,
+      onchainPollTimer: null
     }
   },
   async created() {
@@ -148,6 +149,10 @@ window.PageEventsDisplay = {
     },
 
     closeReceiveDialog() {
+      if (this.onchainPollTimer) {
+        clearTimeout(this.onchainPollTimer)
+        this.onchainPollTimer = null
+      }
       if (this.paymentDismissMsg) {
         this.paymentDismissMsg()
         this.paymentDismissMsg = null
@@ -262,9 +267,28 @@ window.PageEventsDisplay = {
           window.open(this.paymentReq, '_blank', 'noopener')
         }
         this.paymentWatcher(this.paymentHash)
+        if (isOnchain) this.startOnchainPolling(this.paymentHash)
       } catch (error) {
         LNbits.utils.notifyApiError(error)
       }
+    },
+    startOnchainPolling(paymentHash) {
+      if (this.onchainPollTimer) clearTimeout(this.onchainPollTimer)
+      const poll = async () => {
+        if (!this.receive.show) return
+        try {
+          await LNbits.api.request(
+            'POST',
+            `/events/api/v1/tickets/${paymentHash}/onchain-check`,
+            null
+          )
+          // confirmed — WebSocket fires paymentSuccess, don't reschedule
+        } catch (error) {
+          if (!this.receive.show) return
+          this.onchainPollTimer = setTimeout(poll, 30000)
+        }
+      }
+      this.onchainPollTimer = setTimeout(poll, 30000)
     },
     paymentWatcher(paymentHash) {
       if (this.paymentWebsocket) {
@@ -291,8 +315,12 @@ window.PageEventsDisplay = {
         console.error('WebSocket error:', error)
       }
       ws.onclose = () => {
-        if (this.paymentWebsocket === ws) {
-          this.paymentWebsocket = null
+        if (this.paymentWebsocket !== ws) return
+        this.paymentWebsocket = null
+        if (this.receive.show) {
+          setTimeout(() => {
+            if (this.receive.show) this.paymentWatcher(paymentHash)
+          }, 3000)
         }
       }
     }

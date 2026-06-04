@@ -113,6 +113,8 @@ class TicketExtra(BaseModel):
     nostr_notification_sent: bool = False
     refunded: bool = False
     onchain: bool = False
+    onchain_address: str | None = None
+    onchain_mempool_endpoint: str | None = None
 
 
 class CreateTicket(BaseModel):
