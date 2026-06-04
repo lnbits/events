@@ -16,7 +16,7 @@ from fastapi import (
     WebSocketDisconnect,
 )
 from fastapi.responses import StreamingResponse
-from lnbits.core.crud import get_standalone_payment, get_user
+from lnbits.core.crud import get_user
 from lnbits.core.crud.assets import get_public_asset
 from lnbits.core.crud.wallets import get_wallet
 from lnbits.core.models import WalletTypeInfo
@@ -30,7 +30,6 @@ from lnbits.decorators import (
 )
 from lnbits.helpers import generate_filter_params_openapi
 from lnbits.settings import settings
-from lnbits.tasks import internal_invoice_queue_put
 from lnbits.utils.exchange_rates import (
     fiat_amount_as_satoshis,
     get_fiat_rate_satoshis,
@@ -73,8 +72,10 @@ from .services import (
     fetch_watchonly_wallets,
     refund_tickets,
     resend_ticket_email_notification,
+    send_ticket_notification_in_background,
+    set_ticket_paid,
 )
-from .tasks import deregister_payment_listener, register_payment_listener
+from .tasks import deregister_payment_listener, payment_listeners, register_payment_listener
 
 events_api_router = APIRouter(prefix="/api/v1/events")
 tickets_api_router = APIRouter(prefix="/api/v1/tickets")
@@ -708,12 +709,10 @@ async def api_ticket_onchain_confirm(
             status_code=HTTPStatus.BAD_REQUEST,
             detail="Ticket is not an onchain payment.",
         )
-    payment = await get_standalone_payment(payment_hash)
-    if not payment:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail="Payment does not exist."
-        )
-    await internal_invoice_queue_put(payment_hash)
+    ticket = await set_ticket_paid(ticket)
+    send_ticket_notification_in_background(ticket)
+    for queue in payment_listeners.get(payment_hash, []):
+        queue.put_nowait(ticket)
     return ticket
 
 
