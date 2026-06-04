@@ -86,6 +86,8 @@ async def check_onchain_payment(ticket: Ticket) -> bool:
         resp.raise_for_status()
         txs = resp.json()
     for tx in txs:
+        if not tx.get("status", {}).get("confirmed"):
+            continue
         for vout in tx.get("vout", []):
             if (
                 vout.get("scriptpubkey_address") == address
