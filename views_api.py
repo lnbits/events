@@ -75,7 +75,11 @@ from .services import (
     send_ticket_notification_in_background,
     set_ticket_paid,
 )
-from .tasks import deregister_payment_listener, payment_listeners, register_payment_listener
+from .tasks import (
+    deregister_payment_listener,
+    payment_listeners,
+    register_payment_listener,
+)
 
 events_api_router = APIRouter(prefix="/api/v1/events")
 tickets_api_router = APIRouter(prefix="/api/v1/tickets")
