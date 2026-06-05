@@ -534,9 +534,13 @@ async def api_ticket_create(
 
         ticket_id = urlsafe_short_hash()
         base_url = str(request.base_url).rstrip("/")
-        webhook_url = f"{base_url}/events/api/v1/tickets/{ticket_id}/satspay-webhook"
+        # Use internal address for webhook — SatsPay calls it server-side and
+        # cannot reach the public domain from within the container.
+        internal_base = f"http://{settings.host}:{settings.port}"
+        webhook_url = (
+            f"{internal_base}/events/api/v1/tickets/{ticket_id}/satspay-webhook"
+        )
         complete_url = f"{base_url}/events/ticket/{ticket_id}"
-
         try:
             charge = await create_satspay_charge(
                 api_key=wallet_record.inkey,
@@ -683,7 +687,7 @@ async def api_ticket_delete(
 
 
 @tickets_api_router.post("/{ticket_id}/satspay-webhook")
-async def api_ticket_satspay_webhook(ticket_id: str, request: Request) -> None:
+async def api_ticket_satspay_webhook(ticket_id: str) -> None:
     ticket = await get_ticket(ticket_id)
     if not ticket:
         logger.warning(f"SatsPay webhook: ticket {ticket_id} does not exist.")
