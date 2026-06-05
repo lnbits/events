@@ -68,7 +68,6 @@ from .models import (
 from .services import (
     check_onchain_payment,
     create_satspay_charge,
-    fetch_onchain_address,
     fetch_watchonly_config,
     fetch_watchonly_wallet,
     fetch_watchonly_wallets,
@@ -115,47 +114,6 @@ async def _get_watchonly_status(wallet) -> dict[str, Any]:
         "network": network,
         "wallets": wallets,
         "mempool_endpoint": config.get("mempool_endpoint"),
-    }
-
-
-async def _validate_watchonly_settings(
-    *,
-    wallet,
-    onchain_enabled: bool,
-    onchain_wallet_id: str | None,
-) -> dict[str, Any]:
-    if not onchain_enabled:
-        raise HTTPException(
-            status_code=HTTPStatus.BAD_REQUEST,
-            detail="Onchain payments are not enabled for this event.",
-        )
-    if not onchain_wallet_id:
-        raise HTTPException(
-            status_code=HTTPStatus.BAD_REQUEST,
-            detail="No watchonly wallet configured for onchain payments.",
-        )
-    status = await _get_watchonly_status(wallet)
-    if not status["available"]:
-        raise HTTPException(
-            status_code=HTTPStatus.BAD_REQUEST,
-            detail=status["message"] or "Watchonly extension is not available.",
-        )
-    try:
-        watch_wallet = await fetch_watchonly_wallet(wallet.inkey, onchain_wallet_id)
-    except Exception as exc:
-        raise HTTPException(
-            status_code=HTTPStatus.BAD_REQUEST,
-            detail=f"Cannot access watchonly wallet: {exc!s}",
-        ) from exc
-    if watch_wallet.get("network") != status["network"]:
-        raise HTTPException(
-            status_code=HTTPStatus.BAD_REQUEST,
-            detail="Watchonly wallet network does not match user watchonly config.",
-        )
-    return {
-        "watch_wallet": watch_wallet,
-        "network": status["network"],
-        "mempool_endpoint": status["mempool_endpoint"],
     }
 
 
@@ -530,8 +488,6 @@ async def api_ticket_create(
     invoice_unit = selected_wave.currency
     fiat_amount = price
     fiat_provider = None
-    onchain_address = None
-    onchain_mempool_endpoint = None
     onchain_amount_sat = None
 
     if payment_method == "fiat":

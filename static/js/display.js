@@ -27,15 +27,10 @@ window.PageEventsDisplay = {
         show: false,
         status: 'pending',
         paymentReq: null,
-        isFiat: false,
-        isOnchain: false,
-        onchainAddress: null,
-        onchainAmountSat: 0,
-        mempoolEndpoint: null
+        isFiat: false
       },
       paymentDismissMsg: null,
-      paymentWebsocket: null,
-      onchainPollTimer: null
+      paymentWebsocket: null
     }
   },
   async created() {
@@ -101,16 +96,6 @@ window.PageEventsDisplay = {
       }
       return options
     },
-    onchainPaymentUri() {
-      if (!this.receive.onchainAddress) return ''
-      const btc = (this.receive.onchainAmountSat / 100000000).toFixed(8)
-      return `bitcoin:${this.receive.onchainAddress}?amount=${btc}`
-    },
-    mempoolAddressUrl() {
-      if (!this.receive.onchainAddress || !this.receive.mempoolEndpoint)
-        return null
-      return `${this.receive.mempoolEndpoint}/address/${this.receive.onchainAddress}`
-    }
   },
   methods: {
     async getEvent() {
@@ -149,10 +134,6 @@ window.PageEventsDisplay = {
     },
 
     closeReceiveDialog() {
-      if (this.onchainPollTimer) {
-        clearTimeout(this.onchainPollTimer)
-        this.onchainPollTimer = null
-      }
       if (this.paymentDismissMsg) {
         this.paymentDismissMsg()
         this.paymentDismissMsg = null
@@ -162,16 +143,7 @@ window.PageEventsDisplay = {
         this.paymentWebsocket = null
       }
       this.paymentReq = null
-      this.receive = {
-        show: false,
-        status: 'pending',
-        paymentReq: null,
-        isFiat: false,
-        isOnchain: false,
-        onchainAddress: null,
-        onchainAmountSat: 0,
-        mempoolEndpoint: null
-      }
+      this.receive = {show: false, status: 'pending', paymentReq: null, isFiat: false}
     },
     nameValidation(val) {
       const regex = /[`!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~]/g
@@ -204,16 +176,7 @@ window.PageEventsDisplay = {
         message: 'Sent, thank you!',
         icon: null
       })
-      this.receive = {
-        show: false,
-        status: 'complete',
-        paymentReq: null,
-        isFiat: false,
-        isOnchain: false,
-        onchainAddress: null,
-        onchainAmountSat: 0,
-        mempoolEndpoint: null
-      }
+      this.receive = {show: false, status: 'complete', paymentReq: null, isFiat: false}
       this.ticketLink = {
         show: true,
         data: {
@@ -259,11 +222,7 @@ window.PageEventsDisplay = {
           show: true,
           status: 'pending',
           paymentReq: this.paymentReq,
-          isFiat,
-          isOnchain: false,
-          onchainAddress: null,
-          onchainAmountSat: 0,
-          mempoolEndpoint: null
+          isFiat
         }
         if (isFiat && this.paymentReq) {
           window.open(this.paymentReq, '_blank', 'noopener')
@@ -272,24 +231,6 @@ window.PageEventsDisplay = {
       } catch (error) {
         LNbits.utils.notifyApiError(error)
       }
-    },
-    startOnchainPolling(paymentHash) {
-      if (this.onchainPollTimer) clearTimeout(this.onchainPollTimer)
-      const poll = async () => {
-        if (!this.receive.show) return
-        try {
-          await LNbits.api.request(
-            'POST',
-            `/events/api/v1/tickets/${paymentHash}/onchain-check`,
-            null
-          )
-          // confirmed — WebSocket fires paymentSuccess, don't reschedule
-        } catch (error) {
-          if (!this.receive.show) return
-          this.onchainPollTimer = setTimeout(poll, 30000)
-        }
-      }
-      this.onchainPollTimer = setTimeout(poll, 30000)
     },
     paymentWatcher(paymentHash) {
       if (this.paymentWebsocket) {
