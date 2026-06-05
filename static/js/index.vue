@@ -621,8 +621,9 @@
           >
             <div class="q-mt-lg">
               <div class="text-caption q-mb-md">
-                Accept Bitcoin onchain payments. Requires the Watchonly
-                extension.
+                Accept Bitcoin onchain payments. Requires the
+                <strong>SatsPay</strong> and <strong>Watchonly</strong>
+                extensions to be installed and enabled.
               </div>
               <q-toggle
                 v-model="formDialog.data.extra.onchain_enabled"

@@ -1,4 +1,5 @@
 import asyncio
+import json
 from datetime import datetime, timezone
 from http import HTTPStatus
 from io import BytesIO
@@ -695,6 +696,11 @@ async def api_ticket_satspay_webhook(ticket_id: str, request: Request) -> None:
         )
     try:
         charge_data = await request.json()
+        # SatsPay sends json=charge.json() which double-encodes the body
+        if isinstance(charge_data, str):
+            charge_data = json.loads(charge_data)
+        if not isinstance(charge_data, dict):
+            raise ValueError("Expected JSON object")
     except Exception as exc:
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST, detail="Invalid webhook payload."
