@@ -66,7 +66,6 @@ from .models import (
     get_active_ticket_waves,
 )
 from .services import (
-    check_onchain_payment,
     create_satspay_charge,
     fetch_watchonly_config,
     fetch_watchonly_wallet,
@@ -679,33 +678,6 @@ async def api_ticket_delete(
         raise HTTPException(status_code=HTTPStatus.FORBIDDEN, detail="Not your ticket.")
 
     await delete_ticket(ticket_id)
-
-
-@tickets_api_router.post("/{payment_hash}/onchain-check")
-async def api_ticket_onchain_check(payment_hash: str) -> Ticket:
-    ticket = await get_ticket(payment_hash)
-    if not ticket:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail="Ticket does not exist."
-        )
-    if ticket.paid:
-        return ticket
-    if not ticket.extra.onchain:
-        raise HTTPException(
-            status_code=HTTPStatus.BAD_REQUEST,
-            detail="Not an onchain ticket.",
-        )
-    found = await check_onchain_payment(ticket)
-    if not found:
-        raise HTTPException(
-            status_code=HTTPStatus.PAYMENT_REQUIRED,
-            detail="Payment not found on chain.",
-        )
-    ticket = await set_ticket_paid(ticket)
-    send_ticket_notification_in_background(ticket)
-    for queue in payment_listeners.get(payment_hash, []):
-        queue.put_nowait(ticket)
-    return ticket
 
 
 @tickets_api_router.post("/{ticket_id}/satspay-webhook")

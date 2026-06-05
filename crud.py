@@ -72,11 +72,7 @@ async def get_tickets_paginated(
         wallet_where.append(f":{key}")
         values[key] = wallet_id
 
-    where = [
-        f"wallet IN ({', '.join(wallet_where)})",
-        "(paid = true OR extra LIKE :onchain_pattern)",
-    ]
-    values["onchain_pattern"] = '%"onchain": true%'
+    where = [f"wallet IN ({', '.join(wallet_where)})", "paid = true"]
 
     return await db.fetch_page(
         "SELECT * FROM events.ticket",
