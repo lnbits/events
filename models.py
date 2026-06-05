@@ -115,6 +115,7 @@ class TicketExtra(BaseModel):
     onchain: bool = False
     onchain_address: str | None = None
     onchain_mempool_endpoint: str | None = None
+    satspay_charge_id: str | None = None
 
 
 class CreateTicket(BaseModel):
@@ -175,6 +176,7 @@ class TicketPaymentRequest(BaseModel):
     onchain_address: str | None = None
     onchain_mempool_endpoint: str | None = None
     onchain_amount_sat: int | None = None
+    satspay_charge_url: str | None = None
 
 
 class TicketFilters(FilterModel):

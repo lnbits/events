@@ -240,13 +240,15 @@ window.PageEventsDisplay = {
               : 'lightning'
           }
         )
-        const isOnchain = Boolean(data.onchain_address)
-        const isFiat = !isOnchain && Boolean(data.is_fiat)
+        if (data.satspay_charge_url) {
+          window.location.href = data.satspay_charge_url
+          return
+        }
+
+        const isFiat = Boolean(data.is_fiat)
         this.paymentReq = isFiat
           ? data.fiat_payment_request || null
-          : isOnchain
-            ? null
-            : data.payment_request
+          : data.payment_request
         this.paymentHash = data.payment_hash
 
         this.paymentDismissMsg = Quasar.Notify.create({
@@ -258,16 +260,15 @@ window.PageEventsDisplay = {
           status: 'pending',
           paymentReq: this.paymentReq,
           isFiat,
-          isOnchain,
-          onchainAddress: data.onchain_address || null,
-          onchainAmountSat: data.onchain_amount_sat || 0,
-          mempoolEndpoint: data.onchain_mempool_endpoint || null
+          isOnchain: false,
+          onchainAddress: null,
+          onchainAmountSat: 0,
+          mempoolEndpoint: null
         }
         if (isFiat && this.paymentReq) {
           window.open(this.paymentReq, '_blank', 'noopener')
         }
         this.paymentWatcher(this.paymentHash)
-        if (isOnchain) this.startOnchainPolling(this.paymentHash)
       } catch (error) {
         LNbits.utils.notifyApiError(error)
       }

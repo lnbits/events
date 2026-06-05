@@ -72,6 +72,17 @@ async def fetch_onchain_address(api_key: str, wallet_id: str) -> dict[str, Any]:
         return resp.json()
 
 
+async def create_satspay_charge(api_key: str, data: dict) -> dict[str, Any]:
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            url=f"http://{settings.host}:{settings.port}/satspay/api/v1/charge",
+            headers={"X-API-KEY": api_key},
+            json=data,
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+
 async def check_onchain_payment(ticket: Ticket) -> bool:
     address = ticket.extra.onchain_address
     endpoint = ticket.extra.onchain_mempool_endpoint
