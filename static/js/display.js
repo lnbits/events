@@ -95,7 +95,7 @@ window.PageEventsDisplay = {
         options.push({label: 'Bitcoin', value: 'onchain'})
       }
       return options
-    },
+    }
   },
   methods: {
     async getEvent() {
@@ -143,7 +143,12 @@ window.PageEventsDisplay = {
         this.paymentWebsocket = null
       }
       this.paymentReq = null
-      this.receive = {show: false, status: 'pending', paymentReq: null, isFiat: false}
+      this.receive = {
+        show: false,
+        status: 'pending',
+        paymentReq: null,
+        isFiat: false
+      }
     },
     nameValidation(val) {
       const regex = /[`!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~]/g
@@ -176,7 +181,12 @@ window.PageEventsDisplay = {
         message: 'Sent, thank you!',
         icon: null
       })
-      this.receive = {show: false, status: 'complete', paymentReq: null, isFiat: false}
+      this.receive = {
+        show: false,
+        status: 'complete',
+        paymentReq: null,
+        isFiat: false
+      }
       this.ticketLink = {
         show: true,
         data: {

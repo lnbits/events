@@ -114,7 +114,6 @@ class TicketExtra(BaseModel):
     refunded: bool = False
     onchain: bool = False
     onchain_address: str | None = None
-    onchain_mempool_endpoint: str | None = None
     satspay_charge_id: str | None = None
 
 

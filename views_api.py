@@ -1,5 +1,4 @@
 import asyncio
-import json
 from datetime import datetime, timezone
 from http import HTTPStatus
 from io import BytesIO
@@ -7,7 +6,6 @@ from pathlib import Path
 from typing import Any
 
 import pyqrcode  # type: ignore[import-untyped]
-from loguru import logger
 from fastapi import (
     APIRouter,
     Depends,
@@ -37,6 +35,7 @@ from lnbits.utils.exchange_rates import (
     get_fiat_rate_satoshis,
     satoshis_amount_as_fiat,
 )
+from loguru import logger
 from PIL import Image, ImageDraw
 
 from .crud import (
@@ -69,10 +68,9 @@ from .models import (
 )
 from .services import (
     create_satspay_charge,
-    get_satspay_charge,
     fetch_watchonly_config,
-    fetch_watchonly_wallet,
     fetch_watchonly_wallets,
+    get_satspay_charge,
     refund_tickets,
     resend_ticket_email_notification,
     send_ticket_notification_in_background,
@@ -687,10 +685,12 @@ async def api_ticket_delete(
 async def api_ticket_satspay_webhook(ticket_id: str, request: Request) -> None:
     ticket = await get_ticket(ticket_id)
     if not ticket:
+        logger.warning(f"SatsPay webhook: ticket {ticket_id} does not exist.")
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND, detail="Ticket does not exist."
         )
     if ticket.paid:
+        logger.warning(f"SatsPay webhook: ticket {ticket_id} already paid.")
         return
     if not ticket.extra.satspay_charge_id:
         raise HTTPException(
@@ -701,22 +701,16 @@ async def api_ticket_satspay_webhook(ticket_id: str, request: Request) -> None:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND, detail="Ticket wallet does not exist."
         )
-    # SatsPay marks the charge paid and fires the webhook in quick succession,
-    # so the DB read can race ahead of the commit. Retry a few times to be safe.
-    charge = None
-    for attempt in range(3):
-        if attempt:
-            await asyncio.sleep(2)
-        try:
-            charge = await get_satspay_charge(wallet.inkey, ticket.extra.satspay_charge_id)
-            if charge.get("paid"):
-                break
-        except Exception:
-            charge = None
-    if not charge or not charge.get("paid"):
+    try:
+        charge = await get_satspay_charge(wallet.inkey, ticket.extra.satspay_charge_id)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST, detail=f"Could not verify charge: {exc}"
+        ) from exc
+    if not charge.get("paid"):
         logger.warning(
             f"SatsPay webhook for ticket {ticket_id}: charge"
-            f" {ticket.extra.satspay_charge_id} not paid after retries."
+            f" {ticket.extra.satspay_charge_id} not paid."
         )
         return
 
