@@ -138,7 +138,7 @@
 
     <q-dialog v-model="receive.show" position="top" @hide="closeReceiveDialog">
       <q-card
-        v-if="!receive.paymentReq && !receive.isOnchain"
+        v-if="!receive.paymentReq"
         class="q-pa-lg q-pt-xl lnbits__dialog-card"
       >
       </q-card>
@@ -169,51 +169,6 @@
             color="grey"
             @click="utils.copyText(receive.paymentReq)"
             >Copy payment link</q-btn
-          >
-          <q-btn v-close-popup flat color="grey" class="q-ml-auto">Close</q-btn>
-        </div>
-      </q-card>
-      <q-card
-        v-else-if="receive.isOnchain"
-        class="q-pa-lg q-pt-xl lnbits__dialog-card"
-      >
-        <div class="text-center q-mb-lg">
-          <div class="text-h6 q-mb-sm">Pay with Bitcoin</div>
-          <lnbits-qrcode
-            :href="onchainPaymentUri"
-            :value="onchainPaymentUri.toUpperCase()"
-          ></lnbits-qrcode>
-          <div class="text-body1 q-mt-md">
-            <strong
-              >{{
-                (receive.onchainAmountSat / 100000000).toFixed(8)
-              }}
-              BTC</strong
-            >
-          </div>
-          <div
-            class="text-caption text-grey q-mt-xs"
-            style="word-break: break-all"
-          >
-            {{ receive.onchainAddress }}
-          </div>
-        </div>
-        <div class="row q-mt-lg q-col-gutter-sm">
-          <q-btn
-            outline
-            color="grey"
-            @click="utils.copyText(receive.onchainAddress)"
-            >Copy address</q-btn
-          >
-          <q-btn
-            v-if="mempoolAddressUrl"
-            outline
-            color="grey"
-            type="a"
-            :href="mempoolAddressUrl"
-            target="_blank"
-            rel="noopener"
-            >View on mempool</q-btn
           >
           <q-btn v-close-popup flat color="grey" class="q-ml-auto">Close</q-btn>
         </div>

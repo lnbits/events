@@ -47,6 +47,8 @@ class EventExtra(BaseModel):
     notification_body: str = ""
     onchain_enabled: bool = False
     onchain_wallet_id: str | None = None
+    onchain_zeroconf: bool = False
+    onchain_fasttrack: bool = False
 
 
 class CreateEvent(BaseModel):
@@ -113,6 +115,8 @@ class TicketExtra(BaseModel):
     nostr_notification_sent: bool = False
     refunded: bool = False
     onchain: bool = False
+    onchain_address: str | None = None
+    satspay_charge_id: str | None = None
 
 
 class CreateTicket(BaseModel):
@@ -170,9 +174,8 @@ class TicketPaymentRequest(BaseModel):
     fiat_payment_request: str | None = None
     fiat_provider: str | None = None
     is_fiat: bool = False
-    onchain_address: str | None = None
-    onchain_mempool_endpoint: str | None = None
     onchain_amount_sat: int | None = None
+    satspay_charge_url: str | None = None
 
 
 class TicketFilters(FilterModel):

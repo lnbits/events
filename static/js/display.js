@@ -27,11 +27,7 @@ window.PageEventsDisplay = {
         show: false,
         status: 'pending',
         paymentReq: null,
-        isFiat: false,
-        isOnchain: false,
-        onchainAddress: null,
-        onchainAmountSat: 0,
-        mempoolEndpoint: null
+        isFiat: false
       },
       paymentDismissMsg: null,
       paymentWebsocket: null
@@ -99,16 +95,6 @@ window.PageEventsDisplay = {
         options.push({label: 'Bitcoin', value: 'onchain'})
       }
       return options
-    },
-    onchainPaymentUri() {
-      if (!this.receive.onchainAddress) return ''
-      const btc = (this.receive.onchainAmountSat / 100000000).toFixed(8)
-      return `bitcoin:${this.receive.onchainAddress}?amount=${btc}`
-    },
-    mempoolAddressUrl() {
-      if (!this.receive.onchainAddress || !this.receive.mempoolEndpoint)
-        return null
-      return `${this.receive.mempoolEndpoint}/address/${this.receive.onchainAddress}`
     }
   },
   methods: {
@@ -161,11 +147,7 @@ window.PageEventsDisplay = {
         show: false,
         status: 'pending',
         paymentReq: null,
-        isFiat: false,
-        isOnchain: false,
-        onchainAddress: null,
-        onchainAmountSat: 0,
-        mempoolEndpoint: null
+        isFiat: false
       }
     },
     nameValidation(val) {
@@ -203,11 +185,7 @@ window.PageEventsDisplay = {
         show: false,
         status: 'complete',
         paymentReq: null,
-        isFiat: false,
-        isOnchain: false,
-        onchainAddress: null,
-        onchainAmountSat: 0,
-        mempoolEndpoint: null
+        isFiat: false
       }
       this.ticketLink = {
         show: true,
@@ -235,13 +213,15 @@ window.PageEventsDisplay = {
               : 'lightning'
           }
         )
-        const isOnchain = Boolean(data.onchain_address)
-        const isFiat = !isOnchain && Boolean(data.is_fiat)
+        if (data.satspay_charge_url) {
+          window.location.href = data.satspay_charge_url
+          return
+        }
+
+        const isFiat = Boolean(data.is_fiat)
         this.paymentReq = isFiat
           ? data.fiat_payment_request || null
-          : isOnchain
-            ? null
-            : data.payment_request
+          : data.payment_request
         this.paymentHash = data.payment_hash
 
         this.paymentDismissMsg = Quasar.Notify.create({
@@ -252,11 +232,7 @@ window.PageEventsDisplay = {
           show: true,
           status: 'pending',
           paymentReq: this.paymentReq,
-          isFiat,
-          isOnchain,
-          onchainAddress: data.onchain_address || null,
-          onchainAmountSat: data.onchain_amount_sat || 0,
-          mempoolEndpoint: data.onchain_mempool_endpoint || null
+          isFiat
         }
         if (isFiat && this.paymentReq) {
           window.open(this.paymentReq, '_blank', 'noopener')
@@ -291,8 +267,12 @@ window.PageEventsDisplay = {
         console.error('WebSocket error:', error)
       }
       ws.onclose = () => {
-        if (this.paymentWebsocket === ws) {
-          this.paymentWebsocket = null
+        if (this.paymentWebsocket !== ws) return
+        this.paymentWebsocket = null
+        if (this.receive.show) {
+          setTimeout(() => {
+            if (this.receive.show) this.paymentWatcher(paymentHash)
+          }, 3000)
         }
       }
     }

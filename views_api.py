@@ -28,13 +28,14 @@ from lnbits.decorators import (
     require_admin_key,
     require_invoice_key,
 )
-from lnbits.helpers import generate_filter_params_openapi
+from lnbits.helpers import generate_filter_params_openapi, urlsafe_short_hash
 from lnbits.settings import settings
 from lnbits.utils.exchange_rates import (
     fiat_amount_as_satoshis,
     get_fiat_rate_satoshis,
     satoshis_amount_as_fiat,
 )
+from loguru import logger
 from PIL import Image, ImageDraw
 
 from .crud import (
@@ -66,10 +67,10 @@ from .models import (
     get_active_ticket_waves,
 )
 from .services import (
-    fetch_onchain_address,
+    create_satspay_charge,
     fetch_watchonly_config,
-    fetch_watchonly_wallet,
     fetch_watchonly_wallets,
+    get_satspay_charge,
     refund_tickets,
     resend_ticket_email_notification,
     send_ticket_notification_in_background,
@@ -113,47 +114,6 @@ async def _get_watchonly_status(wallet) -> dict[str, Any]:
         "network": network,
         "wallets": wallets,
         "mempool_endpoint": config.get("mempool_endpoint"),
-    }
-
-
-async def _validate_watchonly_settings(
-    *,
-    wallet,
-    onchain_enabled: bool,
-    onchain_wallet_id: str | None,
-) -> dict[str, Any]:
-    if not onchain_enabled:
-        raise HTTPException(
-            status_code=HTTPStatus.BAD_REQUEST,
-            detail="Onchain payments are not enabled for this event.",
-        )
-    if not onchain_wallet_id:
-        raise HTTPException(
-            status_code=HTTPStatus.BAD_REQUEST,
-            detail="No watchonly wallet configured for onchain payments.",
-        )
-    status = await _get_watchonly_status(wallet)
-    if not status["available"]:
-        raise HTTPException(
-            status_code=HTTPStatus.BAD_REQUEST,
-            detail=status["message"] or "Watchonly extension is not available.",
-        )
-    try:
-        watch_wallet = await fetch_watchonly_wallet(wallet.inkey, onchain_wallet_id)
-    except Exception as exc:
-        raise HTTPException(
-            status_code=HTTPStatus.BAD_REQUEST,
-            detail=f"Cannot access watchonly wallet: {exc!s}",
-        ) from exc
-    if watch_wallet.get("network") != status["network"]:
-        raise HTTPException(
-            status_code=HTTPStatus.BAD_REQUEST,
-            detail="Watchonly wallet network does not match user watchonly config.",
-        )
-    return {
-        "watch_wallet": watch_wallet,
-        "network": status["network"],
-        "mempool_endpoint": status["mempool_endpoint"],
     }
 
 
@@ -528,8 +488,6 @@ async def api_ticket_create(
     invoice_unit = selected_wave.currency
     fiat_amount = price
     fiat_provider = None
-    onchain_address = None
-    onchain_mempool_endpoint = None
     onchain_amount_sat = None
 
     if payment_method == "fiat":
@@ -556,7 +514,6 @@ async def api_ticket_create(
                 detail="No fiat payment provider configured for this event.",
             )
     elif payment_method == "onchain":
-        invoice_unit = "sat"
         onchain_amount_sat = int(price)
         wallet_record = await get_wallet(event.wallet)
         if not wallet_record:
@@ -564,44 +521,82 @@ async def api_ticket_create(
                 status_code=HTTPStatus.NOT_FOUND,
                 detail="Event wallet does not exist.",
             )
-        validation = await _validate_watchonly_settings(
-            wallet=wallet_record,
-            onchain_enabled=event.extra.onchain_enabled,
-            onchain_wallet_id=event.extra.onchain_wallet_id,
+        if not event.extra.onchain_enabled:
+            raise HTTPException(
+                status_code=HTTPStatus.BAD_REQUEST,
+                detail="Onchain payments are not enabled for this event.",
+            )
+        if not event.extra.onchain_wallet_id:
+            raise HTTPException(
+                status_code=HTTPStatus.BAD_REQUEST,
+                detail="No onchain wallet configured for this event.",
+            )
+
+        ticket_id = urlsafe_short_hash()
+        base_url = str(request.base_url).rstrip("/")
+        webhook_url = f"{base_url}/events/api/v1/tickets/{ticket_id}/satspay-webhook"
+        complete_url = f"{base_url}/events/ticket/{ticket_id}"
+
+        try:
+            charge = await create_satspay_charge(
+                api_key=wallet_record.inkey,
+                data={
+                    "amount": onchain_amount_sat,
+                    "description": f"Ticket for {event.name}",
+                    "name": name,
+                    "onchainwallet": event.extra.onchain_wallet_id,
+                    "zeroconf": event.extra.onchain_zeroconf,
+                    "fasttrack": event.extra.onchain_fasttrack,
+                    "webhook": webhook_url,
+                    "completelink": complete_url,
+                    "completelinktext": "View your ticket",
+                    "time": 1440,
+                },
+            )
+        except Exception as exc:
+            raise HTTPException(
+                status_code=HTTPStatus.BAD_REQUEST,
+                detail=f"Failed to create SatsPay charge: {exc}",
+            ) from exc
+
+        await create_ticket(
+            payment_hash=ticket_id,
+            wallet=event.wallet,
+            event=event.id,
+            name=name,
+            email=email,
+            extra={
+                "applied_promo_code": promo_code,
+                "ticket_wave_id": selected_wave.id,
+                "ticket_wave_title": selected_wave.title,
+                "refund_address": refund_address,
+                "nostr_identifier": nostr_identifier,
+                "ticket_base_url": base_url,
+                "sats_paid": onchain_amount_sat,
+                "onchain": True,
+                "satspay_charge_id": charge["id"],
+            },
         )
-        address_data = await fetch_onchain_address(
-            wallet_record.inkey, event.extra.onchain_wallet_id or ""
+
+        return TicketPaymentRequest(
+            payment_hash=ticket_id,
+            onchain_amount_sat=onchain_amount_sat,
+            satspay_charge_url=f"/satspay/{charge['id']}",
         )
-        onchain_address = address_data.get("address")
-        onchain_mempool_endpoint = validation.get("mempool_endpoint")
     else:
         invoice_unit = "sat"
 
-    if payment_method == "onchain":
-        payment = await create_payment_request(
-            wallet_id=event.wallet,
-            invoice_data=CreateInvoice(
-                out=False,
-                amount=float(onchain_amount_sat or 0),
-                unit="sat",
-                internal=True,
-                labels=["onchain"],
-                memo=f"{event_id}",
-                extra=extra,
-            ),
-        )
-    else:
-        payment = await create_payment_request(
-            wallet_id=event.wallet,
-            invoice_data=CreateInvoice(
-                out=False,
-                amount=fiat_amount if payment_method == "fiat" else price,
-                unit=invoice_unit,
-                fiat_provider=fiat_provider,
-                memo=f"{event_id}",
-                extra=extra,
-            ),
-        )
+    payment = await create_payment_request(
+        wallet_id=event.wallet,
+        invoice_data=CreateInvoice(
+            out=False,
+            amount=fiat_amount if payment_method == "fiat" else price,
+            unit=invoice_unit,
+            fiat_provider=fiat_provider,
+            memo=f"{event_id}",
+            extra=extra,
+        ),
+    )
     await create_ticket(
         payment_hash=payment.payment_hash,
         wallet=event.wallet,
@@ -615,10 +610,8 @@ async def api_ticket_create(
             "refund_address": refund_address,
             "nostr_identifier": nostr_identifier,
             "ticket_base_url": str(request.base_url).rstrip("/"),
-            "sats_paid": (
-                onchain_amount_sat if payment_method == "onchain" else payment.sat
-            ),
-            "onchain": payment_method == "onchain",
+            "sats_paid": payment.sat,
+            "onchain": False,
         },
     )
 
@@ -628,9 +621,6 @@ async def api_ticket_create(
         fiat_payment_request=getattr(payment, "extra", {}).get("fiat_payment_request"),
         fiat_provider=getattr(payment, "fiat_provider", None) or fiat_provider,
         is_fiat=bool(getattr(payment, "fiat_provider", None) or fiat_provider),
-        onchain_address=onchain_address,
-        onchain_mempool_endpoint=onchain_mempool_endpoint,
-        onchain_amount_sat=onchain_amount_sat,
     )
 
 
@@ -690,6 +680,45 @@ async def api_ticket_delete(
         raise HTTPException(status_code=HTTPStatus.FORBIDDEN, detail="Not your ticket.")
 
     await delete_ticket(ticket_id)
+
+
+@tickets_api_router.post("/{ticket_id}/satspay-webhook")
+async def api_ticket_satspay_webhook(ticket_id: str, request: Request) -> None:
+    ticket = await get_ticket(ticket_id)
+    if not ticket:
+        logger.warning(f"SatsPay webhook: ticket {ticket_id} does not exist.")
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail="Ticket does not exist."
+        )
+    if ticket.paid:
+        logger.warning(f"SatsPay webhook: ticket {ticket_id} already paid.")
+        return
+    if not ticket.extra.satspay_charge_id:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST, detail="Not a SatsPay ticket."
+        )
+    wallet = await get_wallet(ticket.wallet)
+    if not wallet:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail="Ticket wallet does not exist."
+        )
+    try:
+        charge = await get_satspay_charge(wallet.inkey, ticket.extra.satspay_charge_id)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST, detail=f"Could not verify charge: {exc}"
+        ) from exc
+    if not charge.get("paid"):
+        logger.warning(
+            f"SatsPay webhook for ticket {ticket_id}: charge"
+            f" {ticket.extra.satspay_charge_id} not paid."
+        )
+        return
+
+    ticket = await set_ticket_paid(ticket)
+    send_ticket_notification_in_background(ticket)
+    for queue in payment_listeners.get(ticket_id, []):
+        queue.put_nowait(ticket)
 
 
 @tickets_api_router.put("/{payment_hash}/onchain-confirm")

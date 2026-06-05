@@ -442,6 +442,8 @@ window.PageEvents = {
             nostr_notifications: false,
             onchain_enabled: false,
             onchain_wallet_id: null,
+            onchain_zeroconf: false,
+            onchain_fasttrack: false,
             ticket_waves: [
               {
                 id: 'primary',
