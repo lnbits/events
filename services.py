@@ -62,6 +62,16 @@ async def fetch_watchonly_wallet(api_key: str, wallet_id: str) -> dict[str, Any]
         return resp.json()
 
 
+async def get_satspay_charge(api_key: str, charge_id: str) -> dict[str, Any]:
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            url=f"http://{settings.host}:{settings.port}/satspay/api/v1/charge/{charge_id}",
+            headers={"X-API-KEY": api_key},
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+
 async def create_satspay_charge(api_key: str, data: dict) -> dict[str, Any]:
     async with httpx.AsyncClient() as client:
         resp = await client.post(

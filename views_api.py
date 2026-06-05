@@ -1,5 +1,4 @@
 import asyncio
-import json
 from datetime import datetime, timezone
 from http import HTTPStatus
 from io import BytesIO
@@ -68,6 +67,7 @@ from .models import (
 )
 from .services import (
     create_satspay_charge,
+    get_satspay_charge,
     fetch_watchonly_config,
     fetch_watchonly_wallet,
     fetch_watchonly_wallets,
@@ -694,23 +694,18 @@ async def api_ticket_satspay_webhook(ticket_id: str, request: Request) -> None:
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST, detail="Not a SatsPay ticket."
         )
+    wallet = await get_wallet(ticket.wallet)
+    if not wallet:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail="Ticket wallet does not exist."
+        )
     try:
-        charge_data = await request.json()
-        # SatsPay sends json=charge.json() which double-encodes the body
-        if isinstance(charge_data, str):
-            charge_data = json.loads(charge_data)
-        if not isinstance(charge_data, dict):
-            raise ValueError("Expected JSON object")
+        charge = await get_satspay_charge(wallet.inkey, ticket.extra.satspay_charge_id)
     except Exception as exc:
         raise HTTPException(
-            status_code=HTTPStatus.BAD_REQUEST, detail="Invalid webhook payload."
+            status_code=HTTPStatus.BAD_REQUEST, detail=f"Could not verify charge: {exc}"
         ) from exc
-
-    if charge_data.get("id") != ticket.extra.satspay_charge_id:
-        raise HTTPException(
-            status_code=HTTPStatus.BAD_REQUEST, detail="Charge ID mismatch."
-        )
-    if not charge_data.get("paid"):
+    if not charge.get("paid"):
         return
 
     ticket = await set_ticket_paid(ticket)
