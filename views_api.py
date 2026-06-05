@@ -545,7 +545,9 @@ async def api_ticket_create(
                     "description": f"Ticket for {event.name}",
                     "name": name,
                     "onchainwallet": event.extra.onchain_wallet_id,
-                    "lnbitswallet": event.wallet,
+                    "zeroconf": event.extra.onchain_zeroconf,
+                    "fasttrack": event.extra.onchain_fasttrack,
+
                     "webhook": webhook_url,
                     "completelink": complete_url,
                     "completelinktext": "View your ticket",

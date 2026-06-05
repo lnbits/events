@@ -47,6 +47,8 @@ class EventExtra(BaseModel):
     notification_body: str = ""
     onchain_enabled: bool = False
     onchain_wallet_id: str | None = None
+    onchain_zeroconf: bool = False
+    onchain_fasttrack: bool = False
 
 
 class CreateEvent(BaseModel):

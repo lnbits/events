@@ -616,7 +616,7 @@
 
           <q-expansion-item
             group="advanced"
-            icon="currency_bitcoin"
+            icon="view_in_ar"
             label="Onchain payments"
           >
             <div class="q-mt-lg">
@@ -648,6 +648,18 @@
                 map-options
                 hint="Bitcoin watchonly wallet for receiving onchain payments"
               ></q-select>
+              <div v-if="formDialog.data.extra.onchain_enabled" class="q-mt-md">
+                <q-toggle
+                  v-model="formDialog.data.extra.onchain_zeroconf"
+                  label="Zero-conf (accept unconfirmed transactions)"
+                  left-label
+                ></q-toggle>
+                <q-toggle
+                  v-model="formDialog.data.extra.onchain_fasttrack"
+                  label="Fasttrack (treat pending as paid)"
+                  left-label
+                ></q-toggle>
+              </div>
             </div>
           </q-expansion-item>
 
