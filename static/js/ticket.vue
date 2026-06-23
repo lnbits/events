@@ -4,10 +4,7 @@
       <q-card class="q-pa-lg">
         <q-card-section class="q-pa-none">
           <center>
-            <h3
-              class="q-my-none"
-              v-text="$t('events.ticket_heading')"
-            ></h3>
+            <h3 class="q-my-none" v-text="$t('events.ticket_heading')"></h3>
             <h5 v-if="ticket" v-text="ticket.name" class="q-my-none"></h5>
             <br />
             <h5

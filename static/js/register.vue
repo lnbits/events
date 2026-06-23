@@ -48,10 +48,7 @@
             </div>
           </div>
           <div v-else>
-            <div
-              class="text-h6 q-mb-sm"
-              v-text="$t('events.failed')"
-            ></div>
+            <div class="text-h6 q-mb-sm" v-text="$t('events.failed')"></div>
             <div>
               <strong v-text="$t('events.ticket_id_label')"></strong>
               {{ shortId(lastScan.ticketId) }}

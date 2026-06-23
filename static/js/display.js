@@ -96,7 +96,10 @@ window.PageEventsDisplay = {
         options.push({label: this.fiatCheckoutLabel, value: 'fiat'})
       }
       if (this.allowOnchain) {
-        options.push({label: this.$t('events.payment_bitcoin'), value: 'onchain'})
+        options.push({
+          label: this.$t('events.payment_bitcoin'),
+          value: 'onchain'
+        })
       }
       return options
     }
@@ -156,9 +159,7 @@ window.PageEventsDisplay = {
     },
     nameValidation(val) {
       const regex = /[`!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~]/g
-      return (
-        !regex.test(val) || this.$t('events.name_validation')
-      )
+      return !regex.test(val) || this.$t('events.name_validation')
     },
     emailValidation(val) {
       const regex = /^[\w\.-]+@[a-zA-Z\d\.-]+\.[a-zA-Z]{2,}$/
