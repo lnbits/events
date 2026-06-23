@@ -1,20 +1,34 @@
 window.PageEventsRegister = {
   template: '#page-events-register',
+  computed: {
+    ticketsColumns() {
+      return [
+        {
+          name: 'name',
+          align: 'left',
+          label: this.$t('events.col_name'),
+          field: 'name'
+        },
+        {
+          name: 'email',
+          align: 'left',
+          label: this.$t('email'),
+          field: 'email'
+        },
+        {
+          name: 'id',
+          align: 'left',
+          label: this.$t('id'),
+          field: 'id',
+          format: val => this.shortId(val)
+        }
+      ]
+    }
+  },
   data() {
     return {
       tickets: [],
       ticketsTable: {
-        columns: [
-          {name: 'name', align: 'left', label: 'Name', field: 'name'},
-          {name: 'email', align: 'left', label: 'Email', field: 'email'},
-          {
-            name: 'id',
-            align: 'left',
-            label: 'ID',
-            field: 'id',
-            format: val => this.shortId(val)
-          }
-        ],
         pagination: {
           rowsPerPage: 10
         }

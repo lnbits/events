@@ -4,14 +4,18 @@
       <q-card class="q-pa-lg">
         <q-card-section class="q-pa-none">
           <center>
-            <h3 class="q-my-none">Registration</h3>
+            <h3 class="q-my-none" v-text="$t('events.registration')"></h3>
             <br />
 
             <br />
 
-            <q-btn unelevated color="primary" @click="showCamera" size="xl"
-              >Scan ticket</q-btn
-            >
+            <q-btn
+              unelevated
+              color="primary"
+              @click="showCamera"
+              size="xl"
+              v-text="$t('events.scan_ticket')"
+            ></q-btn>
           </center>
         </q-card-section>
       </q-card>
@@ -22,18 +26,40 @@
       >
         <q-card-section class="text-white">
           <div v-if="lastScan.success">
-            <div class="text-h6 q-mb-sm">Registered</div>
-            <div><strong>Name:</strong> {{ lastScan.ticket.name }}</div>
-            <div><strong>Email:</strong> {{ lastScan.ticket.email }}</div>
-            <div><strong>Paid:</strong> {{ lastScan.ticket.paid }}</div>
-            <div><strong>ID:</strong> {{ shortId(lastScan.ticket.id) }}</div>
+            <div
+              class="text-h6 q-mb-sm"
+              v-text="$t('events.registered_success')"
+            ></div>
+            <div>
+              <strong v-text="$t('events.name_label')"></strong>
+              {{ lastScan.ticket.name }}
+            </div>
+            <div>
+              <strong v-text="$t('events.email_label')"></strong>
+              {{ lastScan.ticket.email }}
+            </div>
+            <div>
+              <strong v-text="$t('events.paid_label')"></strong>
+              {{ lastScan.ticket.paid }}
+            </div>
+            <div>
+              <strong v-text="$t('events.id_label')"></strong>
+              {{ shortId(lastScan.ticket.id) }}
+            </div>
           </div>
           <div v-else>
-            <div class="text-h6 q-mb-sm">Failed</div>
+            <div
+              class="text-h6 q-mb-sm"
+              v-text="$t('events.failed')"
+            ></div>
             <div>
-              <strong>Ticket ID:</strong> {{ shortId(lastScan.ticketId) }}
+              <strong v-text="$t('events.ticket_id_label')"></strong>
+              {{ shortId(lastScan.ticketId) }}
             </div>
-            <div><strong>Error:</strong> {{ lastScan.error }}</div>
+            <div>
+              <strong v-text="$t('events.error_label')"></strong>
+              {{ lastScan.error }}
+            </div>
           </div>
         </q-card-section>
       </q-card>
@@ -45,7 +71,7 @@
             flat
             :rows="tickets"
             row-key="id"
-            :columns="ticketsTable.columns"
+            :columns="ticketsColumns"
             v-model:pagination="ticketsTable.pagination"
           >
             <template v-slot:header="props">
@@ -76,9 +102,13 @@
           ></qrcode-stream>
         </div>
         <div class="row q-mt-lg">
-          <q-btn @click="closeCamera" flat color="grey" class="q-ml-auto"
-            >Cancel</q-btn
-          >
+          <q-btn
+            @click="closeCamera"
+            flat
+            color="grey"
+            class="q-ml-auto"
+            v-text="$t('cancel')"
+          ></q-btn>
         </div>
       </q-card>
     </q-dialog>

@@ -3,9 +3,12 @@
     <div class="col-12 col-md-8 col-lg-7 q-gutter-y-md">
       <q-card>
         <q-card-section>
-          <q-btn unelevated color="primary" @click="openEventDialog"
-            >New Event</q-btn
-          >
+          <q-btn
+            unelevated
+            color="primary"
+            :label="$t('events.new_event')"
+            @click="openEventDialog"
+          ></q-btn>
         </q-card-section>
       </q-card>
 
@@ -13,12 +16,18 @@
         <q-card-section>
           <div class="row items-center no-wrap q-mb-md">
             <div class="col">
-              <h5 class="text-subtitle1 q-my-none">Events</h5>
+              <h5
+                class="text-subtitle1 q-my-none"
+                v-text="$t('events.events_title')"
+              ></h5>
             </div>
             <div class="col-auto">
-              <q-btn flat color="grey" @click="exporteventsCSV"
-                >Export to CSV</q-btn
-              >
+              <q-btn
+                flat
+                color="grey"
+                @click="exporteventsCSV"
+                v-text="$t('events.export_csv')"
+              ></q-btn>
             </div>
           </div>
           <q-table
@@ -26,7 +35,7 @@
             flat
             :rows="events"
             row-key="id"
-            :columns="eventsTable.columns"
+            :columns="eventsColumns"
             v-model:pagination="eventsTable.pagination"
           >
             <template v-slot:header="props">
@@ -101,7 +110,10 @@
                 <q-td colspan="100%">
                   <div class="q-pa-md">
                     <div class="row items-center q-mb-md">
-                      <div class="text-subtitle1">Ticket waves</div>
+                      <div
+                        class="text-subtitle1"
+                        v-text="$t('events.ticket_waves')"
+                      ></div>
                       <q-btn
                         round
                         dense
@@ -128,23 +140,7 @@
                           >
                             <span
                               style="white-space: normal; line-height: 1.3"
-                              v-text="
-                                `${wave.title} - ${wave.opening_date} to ${
-                                  wave.closing_date
-                                } - ${
-                                  isFiatCurrency(wave.currency)
-                                    ? LNbits.utils.formatCurrency(
-                                        Number(
-                                          wave.price_per_ticket || 0
-                                        ).toFixed(2),
-                                        wave.currency
-                                      )
-                                    : `${wave.price_per_ticket} sats`
-                                } - ${wave.amount_tickets} tickets - ${soldTicketsForWave(
-                                  props.row.id,
-                                  wave.id
-                                )} sold`
-                              "
+                              v-text="waveChipLabel(props.row, wave)"
                             ></span>
                           </q-chip>
                         </div>
@@ -152,7 +148,10 @@
                     </div>
 
                     <div class="row items-center q-mb-md">
-                      <div class="text-subtitle1">Promo codes</div>
+                      <div
+                        class="text-subtitle1"
+                        v-text="$t('events.promo_codes')"
+                      ></div>
                       <q-btn
                         round
                         dense
@@ -171,9 +170,8 @@
                           ).length == 0
                         "
                         class="text-caption"
-                      >
-                        No active promo codes for this event.
-                      </div>
+                        v-text="$t('events.no_active_promo_codes')"
+                      ></div>
                       <div class="row q-col-gutter-sm">
                         <div
                           v-for="(
@@ -210,12 +208,18 @@
         <q-card-section>
           <div class="row items-center no-wrap q-mb-md">
             <div class="col">
-              <h5 class="text-subtitle1 q-my-none">Tickets</h5>
+              <h5
+                class="text-subtitle1 q-my-none"
+                v-text="$t('events.tickets_title')"
+              ></h5>
             </div>
             <div class="col-auto">
-              <q-btn flat color="grey" @click="exportticketsCSV"
-                >Export to CSV</q-btn
-              >
+              <q-btn
+                flat
+                color="grey"
+                @click="exportticketsCSV"
+                v-text="$t('events.export_csv')"
+              ></q-btn>
             </div>
           </div>
           <q-table
@@ -224,7 +228,7 @@
             :rows="tickets"
             :loading="ticketsTable.loading"
             row-key="id"
-            :columns="ticketsTable.columns"
+            :columns="ticketsColumns"
             v-model:pagination="ticketsTable.pagination"
             @request="getTickets"
           >
@@ -263,7 +267,9 @@
                     :disable="!props.row.paid || !props.row.email"
                     :loading="resendingTicketEmails.includes(props.row.id)"
                   >
-                    <q-tooltip>Resend ticket email</q-tooltip>
+                    <q-tooltip>
+                      <span v-text="$t('events.resend_ticket_email')"></span>
+                    </q-tooltip>
                   </q-btn>
                   <q-btn
                     v-if="props.row.extra?.onchain && !props.row.paid"
@@ -275,7 +281,11 @@
                     color="orange"
                     class="q-ml-xs"
                   >
-                    <q-tooltip>Confirm onchain payment</q-tooltip>
+                    <q-tooltip>
+                      <span
+                        v-text="$t('events.confirm_onchain_payment')"
+                      ></span>
+                    </q-tooltip>
                   </q-btn>
                 </q-td>
 
@@ -304,7 +314,7 @@
         <q-card-section>
           <h6 class="text-subtitle1 ellipsis q-my-none">
             <span v-text="SITE_TITLE"></span>
-            Events extension
+            <span v-text="' ' + $t('events.extension_title')"></span>
           </h6>
         </q-card-section>
         <q-card-section class="q-pa-none">
@@ -313,21 +323,19 @@
             <q-expansion-item
               group="extras"
               icon="swap_vertical_circle"
-              label="Info"
+              :label="$t('events.info_label')"
               :content-inset-level="0.5"
             >
               <q-card>
                 <q-card-section>
-                  <h5 class="text-subtitle1 q-my-none">
-                    Events: Sell and register ticket waves for an event
-                  </h5>
+                  <h5
+                    class="text-subtitle1 q-my-none"
+                    v-text="$t('events.extension_desc_title')"
+                  ></h5>
                   <p>
-                    Events allows you to make a wave of tickets for an event,
-                    each ticket is in the form of a unique QRcode, which the
-                    user presents at registration. Events comes with a shareable
-                    ticket scanner, which can be used to register attendees.<br />
+                    <span v-text="$t('events.extension_desc')"></span><br />
                     <small>
-                      Created by,
+                      <span v-text="$t('events.created_by')"></span>
                       <a class="text-secondary" href="https://github.com/benarc"
                         >Ben Arc</a
                       >
@@ -337,7 +345,7 @@
               </q-card>
               <q-btn
                 flat
-                label="Swagger API"
+                :label="$t('events.swagger_api')"
                 type="a"
                 href="../docs#/events"
               ></q-btn>
@@ -357,7 +365,7 @@
                 dense
                 v-model.trim="formDialog.data.name"
                 type="name"
-                label="Title of event "
+                :label="$t('events.event_title_label')"
               ></q-input>
             </div>
             <div class="col q-pl-sm">
@@ -367,7 +375,7 @@
                 emit-value
                 v-model="formDialog.data.wallet"
                 :options="g.user.walletOptions"
-                label="Wallet *"
+                :label="$t('events.wallet_label')"
               >
               </q-select>
             </div>
@@ -378,19 +386,19 @@
             dense
             v-model.trim="formDialog.data.info"
             type="textarea"
-            label="Info about the event"
-            hint="Markdown supported"
+            :label="$t('events.event_info_label')"
+            :hint="$t('events.markdown_supported')"
           ></q-input>
           <q-input
             filled
             dense
             v-model.trim="formDialog.data.banner"
             type="url"
-            label="Image URL"
-            hint="Optional banner image to display on the event page"
+            :label="$t('events.image_url_label')"
+            :hint="$t('events.image_url_hint')"
           ></q-input>
           <div class="row q-mt-lg">
-            <div class="col-4">Event begins</div>
+            <div class="col-4" v-text="$t('events.event_begins')"></div>
             <div class="col-8">
               <q-input
                 filled
@@ -401,7 +409,7 @@
             </div>
           </div>
           <div class="row">
-            <div class="col-4">Event ends</div>
+            <div class="col-4" v-text="$t('events.event_ends')"></div>
             <div class="col-8">
               <q-input
                 filled
@@ -412,9 +420,10 @@
             </div>
           </div>
           <q-separator class="q-my-md"></q-separator>
-          <div class="text-subtitle1 q-mt-lg q-mb-md">
-            Primary ticket wave (you can add other waves later)
-          </div>
+          <div
+            class="text-subtitle1 q-mt-lg q-mb-md"
+            v-text="$t('events.primary_wave_hint')"
+          ></div>
           <div class="row q-col-gutter-sm">
             <div class="col-12 col-md-4">
               <q-input
@@ -422,7 +431,7 @@
                 dense
                 v-model.trim="primaryTicketWave().title"
                 type="text"
-                label="Wave title"
+                :label="$t('events.wave_title_label')"
               ></q-input>
             </div>
             <div class="col-12 col-md-4">
@@ -431,7 +440,7 @@
                 dense
                 v-model.trim="primaryTicketWave().opening_date"
                 type="date"
-                label="Ticket opening date"
+                :label="$t('events.opening_date_label')"
               ></q-input>
             </div>
             <div class="col-12 col-md-4">
@@ -440,7 +449,7 @@
                 dense
                 v-model.trim="formDialog.data.closing_date"
                 type="date"
-                label="Ticket closing date"
+                :label="$t('events.closing_date_label')"
               ></q-input>
             </div>
           </div>
@@ -451,7 +460,7 @@
                 dense
                 v-model="formDialog.data.currency"
                 type="text"
-                label="Unit"
+                :label="$t('events.unit_label')"
                 :options="currencies"
               ></q-select>
             </div>
@@ -461,7 +470,7 @@
                 dense
                 v-model.number="formDialog.data.amount_tickets"
                 type="number"
-                label="Amount of tickets "
+                :label="$t('events.amount_tickets_label')"
               ></q-input>
             </div>
             <div class="col">
@@ -470,7 +479,9 @@
                 dense
                 v-model.number="formDialog.data.price_per_ticket"
                 type="number"
-                :label="'Price (' + formDialog.data.currency + ') *'"
+                :label="
+                  $t('events.price_label', {currency: formDialog.data.currency})
+                "
                 :step="formDialog.data.currency != 'sats' ? '0.01' : '1'"
                 :mask="formDialog.data.currency != 'sats' ? '#.##' : '#'"
                 fill-mask="0"
@@ -481,7 +492,7 @@
           </div>
           <q-toggle
             v-model="primaryTicketWave().use_ticket_image"
-            label="Use ticket image"
+            :label="$t('events.use_ticket_image')"
             left-label
           ></q-toggle>
           <div
@@ -496,7 +507,7 @@
                 :href="templateDownloadUrl()"
                 download="ticket.jpg"
               >
-                Download template
+                <span v-text="$t('events.download_template')"></span>
                 <q-tooltip>400/733 jpg</q-tooltip>
               </q-btn>
             </div>
@@ -506,21 +517,20 @@
                 color="primary"
                 :loading="isUploadingTicketTemplate"
                 @click="triggerTicketImageUpload('primary')"
-                >Replace</q-btn
-              >
+                v-text="$t('events.replace_template')"
+              ></q-btn>
             </div>
             <div
               v-if="primaryTicketWave().ticket_image_id"
               class="col-12 text-caption"
-            >
-              Custom ticket template uploaded.
-            </div>
+              v-text="$t('events.custom_template_uploaded')"
+            ></div>
           </div>
           <q-toggle
             v-model="formDialog.data.allow_fiat"
-            label="Allow fiat checkout"
+            :label="$t('events.allow_fiat_checkout')"
             left-label
-            hint="Lets attendees pay through a configured fiat provider using the event currency."
+            :hint="$t('events.allow_fiat_hint')"
           ></q-toggle>
           <q-select
             v-if="
@@ -532,7 +542,7 @@
             filled
             dense
             v-model="formDialog.data.fiat_currency"
-            label="Fiat checkout currency"
+            :label="$t('events.fiat_checkout_currency')"
             :options="
               currencies.filter(
                 c => !['sat', 'sats'].includes((c || '').toLowerCase())
@@ -542,19 +552,21 @@
           <q-expansion-item
             group="advanced"
             icon="settings"
-            label="Advanced options"
+            :label="$t('events.advanced_options')"
           >
             <div class="row q-mt-lg">
-              <div class="text-subtitle1 q-mb-md">Conditional Events</div>
-              <div class="text-caption">
-                Make this event conditional if
-                <strong>minimum tickets</strong> are sold. User will be asked to
-                provide a Lightning Address or LNURL pay for refunds.
-              </div>
+              <div
+                class="text-subtitle1 q-mb-md"
+                v-text="$t('events.conditional_events_title')"
+              ></div>
+              <div
+                class="text-caption"
+                v-text="$t('events.conditional_events_desc')"
+              ></div>
               <div class="col-8">
                 <q-toggle
                   v-model="formDialog.data.extra.conditional"
-                  label="Conditional Event"
+                  :label="$t('events.conditional_event_label')"
                   left-label
                 ></q-toggle>
               </div>
@@ -564,28 +576,32 @@
                   dense
                   v-model.number="formDialog.data.extra.min_tickets"
                   type="number"
-                  label="Minimum Tickets"
+                  :label="$t('events.min_tickets_label')"
                   :disable="!formDialog.data.extra.conditional"
                 ></q-input>
               </div>
             </div>
             <q-separator class="q-my-md"></q-separator>
-            <div class="text-subtitle1 q-mb-md">Ticket Delivery</div>
-            <div class="text-caption">
-              Send the paid ticket link automatically by email or Nostr DM.
-            </div>
+            <div
+              class="text-subtitle1 q-mb-md"
+              v-text="$t('events.ticket_delivery_title')"
+            ></div>
+            <div
+              class="text-caption"
+              v-text="$t('events.ticket_delivery_desc')"
+            ></div>
             <div class="row items-center q-col-gutter-md">
               <div class="col-auto">
                 <q-toggle
                   v-model="formDialog.data.extra.email_notifications"
-                  label="Email notifications"
+                  :label="$t('events.email_notifications')"
                   left-label
                 ></q-toggle>
               </div>
               <div class="col-auto">
                 <q-toggle
                   v-model="formDialog.data.extra.nostr_notifications"
-                  label="Nostr notifications"
+                  :label="$t('events.nostr_notifications')"
                   left-label
                 ></q-toggle>
               </div>
@@ -599,8 +615,8 @@
                 dense
                 v-model.trim="formDialog.data.extra.notification_subject"
                 type="text"
-                label="Ticket notification subject"
-                hint="Used as the email subject when sending paid ticket links."
+                :label="$t('events.notification_subject_label')"
+                :hint="$t('events.notification_subject_hint')"
               ></q-input>
               <q-input
                 class="q-mt-md"
@@ -608,8 +624,8 @@
                 dense
                 v-model.trim="formDialog.data.extra.notification_body"
                 type="textarea"
-                label="Ticket notification body"
-                hint="Shown before the ticket link in the paid ticket notification."
+                :label="$t('events.notification_body_label')"
+                :hint="$t('events.notification_body_hint')"
               ></q-input>
             </div>
           </q-expansion-item>
@@ -617,17 +633,16 @@
           <q-expansion-item
             group="advanced"
             icon="view_in_ar"
-            label="Onchain payments"
+            :label="$t('events.onchain_payments')"
           >
             <div class="q-mt-lg">
-              <div class="text-caption q-mb-md">
-                Accept Bitcoin onchain payments. Requires the
-                <strong>SatsPay</strong> and <strong>Watchonly</strong>
-                extensions to be installed and enabled.
-              </div>
+              <div
+                class="text-caption q-mb-md"
+                v-text="$t('events.onchain_desc')"
+              ></div>
               <q-toggle
                 v-model="formDialog.data.extra.onchain_enabled"
-                label="Accept onchain payments"
+                :label="$t('events.accept_onchain')"
                 left-label
                 @update:model-value="val => val && loadOnchainWallets()"
               ></q-toggle>
@@ -637,7 +652,7 @@
                 dense
                 class="q-mt-md"
                 v-model="formDialog.data.extra.onchain_wallet_id"
-                label="Watchonly wallet"
+                :label="$t('events.watchonly_wallet')"
                 :options="
                   onchainWallets.map(w => ({
                     label: w.title || w.id,
@@ -646,17 +661,17 @@
                 "
                 emit-value
                 map-options
-                hint="Bitcoin watchonly wallet for receiving onchain payments"
+                :hint="$t('events.watchonly_wallet_hint')"
               ></q-select>
               <div v-if="formDialog.data.extra.onchain_enabled" class="q-mt-md">
                 <q-toggle
                   v-model="formDialog.data.extra.onchain_zeroconf"
-                  label="Zero-conf (accept unconfirmed transactions)"
+                  :label="$t('events.onchain_zeroconf')"
                   left-label
                 ></q-toggle>
                 <q-toggle
                   v-model="formDialog.data.extra.onchain_fasttrack"
-                  label="Fasttrack (treat pending as paid)"
+                  :label="$t('events.onchain_fasttrack')"
                   left-label
                 ></q-toggle>
               </div>
@@ -669,8 +684,8 @@
               unelevated
               color="primary"
               type="submit"
-              >Update Event</q-btn
-            >
+              v-text="$t('events.update_event')"
+            ></q-btn>
             <q-btn
               v-else
               unelevated
@@ -688,11 +703,15 @@
                 formDialog.data.price_per_ticket == null
               "
               type="submit"
-              >Create Event</q-btn
-            >
-            <q-btn v-close-popup flat color="grey" class="q-ml-auto"
-              >Cancel</q-btn
-            >
+              v-text="$t('events.create_event')"
+            ></q-btn>
+            <q-btn
+              v-close-popup
+              flat
+              color="grey"
+              class="q-ml-auto"
+              v-text="$t('cancel')"
+            ></q-btn>
           </div>
         </q-form>
       </q-card>
@@ -701,10 +720,14 @@
     <q-dialog v-model="promoCodesDialog.show" position="top">
       <q-card class="q-pa-lg q-pt-xl lnbits__dialog-card">
         <q-form @submit="savePromoCodes" class="q-gutter-md">
-          <div class="text-subtitle1">Promo Codes</div>
-          <div class="text-caption">
-            Allow users to enter a promo code for discounts.
-          </div>
+          <div
+            class="text-subtitle1"
+            v-text="$t('events.promo_codes_title')"
+          ></div>
+          <div
+            class="text-caption"
+            v-text="$t('events.promo_codes_desc')"
+          ></div>
 
           <div
             v-for="(code, index) in promoCodesDialog.data.extra.promo_codes"
@@ -717,7 +740,7 @@
               dense
               v-model.trim="promoCodesDialog.data.extra.promo_codes[index].code"
               type="text"
-              label="Promo Code"
+              :label="$t('events.promo_code_label')"
             >
               <template v-slot:before>
                 <q-checkbox
@@ -732,8 +755,8 @@
                   <span
                     v-text="
                       promoCodesDialog.data.extra.promo_codes[index].active
-                        ? 'Active'
-                        : 'Inactive'
+                        ? $t('events.active')
+                        : $t('events.inactive')
                     "
                   ></span>
                 </q-tooltip>
@@ -747,7 +770,7 @@
                 promoCodesDialog.data.extra.promo_codes[index].discount_percent
               "
               type="number"
-              label="Discount (%)"
+              :label="$t('events.discount_label')"
               min="0"
               max="100"
             >
@@ -766,20 +789,26 @@
           </div>
 
           <div class="col-12 q-mt-md">
-            <q-btn @click="addPromoCodeToDialog">Add Promo Code</q-btn>
+            <q-btn
+              @click="addPromoCodeToDialog"
+              v-text="$t('events.add_promo_code')"
+            ></q-btn>
           </div>
 
           <div class="row q-mt-lg">
-            <q-btn unelevated color="primary" type="submit"
-              >Save Promo Codes</q-btn
-            >
+            <q-btn
+              unelevated
+              color="primary"
+              type="submit"
+              v-text="$t('events.save_promo_codes')"
+            ></q-btn>
             <q-btn
               flat
               color="grey"
               class="q-ml-auto"
               @click="resetPromoCodesDialog"
-              >Cancel</q-btn
-            >
+              v-text="$t('cancel')"
+            ></q-btn>
           </div>
         </q-form>
       </q-card>
@@ -792,8 +821,8 @@
             class="text-subtitle1"
             v-text="
               ticketWaveDialog.editingWaveId
-                ? 'Edit Ticket Wave'
-                : 'Add Ticket Wave'
+                ? $t('events.edit_ticket_wave')
+                : $t('events.add_ticket_wave')
             "
           ></div>
           <div class="row q-col-gutter-sm">
@@ -803,7 +832,7 @@
                 dense
                 v-model.trim="ticketWaveDialog.data.title"
                 type="text"
-                label="Wave title"
+                :label="$t('events.wave_title_label')"
               ></q-input>
             </div>
             <div class="col-12 col-md-4">
@@ -812,7 +841,7 @@
                 dense
                 v-model.trim="ticketWaveDialog.data.opening_date"
                 type="date"
-                label="Ticket opening date"
+                :label="$t('events.opening_date_label')"
               ></q-input>
             </div>
             <div class="col-12 col-md-4">
@@ -821,7 +850,7 @@
                 dense
                 v-model.trim="ticketWaveDialog.data.closing_date"
                 type="date"
-                label="Ticket closing date"
+                :label="$t('events.closing_date_label')"
               ></q-input>
             </div>
           </div>
@@ -832,7 +861,7 @@
                 dense
                 v-model="ticketWaveDialog.data.currency"
                 type="text"
-                label="Unit"
+                :label="$t('events.unit_label')"
                 :options="currencies"
               ></q-select>
             </div>
@@ -842,7 +871,7 @@
                 dense
                 v-model.number="ticketWaveDialog.data.amount_tickets"
                 type="number"
-                label="Amount of tickets"
+                :label="$t('events.amount_tickets_label')"
               ></q-input>
             </div>
             <div class="col">
@@ -851,7 +880,11 @@
                 dense
                 v-model.number="ticketWaveDialog.data.price_per_ticket"
                 type="number"
-                :label="'Price (' + ticketWaveDialog.data.currency + ') *'"
+                :label="
+                  $t('events.price_label', {
+                    currency: ticketWaveDialog.data.currency
+                  })
+                "
                 :step="ticketWaveDialog.data.currency != 'sats' ? '0.01' : '1'"
                 :mask="ticketWaveDialog.data.currency != 'sats' ? '#.##' : '#'"
                 fill-mask="0"
@@ -862,7 +895,7 @@
           </div>
           <q-toggle
             v-model="ticketWaveDialog.data.use_ticket_image"
-            label="Use ticket image"
+            :label="$t('events.use_ticket_image')"
             left-label
           ></q-toggle>
           <div
@@ -877,7 +910,7 @@
                 :href="templateDownloadUrl()"
                 download="ticket.jpg"
               >
-                Download template
+                <span v-text="$t('events.download_template')"></span>
                 <q-tooltip>400/733 jpg</q-tooltip>
               </q-btn>
             </div>
@@ -887,21 +920,20 @@
                 color="primary"
                 :loading="isUploadingTicketTemplate"
                 @click="triggerTicketImageUpload('dialog')"
-                >Replace</q-btn
-              >
+                v-text="$t('events.replace_template')"
+              ></q-btn>
             </div>
             <div
               v-if="ticketWaveDialog.data.ticket_image_id"
               class="col-12 text-caption"
-            >
-              Custom ticket template uploaded.
-            </div>
+              v-text="$t('events.custom_template_uploaded')"
+            ></div>
           </div>
           <q-toggle
             v-model="ticketWaveDialog.data.allow_fiat"
-            label="Allow fiat checkout"
+            :label="$t('events.allow_fiat_checkout')"
             left-label
-            hint="Lets attendees pay through a configured fiat provider using this wave currency."
+            :hint="$t('events.wave_allow_fiat_hint')"
           ></q-toggle>
           <q-select
             v-if="
@@ -913,7 +945,7 @@
             filled
             dense
             v-model="ticketWaveDialog.data.fiat_currency"
-            label="Fiat checkout currency"
+            :label="$t('events.fiat_checkout_currency')"
             :options="
               currencies.filter(
                 c => !['sat', 'sats'].includes((c || '').toLowerCase())
@@ -923,16 +955,16 @@
           <div class="row q-mt-lg">
             <q-btn unelevated color="primary" type="submit">{{
               ticketWaveDialog.editingWaveId
-                ? 'Update Ticket Wave'
-                : 'Save Ticket Wave'
+                ? $t('events.update_ticket_wave')
+                : $t('events.save_ticket_wave')
             }}</q-btn>
             <q-btn
               flat
               color="grey"
               class="q-ml-auto"
               @click="resetTicketWaveDialog"
-              >Cancel</q-btn
-            >
+              v-text="$t('cancel')"
+            ></q-btn>
           </div>
         </q-form>
       </q-card>

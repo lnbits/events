@@ -1,12 +1,12 @@
 {
   "id": "events",
-  "version": "1.6.1",
+  "version": "1.6.9",
   "name": "Events",
   "repo": "https://github.com/lnbits/events",
   "short_description": "Sell and register event tickets",
   "description": "",
   "tile": "/events/static/image/events.png",
-  "min_lnbits_version": "1.4.1",
+  "min_lnbits_version": "1.5.5",
   "contributors": [
     {
       "name": "talvasconcelos",

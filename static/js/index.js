@@ -1,5 +1,87 @@
 window.PageEvents = {
   template: '#page-events',
+  computed: {
+    eventsColumns() {
+      return [
+        {
+          name: 'id',
+          align: 'left',
+          label: this.$t('id'),
+          field: row => this.shortenId(row.id)
+        },
+        {
+          name: 'name',
+          align: 'left',
+          label: this.$t('events.col_name'),
+          field: 'name'
+        },
+        {
+          name: 'event_start_date',
+          align: 'left',
+          label: this.$t('events.col_start_date'),
+          field: 'event_start_date'
+        },
+        {
+          name: 'event_end_date',
+          align: 'left',
+          label: this.$t('events.col_end_date'),
+          field: 'event_end_date'
+        },
+        {
+          name: 'canceled',
+          align: 'left',
+          label: this.$t('events.col_canceled'),
+          field: row => {
+            if (row.extra.conditional && row.canceled) {
+              return this.$t('events.col_yes')
+            }
+            return this.$t('events.col_no')
+          }
+        }
+      ]
+    },
+    ticketsColumns() {
+      return [
+        {
+          name: 'event',
+          align: 'left',
+          label: this.$t('events.col_event'),
+          field: row => this.shortenId(row.event)
+        },
+        {
+          name: 'name',
+          align: 'left',
+          label: this.$t('events.col_name'),
+          field: 'name'
+        },
+        {
+          name: 'email',
+          align: 'left',
+          label: this.$t('email'),
+          field: 'email'
+        },
+        {
+          name: 'registered',
+          align: 'left',
+          label: this.$t('events.col_registered'),
+          field: 'registered'
+        },
+        {
+          name: 'nostr',
+          align: 'left',
+          label: this.$t('events.col_nostr'),
+          field: row => row.extra?.nostr_identifier || ''
+        },
+        {
+          name: 'promo_code',
+          align: 'left',
+          label: this.$t('events.col_promo_code'),
+          field: row => row.extra.applied_promo_code || ''
+        },
+        {name: 'id', align: 'left', label: this.$t('id'), field: 'id'}
+      ]
+    }
+  },
   data() {
     return {
       events: [],
@@ -10,73 +92,12 @@ window.PageEvents = {
       ticketImageUploadTarget: null,
       currencies: [],
       eventsTable: {
-        columns: [
-          {
-            name: 'id',
-            align: 'left',
-            label: 'ID',
-            field: row => this.shortenId(row.id)
-          },
-          {name: 'name', align: 'left', label: 'Name', field: 'name'},
-          {
-            name: 'event_start_date',
-            align: 'left',
-            label: 'Start date',
-            field: 'event_start_date'
-          },
-          {
-            name: 'event_end_date',
-            align: 'left',
-            label: 'End date',
-            field: 'event_end_date'
-          },
-          {
-            name: 'canceled',
-            align: 'left',
-            label: 'Canceled',
-            field: row => {
-              if (row.extra.conditional && row.canceled) {
-                return 'Yes'
-              }
-              return 'No'
-            }
-          }
-        ],
         pagination: {
           rowsPerPage: 10
         }
       },
       ticketsTable: {
         loading: false,
-        columns: [
-          {
-            name: 'event',
-            align: 'left',
-            label: 'Event',
-            field: row => this.shortenId(row.event)
-          },
-          {name: 'name', align: 'left', label: 'Name', field: 'name'},
-          {name: 'email', align: 'left', label: 'Email', field: 'email'},
-          {
-            name: 'registered',
-            align: 'left',
-            label: 'Registered',
-            field: 'registered'
-          },
-          {
-            name: 'nostr',
-            align: 'left',
-            label: 'Nostr',
-            field: row => row.extra?.nostr_identifier || ''
-          },
-          {
-            name: 'promo_code',
-            align: 'left',
-            label: 'Promo Code',
-            field: row => row.extra.applied_promo_code || ''
-          },
-          {name: 'id', align: 'left', label: 'ID', field: 'id'}
-        ],
         pagination: {
           sortBy: 'time',
           descending: true,
@@ -133,6 +154,22 @@ window.PageEvents = {
     }
   },
   methods: {
+    waveChipLabel(event, wave) {
+      const price = this.isFiatCurrency(wave.currency)
+        ? LNbits.utils.formatCurrency(
+            Number(wave.price_per_ticket || 0).toFixed(2),
+            wave.currency
+          )
+        : `${wave.price_per_ticket} sats`
+      return this.$t('events.wave_chip', {
+        title: wave.title,
+        opening: wave.opening_date,
+        closing: wave.closing_date,
+        price,
+        amount: wave.amount_tickets,
+        sold: this.soldTicketsForWave(event.id, wave.id)
+      })
+    },
     shortenId(value) {
       if (!value) return ''
       return value.length > 4 ? `${value.slice(0, 4)}...` : value
@@ -164,7 +201,7 @@ window.PageEvents = {
         )
         Quasar.Notify.create({
           type: 'positive',
-          message: 'Onchain payment confirmed.',
+          message: this.$t('events.onchain_confirmed'),
           icon: null
         })
         await this.getTickets()
@@ -274,7 +311,7 @@ window.PageEvents = {
         }
         Quasar.Notify.create({
           type: 'positive',
-          message: 'Ticket template uploaded.',
+          message: this.$t('events.ticket_template_uploaded'),
           icon: null
         })
       } catch (error) {
@@ -327,7 +364,7 @@ window.PageEvents = {
       const wallet = _.findWhere(this.g.user.wallets, {id: tickets.wallet})
 
       LNbits.utils
-        .confirmDialog('Are you sure you want to delete this ticket')
+        .confirmDialog(this.$t('events.delete_ticket_confirm'))
         .onOk(() => {
           LNbits.api
             .request(
@@ -364,8 +401,10 @@ window.PageEvents = {
             Quasar.Notify.create({
               type: result.email.sent ? 'positive' : 'negative',
               message: result.email.sent
-                ? 'Ticket email resent.'
-                : `Ticket email failed: ${result.email.error || 'Unknown error.'}`,
+                ? this.$t('events.email_resent')
+                : this.$t('events.email_resend_failed', {
+                    error: result.email.error || this.$t('events.unknown_error')
+                  }),
               icon: null
             })
           }
@@ -374,8 +413,10 @@ window.PageEvents = {
             Quasar.Notify.create({
               type: result.nostr.sent ? 'positive' : 'negative',
               message: result.nostr.sent
-                ? 'Ticket Nostr DM resent.'
-                : `Ticket Nostr DM failed: ${result.nostr.error || 'Unknown error.'}`,
+                ? this.$t('events.nostr_resent')
+                : this.$t('events.nostr_resend_failed', {
+                    error: result.nostr.error || this.$t('events.unknown_error')
+                  }),
               icon: null
             })
           }
@@ -621,8 +662,8 @@ window.PageEvents = {
           Quasar.Notify.create({
             type: 'positive',
             message: this.ticketWaveDialog.editingWaveId
-              ? 'Ticket wave updated.'
-              : 'Ticket wave added.',
+              ? this.$t('events.ticket_wave_updated')
+              : this.$t('events.ticket_wave_added'),
             icon: null
           })
           this.resetTicketWaveDialog()
@@ -685,7 +726,7 @@ window.PageEvents = {
           )
           Quasar.Notify.create({
             type: 'positive',
-            message: 'Promo codes updated.',
+            message: this.$t('events.promo_codes_updated'),
             icon: null
           })
           this.resetPromoCodesDialog()
@@ -713,7 +754,7 @@ window.PageEvents = {
       const events = _.findWhere(this.events, {id: eventsId})
 
       LNbits.utils
-        .confirmDialog('Are you sure you want to delete this form link?')
+        .confirmDialog(this.$t('events.delete_event_confirm'))
         .onOk(() => {
           LNbits.api
             .request(
@@ -747,7 +788,7 @@ window.PageEvents = {
           )
           Quasar.Notify.create({
             type: 'warning',
-            message: `Event ${ev.name} has been canceled and refunds have been issued.`,
+            message: this.$t('events.event_canceled_notify', {name: ev.name}),
             icon: null
           })
           this.events = this.events.map(e => (e.id === ev.id ? data : e))
