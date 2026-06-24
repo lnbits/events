@@ -4,23 +4,31 @@
       <q-card class="q-pa-lg">
         <q-card-section class="q-pa-none">
           <center>
-            <h3 class="q-my-none">Ticket</h3>
+            <h3 class="q-my-none" v-text="$t('events.ticket_heading')"></h3>
             <h5 v-if="ticket" v-text="ticket.name" class="q-my-none"></h5>
             <br />
-            <h5 class="q-my-none">
-              Bookmark, print or screenshot this page,<br />
-              and present it for registration!
-            </h5>
+            <h5
+              class="q-my-none"
+              v-text="$t('events.ticket_instructions')"
+            ></h5>
             <div v-if="ticket" class="row justify-center q-gutter-sm q-mb-md">
               <q-btn
                 unelevated
                 :color="ticket.paid ? 'positive' : 'negative'"
-                :label="ticket.paid ? 'Paid' : 'Not Paid'"
+                :label="
+                  ticket.paid
+                    ? $t('events.ticket_paid')
+                    : $t('events.ticket_not_paid')
+                "
               ></q-btn>
               <q-btn
                 unelevated
                 :color="ticket.registered ? 'positive' : 'warning'"
-                :label="ticket.registered ? 'Checked In' : 'Not Checked In'"
+                :label="
+                  ticket.registered
+                    ? $t('events.checked_in')
+                    : $t('events.not_checked_in')
+                "
               ></q-btn>
             </div>
             <lnbits-qrcode
@@ -29,7 +37,8 @@
             ></lnbits-qrcode>
             <br />
             <q-btn @click="printWindow" color="grey">
-              <q-icon left size="3em" name="print"></q-icon> Print
+              <q-icon left size="3em" name="print"></q-icon>
+              <span v-text="$t('events.print')"></span>
             </q-btn>
           </center>
         </q-card-section>

@@ -14,7 +14,7 @@
       </q-card>
       <q-card class="q-pa-lg">
         <q-card-section class="q-pa-none">
-          <h5 class="q-mt-none">Buy Ticket</h5>
+          <h5 class="q-mt-none" v-text="$t('events.buy_ticket')"></h5>
           <q-form @submit="createInvoice()" class="q-gutter-md">
             <div class="row">
               <div class="col-12">
@@ -22,7 +22,7 @@
                   filled
                   dense
                   v-model.trim="formDialog.data.name"
-                  label="Your name "
+                  :label="$t('events.your_name_label')"
                   :rules="[val => nameValidation(val)]"
                 ></q-input>
               </div>
@@ -34,11 +34,11 @@
                   type="email"
                   :label="
                     allowEmailNotifications
-                      ? 'Your email (ticket delivery) '
-                      : 'Your email '
+                      ? $t('events.your_email_delivery_label')
+                      : $t('events.your_email_label')
                   "
                   :rules="[
-                    val => !!val || '* Required',
+                    val => !!val || $t('events.required'),
                     val => emailValidation(val)
                   ]"
                   lazy-rules
@@ -49,8 +49,8 @@
                   filled
                   dense
                   v-model.trim="formDialog.data.nostr_identifier"
-                  label="(optional) Nostr NIP-05"
-                  hint="If provided, we'll DM your ticket link after payment."
+                  :label="$t('events.nostr_nip05_label')"
+                  :hint="$t('events.nostr_nip05_hint')"
                 ></q-input>
               </div>
             </div>
@@ -59,10 +59,14 @@
               filled
               dense
               v-model.trim="formDialog.data.refund"
-              label="Refund lnadress or LNURL "
-              :rules="[val => !!val || '* Required']"
+              :label="$t('events.refund_label')"
+              :rules="[val => !!val || $t('events.required')]"
               lazy-rules
-              :hint="`If minimum tickets (${event.extra?.min_tickets}) are not met, refund will be sent.`"
+              :hint="
+                $t('events.refund_hint', {
+                  min_tickets: event.extra?.min_tickets
+                })
+              "
             ></q-input>
             <q-select
               v-if="showTicketWaveSelector"
@@ -71,7 +75,7 @@
               v-model="formDialog.data.ticket_wave_id"
               emit-value
               map-options
-              label="Ticket wave"
+              :label="$t('events.ticket_wave_label')"
               :options="
                 activeTicketWaves.map(wave => ({
                   label: `${wave.title} - ${wave.price_per_ticket} ${wave.currency}`,
@@ -96,7 +100,7 @@
                   filled
                   dense
                   v-model.trim="formDialog.data.promo_code"
-                  label="(optional) Promo Code "
+                  :label="$t('events.promo_code_optional')"
                 ></q-input>
               </div>
             </div>
@@ -111,11 +115,15 @@
                   (receive.show && Boolean(paymentReq))
                 "
                 type="submit"
-                >Submit</q-btn
-              >
-              <q-btn @click="resetForm" flat color="grey" class="q-ml-auto"
-                >Clear</q-btn
-              >
+                v-text="$t('events.submit')"
+              ></q-btn>
+              <q-btn
+                @click="resetForm"
+                flat
+                color="grey"
+                class="q-ml-auto"
+                v-text="$t('clear')"
+              ></q-btn>
             </div>
           </q-form>
         </q-card-section>
@@ -130,8 +138,8 @@
             target="_blank"
             color="primary"
             type="a"
-            >Link to your ticket!</q-btn
-          >
+            v-text="$t('events.link_to_ticket')"
+          ></q-btn>
         </div>
       </q-card>
     </div>
@@ -147,11 +155,14 @@
         class="q-pa-lg q-pt-xl lnbits__dialog-card"
       >
         <div class="text-center q-mb-lg">
-          <div class="text-h6 q-mb-sm">Continue to checkout</div>
-          <div class="text-body2 text-grey-5 q-mb-lg">
-            Your fiat checkout opened in a new tab. If it did not, use the
-            button below.
-          </div>
+          <div
+            class="text-h6 q-mb-sm"
+            v-text="$t('events.continue_to_checkout')"
+          ></div>
+          <div
+            class="text-body2 text-grey-5 q-mb-lg"
+            v-text="$t('events.fiat_checkout_opened')"
+          ></div>
           <q-btn
             unelevated
             color="primary"
@@ -159,18 +170,23 @@
             :href="receive.paymentReq"
             target="_blank"
             rel="noopener"
-          >
-            Go to checkout
-          </q-btn>
+            v-text="$t('events.go_to_checkout')"
+          ></q-btn>
         </div>
         <div class="row q-mt-lg">
           <q-btn
             outline
             color="grey"
             @click="utils.copyText(receive.paymentReq)"
-            >Copy payment link</q-btn
-          >
-          <q-btn v-close-popup flat color="grey" class="q-ml-auto">Close</q-btn>
+            v-text="$t('events.copy_payment_link')"
+          ></q-btn>
+          <q-btn
+            v-close-popup
+            flat
+            color="grey"
+            class="q-ml-auto"
+            v-text="$t('close')"
+          ></q-btn>
         </div>
       </q-card>
       <q-card v-else class="q-pa-lg q-pt-xl lnbits__dialog-card">
@@ -185,9 +201,15 @@
             outline
             color="grey"
             @click="utils.copyText(receive.paymentReq)"
-            >Copy invoice</q-btn
-          >
-          <q-btn v-close-popup flat color="grey" class="q-ml-auto">Close</q-btn>
+            v-text="$t('events.copy_invoice')"
+          ></q-btn>
+          <q-btn
+            v-close-popup
+            flat
+            color="grey"
+            class="q-ml-auto"
+            v-text="$t('close')"
+          ></q-btn>
         </div>
       </q-card>
     </q-dialog>

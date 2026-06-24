@@ -3,24 +3,28 @@
     "path": "/events/",
     "name": "PageEvents",
     "template": "/events/static/js/index.vue",
-    "component": "/events/static/js/index.js"
+    "component": "/events/static/js/index.js",
+    "i18n": "/events/static/js/i18n"
   },
   {
     "path": "/events/:id",
     "name": "PageEventsDisplay",
     "template": "/events/static/js/display.vue",
-    "component": "/events/static/js/display.js"
+    "component": "/events/static/js/display.js",
+    "i18n": "/events/static/js/i18n"
   },
   {
     "path": "/events/ticket/:id",
     "name": "PageEventsTicket",
     "template": "/events/static/js/ticket.vue",
-    "component": "/events/static/js/ticket.js"
+    "component": "/events/static/js/ticket.js",
+    "i18n": "/events/static/js/i18n"
   },
   {
     "path": "/events/register/:id",
     "name": "PageEventsRegister",
     "template": "/events/static/js/register.vue",
-    "component": "/events/static/js/register.js"
+    "component": "/events/static/js/register.js",
+    "i18n": "/events/static/js/i18n"
   }
 ]

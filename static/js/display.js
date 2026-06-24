@@ -72,7 +72,9 @@ window.PageEventsDisplay = {
       )
         ? this.selectedTicketWave?.fiat_currency
         : this.selectedTicketWave?.currency
-      return `Fiat (${(unit || 'GBP').toUpperCase()})`
+      return this.$t('events.payment_fiat', {
+        unit: (unit || 'GBP').toUpperCase()
+      })
     },
     allowEmailNotifications() {
       return Boolean(this.event?.extra?.email_notifications)
@@ -87,12 +89,17 @@ window.PageEventsDisplay = {
       return this.allowFiatCheckout || this.allowOnchain
     },
     paymentMethodOptions() {
-      const options = [{label: 'Lightning', value: 'lightning'}]
+      const options = [
+        {label: this.$t('events.payment_lightning'), value: 'lightning'}
+      ]
       if (this.allowFiatCheckout) {
         options.push({label: this.fiatCheckoutLabel, value: 'fiat'})
       }
       if (this.allowOnchain) {
-        options.push({label: 'Bitcoin', value: 'onchain'})
+        options.push({
+          label: this.$t('events.payment_bitcoin'),
+          value: 'onchain'
+        })
       }
       return options
     }
@@ -116,7 +123,7 @@ window.PageEventsDisplay = {
           activeWaves.length === 1 ? activeWaves[0].id : null
         return data
       } catch (error) {
-        this.eventErrorLabel = 'Event unavailable.'
+        this.eventErrorLabel = this.$t('events.event_unavailable')
         LNbits.utils.notifyApiError(error)
       }
     },
@@ -152,14 +159,11 @@ window.PageEventsDisplay = {
     },
     nameValidation(val) {
       const regex = /[`!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~]/g
-      return (
-        !regex.test(val) ||
-        'Please enter valid name. No special character allowed.'
-      )
+      return !regex.test(val) || this.$t('events.name_validation')
     },
     emailValidation(val) {
       const regex = /^[\w\.-]+@[a-zA-Z\d\.-]+\.[a-zA-Z]{2,}$/
-      return regex.test(val) || 'Please enter valid email.'
+      return regex.test(val) || this.$t('events.email_validation')
     },
     paymentSuccess(paymentHash) {
       if (this.paymentDismissMsg) {
@@ -178,7 +182,7 @@ window.PageEventsDisplay = {
       this.formDialog.data.payment_method = 'lightning'
       Quasar.Notify.create({
         type: 'positive',
-        message: 'Sent, thank you!',
+        message: this.$t('events.payment_sent'),
         icon: null
       })
       this.receive = {
@@ -226,7 +230,7 @@ window.PageEventsDisplay = {
 
         this.paymentDismissMsg = Quasar.Notify.create({
           timeout: 0,
-          message: 'Waiting for payment...'
+          message: this.$t('events.waiting_for_payment')
         })
         this.receive = {
           show: true,
