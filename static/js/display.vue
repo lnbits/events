@@ -172,6 +172,16 @@
               {{ d.label }}
             </div>
           </div>
+          <div v-if="promoMessages.length > 0" class="q-mt-md">
+            <div
+              v-for="(m, idx) in promoMessages"
+              :key="idx"
+              class="text-caption"
+              :class="m.kind === 'pending' ? 'text-warning' : 'text-negative'"
+            >
+              {{ m.label }}
+            </div>
+          </div>
           <div class="text-h6 q-mt-md text-right">
             Total: {{ basketTotal }} {{ basketCurrency }}
           </div>

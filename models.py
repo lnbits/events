@@ -6,33 +6,101 @@ from lnbits.db import FilterModel
 from pydantic import BaseModel, Field, root_validator, validator
 
 
+class PromoSource(BaseModel):
+    """The source-ticket condition attached to a promo.
+
+    Orthogonal to the offer code: a promo identifies itself with ``code`` and
+    ADDITIONALLY may require an existing ticket. ``require_ticket=False`` is the
+    classic typed-code promo; ``require_ticket=True`` makes the rule an offer
+    code that only applies when a valid source ticket is presented too (ticket
+    upgrades and extra-ticket offers).
+
+    ``event_ids``/``ticket_type_ids`` scope which source tickets qualify (empty
+    event_ids = the target event only), ``move`` turns it into an upgrade (void
+    the source and release its seat on payment), and ``credit`` adds the source
+    ticket's recorded paid value to the discount.
+    """
+
+    require_ticket: bool = False
+    event_ids: list[str] | None = None
+    ticket_type_ids: list[str] | None = None
+    move: bool = False
+    credit: str = "none"
+
+    @validator("credit")
+    def validate_credit(cls, v):
+        assert v in ("none", "paid"), "source credit must be 'none' or 'paid'."
+        return v
+
+    @root_validator
+    def drop_ticket_condition_without_ticket(cls, values):
+        # Coerce rather than raise: this JSON is parsed on every read, so a
+        # stored row with `move`/`credit` but no ticket requirement must not
+        # make the whole event unloadable. Those flags are meaningless without
+        # a ticket, so they simply fall away.
+        if not values.get("require_ticket", False):
+            values["move"] = False
+            values["credit"] = "none"
+        return values
+
+
 class PromoCode(BaseModel):
-    code: str
+    """A discount rule.
+
+    ``code`` identifies the offer to the buyer and is the primary key for
+    matching. ``source.require_ticket`` additionally demands a valid existing
+    ticket, which is what enables upgrades and extra-ticket offers; a ticket
+    rule may leave ``code`` blank to mean "any eligible ticket activates this".
+    """
+
+    code: str = ""
     discount_percent: float | None = None
     discount_fixed: int | None = None
     active: bool = True
     combinable: bool = True
     max_uses: int | None = None
     used_count: int = 0
-    type: str = "code"
+    source: PromoSource = Field(default_factory=PromoSource)
     redemptions_per_ticket: int = 1
-    # Optional scoping: when set, the discount only applies to the value of the
-    # listed ticket types (by ticket_type_id). None/empty = basket-wide (the
-    # pre-existing behaviour, applied to the whole basket).
+    # TARGET scope: when set, the discount only applies to the value of the
+    # listed ticket types (by ticket_type_id). None/empty = basket-wide.
     ticket_type_ids: list[str] | None = None
-    # type=ticket only: max number of tickets a single redemption can cover
-    # (None = any number). Contrast redemptions_per_ticket (how many times the
-    # same source ticket can be redeemed).
+    # Max number of tickets a single redemption can cover (None = any number).
+    # Contrast redemptions_per_ticket (how many times the same source ticket
+    # can be redeemed).
     max_tickets: int | None = None
+    # Runtime-only: set when a ticket rule is resolved, carrying the credit
+    # derived from the source ticket. Never persisted as configuration.
+    credit_value: float | None = None
+
+    @root_validator(pre=True)
+    def migrate_legacy_axis(cls, values):
+        # Rows written before the offer-code axis stored `type: "code"|"ticket"`
+        # and, for ticket rules, the sentinel code "TICKETID"; rows written by
+        # the intermediate revision stored `source.kind`. Map both onto
+        # `source.require_ticket` so existing config keeps working.
+        if not isinstance(values, dict):
+            return values
+
+        legacy_type = values.pop("type", None)
+        source = values.get("source")
+        if isinstance(source, dict) and "kind" in source:
+            source.setdefault("require_ticket", source.pop("kind") == "ticket")
+        elif legacy_type is not None and "source" not in values:
+            values["source"] = {"require_ticket": legacy_type == "ticket"}
+
+        source = values.get("source")
+        require_ticket = bool(
+            source.get("require_ticket") if isinstance(source, dict) else False
+        )
+        # The retired sentinel was never a real code.
+        if require_ticket and (values.get("code") or "") == "TICKETID":
+            values["code"] = ""
+        return values
 
     @validator("code")
     def uppercase_code(cls, v):
         return v.upper()
-
-    @validator("type")
-    def validate_type(cls, v):
-        assert v in ("code", "ticket"), "type must be 'code' or 'ticket'."
-        return v
 
     @validator("redemptions_per_ticket")
     def validate_redemptions_per_ticket(cls, v):
@@ -56,6 +124,17 @@ class PromoCode(BaseModel):
         if v is not None:
             assert v >= 0, "Fixed discount must be >= 0."
         return v
+
+    @root_validator
+    def validate_code_present(cls, values):
+        # A code is required unless the rule is activated by a ticket alone.
+        source = values.get("source")
+        require_ticket = getattr(source, "require_ticket", False)
+        if not require_ticket and not (values.get("code") or "").strip():
+            raise ValueError(
+                "a promo code is required unless the rule requires a ticket"
+            )
+        return values
 
     @root_validator
     def validate_discount_exclusive(cls, values):
@@ -161,6 +240,15 @@ class TicketExtra(BaseModel):
     deactivated: bool = False
     satspay_charge_id: str | None = None
     ticket_id_voucher_redemptions: list = Field(default_factory=list)
+    # Amount actually charged for this ticket, in the event's currency.
+    # Recorded on payment; used as the credit basis when the ticket is later
+    # upgraded. Deriving credit from what was paid (not the ticket type's face
+    # price) means a chain of upgrades can never inflate its own value.
+    paid_value: float | None = None
+    # Set on a source ticket consumed by a move upgrade.
+    upgraded_to: str | None = None
+    # Set on a ticket created by a move upgrade.
+    upgraded_from: str | None = None
 
 
 class CreateTicket(BaseModel):
@@ -272,11 +360,39 @@ class BasketDiscount(BaseModel):
     amount_saved: float = 0
 
 
+class PromoRequirement(BaseModel):
+    """A recognised offer code that still needs more input before it applies.
+
+    Drives the checkout's auto-prompt: the buyer types an offer code, this says
+    a ticket id is also needed, and the checkout reveals that input.
+    """
+
+    code: str
+    requires: str = "ticket_id"
+    message: str | None = None
+
+
+class PromoRejection(BaseModel):
+    """Why a submitted token did not apply.
+
+    Without this the checkout silently returns no discount, leaving the buyer
+    with no idea whether the code was wrong, the ticket was wrong, or the offer
+    was simply not applicable. ``reason`` is a stable code for the UI to
+    translate; never parse ``message``.
+    """
+
+    code: str
+    reason: str
+    message: str | None = None
+
+
 class BasketTotals(BaseModel):
     subtotal: float = 0
     discount: float = 0
     total: float = 0
     discounts_applied: list[BasketDiscount] = Field(default_factory=list)
+    pending: list[PromoRequirement] = Field(default_factory=list)
+    rejections: list[PromoRejection] = Field(default_factory=list)
 
 
 class PromoValidateRequest(BaseModel):
@@ -297,6 +413,9 @@ class Basket(BaseModel):
     refund_address: str | None = None
     satspay_charge_id: str | None = None
     paid: bool = False
+    # Amount charged for this basket, in the event's currency, after discounts.
+    # Recorded at creation and used to stamp per-ticket paid_value on payment.
+    total: float | None = None
     time: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 

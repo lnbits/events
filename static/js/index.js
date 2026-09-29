@@ -244,24 +244,45 @@ active: true,
       const event = this.events.find(e => e.id === eventId)
       return event?.currency || 'sats'
     },
+    normalizePromoSource(code) {
+      const src =
+        code?.source ||
+        (code?.type === 'ticket' ? {require_ticket: true} : {})
+      const events = Array.isArray(src.event_ids)
+        ? src.event_ids.filter(Boolean)
+        : []
+      const types = Array.isArray(src.ticket_type_ids)
+        ? src.ticket_type_ids.filter(Boolean)
+        : []
+      return {
+        // `require_ticket` is an ADDITIONAL condition on top of the offer code:
+        // the offer applies only when an eligible ticket id is supplied too.
+        // The legacy `type: 'ticket'` and interim `kind: 'ticket'` both map here.
+        require_ticket:
+          src.require_ticket === true ||
+          src.kind === 'ticket' ||
+          code?.type === 'ticket',
+        // Empty source scope = this event only (the backend default).
+        event_ids: events.length ? events : null,
+        ticket_type_ids: types.length ? types : null,
+        move: !!src.move,
+        credit: src.credit === 'paid' ? 'paid' : 'none'
+      }
+    },
     normalizePromoCodes(promoCodes = []) {
       return promoCodes
-        .filter(code => code.code?.trim() !== '')
         .map(code => {
+          const source = this.normalizePromoSource(code)
           code = {
-            type: 'code',
             redemptions_per_ticket: 1,
-            ...code
+            ...code,
+            source
           }
-          if (code.type === 'ticket') {
-            // A ticket voucher redeems with any existing ticket id; the
-            // code field is just an inert sentinel and it must not stack.
-            code.code = 'TICKETID'
-            code.combinable = false
-            code.max_uses = null
-          }
+          // The legacy `type` axis is retired; `source.require_ticket` carries
+          // it now. The code is ALWAYS the offer code — never blanked, since it
+          // is what identifies the offer to the buyer and what max_uses counts.
+          delete code.type
           // Ticket-type scoping: empty selection = whole basket (null).
-          // Applies to both code promos and ticket-ID vouchers.
           const scope = Array.isArray(code.ticket_type_ids)
             ? code.ticket_type_ids.filter(Boolean)
             : []
@@ -269,9 +290,13 @@ active: true,
           if (!code.max_tickets) code.max_tickets = null
           return {
             ...code,
-            code: code.code.trim().toUpperCase()
+            code: (code.code || '').trim().toUpperCase()
           }
         })
+        // A rule without a ticket requirement needs a code to be redeemable;
+        // one WITH a ticket requirement may legitimately have none (it is then
+        // activated by any eligible ticket id).
+        .filter(code => code.source.require_ticket || code.code !== '')
     },
     ticketTypeOptions(eventId) {
       const tts = this.ticketTypesByEvent?.[eventId] || []
@@ -279,6 +304,41 @@ active: true,
         label: `${tt.name} (${tt.price})`,
         value: tt.id
       }))
+    },
+    sourceEventOptions(targetEventId) {
+      return (this.events || []).map(ev => ({
+        label: ev.id === targetEventId ? `${ev.name} — this event` : ev.name,
+        value: ev.id
+      }))
+    },
+    sourceEventIds(source, targetEventId) {
+      const picked = Array.isArray(source?.event_ids)
+        ? source.event_ids.filter(Boolean)
+        : []
+      // No source event named = this event only (the backend default).
+      return picked.length ? picked : [targetEventId].filter(Boolean)
+    },
+    sourceTicketTypeOptions(source, targetEventId) {
+      const out = []
+      for (const id of this.sourceEventIds(source, targetEventId)) {
+        for (const tt of this.ticketTypesByEvent?.[id] || []) {
+          out.push({label: `${tt.name} (${tt.price})`, value: tt.id})
+        }
+      }
+      return out
+    },
+    loadPromoScopeTicketTypes(codes, targetEventId) {
+      if (!this.ticketTypesByEvent?.[targetEventId]) {
+        this.loadTicketTypes(targetEventId)
+      }
+      for (const code of codes || []) {
+        if (!code?.source?.require_ticket) continue
+        for (const id of code.source.event_ids || []) {
+          if (id !== targetEventId && !this.ticketTypesByEvent?.[id]) {
+            this.loadTicketTypes(id)
+          }
+        }
+      }
     },
     templateDownloadUrl() {
       return '/events/static/image/ticket.jpg'
@@ -783,27 +843,36 @@ active: true,
         })
     },
     openPromoCodesDialog(event) {
+      // Normalise every promo onto the source axis and give the list's
+      // q-selects real arrays to bind to (they default to null on the wire).
+      const codes = (event.extra?.promo_codes || []).map(code => {
+        const {type: _legacyType, ...rest} = code
+        const source = this.normalizePromoSource(code)
+        return {
+          ...rest,
+          source: {
+            require_ticket: source.require_ticket,
+            event_ids: source.event_ids || [],
+            ticket_type_ids: source.ticket_type_ids || [],
+            move: source.move,
+            credit: source.credit
+          },
+          ticket_type_ids: [...(code.ticket_type_ids || [])]
+        }
+      })
       this.promoCodesDialog.data = {
         ...event,
         extra: {
           ...event.extra,
-          promo_codes: (event.extra?.promo_codes || []).map(code => ({
-            ...code,
-            ticket_type_ids: [...(code.ticket_type_ids || [])]
-          }))
+          promo_codes: codes
         }
       }
       this.promoDiscountTypes = {}
-      ;(event.extra?.promo_codes || []).forEach((code, idx) => {
-        if (code.discount_fixed != null) {
-          this.promoDiscountTypes[idx] = 'fixed'
-        } else {
-          this.promoDiscountTypes[idx] = 'percent'
-        }
+      codes.forEach((code, idx) => {
+        this.promoDiscountTypes[idx] =
+          code.discount_fixed != null ? 'fixed' : 'percent'
       })
-      if (!this.ticketTypesByEvent?.[event.id]) {
-        this.loadTicketTypes(event.id)
-      }
+      this.loadPromoScopeTicketTypes(codes, event.id)
       this.promoCodesDialog.show = true
     },
     resetPromoCodesDialog() {
@@ -822,7 +891,13 @@ active: true,
       const idx = this.promoCodesDialog.data.extra.promo_codes.length
       this.promoCodesDialog.data.extra.promo_codes.push({
         code: '',
-        type: 'code',
+        source: {
+          require_ticket: false,
+          event_ids: [],
+          ticket_type_ids: [],
+          move: false,
+          credit: 'none'
+        },
         discount_percent: undefined,
         discount_fixed: undefined,
         active: true,
@@ -887,15 +962,30 @@ active: true,
       if (!code) return
       this.editPromoCodeDialog.eventId = eventId
       this.editPromoCodeDialog.codeIndex = codeIndex
+      // Drop the retired `type` axis and hand the dialog a `source` object
+      // whose list fields are real arrays, which is what q-select needs.
+      const {type: _legacyType, ...rest} = code
+      const source = this.normalizePromoSource(code)
       this.editPromoCodeDialog.data = {
-        ...code,
-        ticket_type_ids: [...(code.ticket_type_ids || [])]
+        ...rest,
+        source: {
+          require_ticket: source.require_ticket,
+          event_ids: source.event_ids || [],
+          ticket_type_ids: source.ticket_type_ids || [],
+          move: source.move,
+          credit: source.credit
+        },
+        ticket_type_ids: [...(code.ticket_type_ids || [])],
+        max_uses: code.max_uses ?? null,
+        max_tickets: code.max_tickets ?? null,
+        redemptions_per_ticket: code.redemptions_per_ticket ?? 1
       }
       this.editPromoCodeDialog.discountType =
         code.discount_fixed != null ? 'fixed' : 'percent'
       if (!this.ticketTypesByEvent?.[eventId]) {
         this.loadTicketTypes(eventId)
       }
+      this.loadPromoScopeTicketTypes([this.editPromoCodeDialog.data], eventId)
       this.editPromoCodeDialog.show = true
     },
     openAddPromoCodeDialog(eventId) {
@@ -903,7 +993,13 @@ active: true,
       this.editPromoCodeDialog.codeIndex = -1
       this.editPromoCodeDialog.data = {
         code: '',
-        type: 'code',
+        source: {
+          require_ticket: false,
+          event_ids: [],
+          ticket_type_ids: [],
+          move: false,
+          credit: 'none'
+        },
         discount_percent: null,
         discount_fixed: null,
         active: true,
@@ -920,14 +1016,32 @@ active: true,
       }
       this.editPromoCodeDialog.show = true
     },
-    onPromoTypeChange(type) {
-      const data = this.editPromoCodeDialog.data
+    onPromoRequireTicketChange(requireTicket) {
+      const data = this.editPromoCodeDialog?.data
       if (!data) return
-      if (type === 'ticket') {
-        data.combinable = false
-        data.max_uses = null
-        data.ticket_type_ids = []
-        if (data.redemptions_per_ticket == null) data.redemptions_per_ticket = 1
+      if (!requireTicket) {
+        // The ticket-only settings are meaningless without a ticket, and the
+        // backend drops them anyway — clear them so the form matches what will
+        // be saved. The offer code is NOT blanked: it identifies the offer and
+        // is required when no ticket is involved.
+        data.source.move = false
+        data.source.credit = 'none'
+        data.source.event_ids = []
+        data.source.ticket_type_ids = []
+      }
+      // max_uses is deliberately left alone in both directions: a ticket rule
+      // can cap its own usage now ("first 20 upgrades").
+      this.loadPromoScopeTicketTypes(
+        [data],
+        this.editPromoCodeDialog?.eventId
+      )
+    },
+    onPromoMoveChange(move) {
+      const data = this.editPromoCodeDialog?.data
+      if (!data) return
+      if (move) {
+        // "Move my ticket" is strictly one ticket in, one ticket out.
+        data.max_tickets = null
       }
     },
     saveEditPromoCode() {
@@ -937,23 +1051,36 @@ active: true,
       const wallet = _.findWhere(this.g.user.wallets, {id: event.wallet})
       if (!wallet) return
 
-      const code = {...data}
+      const source = this.normalizePromoSource(data)
+      const code = {...data, source}
+      delete code.type
       if (discountType === 'fixed') {
         code.discount_percent = null
       } else {
         code.discount_fixed = null
       }
-      if (code.type === 'ticket') {
-        code.code = 'TICKETID'
-        code.combinable = false
-        code.max_uses = null
+      if (source.move) {
+        // "Move my ticket" is strictly one ticket in, one ticket out.
+        code.max_tickets = null
       }
       const scope = Array.isArray(code.ticket_type_ids)
         ? code.ticket_type_ids.filter(Boolean)
         : []
       code.ticket_type_ids = scope.length ? scope : null
       if (!code.max_tickets) code.max_tickets = null
-      code.code = code.code.trim().toUpperCase()
+      code.code = (code.code || '').trim().toUpperCase()
+
+      // Without a ticket requirement the code is the only way in, so it cannot
+      // be blank. With a ticket requirement a blank code is legitimate: the
+      // rule is then activated by any eligible ticket id.
+      if (!source.require_ticket && !code.code) {
+        Quasar.Notify.create({
+          type: 'negative',
+          message: this.$t('events.promo_code_required'),
+          icon: null
+        })
+        return
+      }
 
       const codes = [...(event.extra?.promo_codes || [])]
       if (codeIndex >= 0 && codeIndex < codes.length) {

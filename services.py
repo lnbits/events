@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from html import escape
-from typing import Any
+from typing import Any, NamedTuple
 
 import httpx
 from lnbits.core.models.users import UserNotifications
@@ -24,6 +24,7 @@ from .crud import (
     get_basket_tickets,
     get_event,
     get_event_tickets,
+    get_events,
     get_ticket,
     get_ticket_type,
     get_ticket_types,
@@ -42,6 +43,9 @@ from .models import (
     EventExtra,
     NotificationDeliveryResult,
     PromoCode,
+    PromoRejection,
+    PromoRequirement,
+    PromoSource,
     Ticket,
     TicketResendResult,
     TicketType,
@@ -80,9 +84,20 @@ async def get_satspay_charge(api_key: str, charge_id: str) -> dict[str, Any]:
 
 
 def _effective_discount(promo, price: float) -> float:
-    discount = 0
+    """Total discount a promo yields against ``price``.
+
+    A ticket-source promo resolved with ``credit="paid"`` also contributes the
+    source ticket's recorded paid value. The credit is applied first and the
+    promo's own percent/fixed value sits on top of the target price; the whole
+    thing is capped at the base, so an upgrade can become free (cap to free)
+    but never negative.
+    """
+    discount = 0.0
+    credit = getattr(promo, "credit_value", None)
+    if credit:
+        discount += float(credit)
     if promo.discount_percent is not None:
-        discount = price * promo.discount_percent / 100
+        discount += price * promo.discount_percent / 100
     if promo.discount_fixed is not None:
         discount += promo.discount_fixed
     return min(discount, price)
@@ -179,37 +194,108 @@ def _apply_promo_codes(
 # ("pending") at checkout creation and only finalized on payment, so two
 # concurrent checkouts can't both consume the last slot.
 # ---------------------------------------------------------------------------
-TICKET_VOUCHER_CODE = "TICKETID"
 _VOUCHER_TTL_SECONDS = 24 * 3600  # matches the satspay charge time (1440 min)
 
-# Per-event locks so concurrent checkouts race on reservation in one process.
+# Per-SOURCE-TICKET locks so concurrent checkouts cannot both claim the last
+# redemption slot of one source ticket. Keyed on the source ticket id rather
+# than the target event, because a ticket-source promo may reference a ticket
+# that belongs to a different event.
 _reservation_locks: dict[str, asyncio.Lock] = {}
 
 
-def _reservation_lock(event_id: str) -> asyncio.Lock:
-    if event_id not in _reservation_locks:
-        _reservation_locks[event_id] = asyncio.Lock()
-    return _reservation_locks[event_id]
+def _reservation_lock(key: str) -> asyncio.Lock:
+    if key not in _reservation_locks:
+        _reservation_locks[key] = asyncio.Lock()
+    return _reservation_locks[key]
 
 
-def _find_ticket_voucher_promo(event: Event) -> PromoCode | None:
-    for promo in event.extra.promo_codes:
-        if promo.type == "ticket" and promo.active:
-            return promo
-    return None
+def _promo_source(promo) -> PromoSource:
+    """The promo's ticket condition, tolerating legacy/constructed objects."""
+    source = getattr(promo, "source", None)
+    if isinstance(source, PromoSource):
+        return source
+    # construct()'d or pre-axis object: fall back to the legacy discriminators.
+    legacy_type = getattr(promo, "type", None)
+    return PromoSource(require_ticket=legacy_type == "ticket")
 
 
-async def _resolve_ticket_id_voucher(event: Event, ticket_id: str) -> Ticket | None:
+def _requires_ticket(promo) -> bool:
+    return bool(_promo_source(promo).require_ticket)
+
+
+def _rule_code(promo) -> str:
+    """The offer code a promo is selected by ("" = activated by a ticket alone)."""
+    return (getattr(promo, "code", "") or "").upper()
+
+
+def _ticket_rules(event: Event, active_only: bool = True) -> list[PromoCode]:
+    """Every promo that ALSO requires a source ticket.
+
+    Plural by design: an event may carry any number of these, distinguished by
+    their offer codes (an upgrade rule, a bring-a-friend rule, ...). This used
+    to return a single rule, which made offers indistinguishable.
+    ``active_only=False`` is used when consuming an already-paid basket, so a
+    promo deactivated mid-checkout still voids its source ticket.
+    """
+    return [
+        p for p in event.extra.promo_codes
+        if _requires_ticket(p) and (p.active or not active_only)
+    ]
+
+
+def _source_scope_matches(promo, source: Ticket, event: Event) -> bool:
+    source_axis = _promo_source(promo)
+    if not source_axis.require_ticket:
+        return False
+    # No source events named = this event only (the pre-existing behaviour).
+    allowed_events = source_axis.event_ids or [event.id]
+    if source.event not in allowed_events:
+        return False
+    if (source_axis.ticket_type_ids
+            and source.ticket_type_id not in source_axis.ticket_type_ids):
+        return False
+    return True
+
+
+async def _resolve_source_ticket(
+    event: Event, ticket_id: str, promo: PromoCode
+) -> tuple[Ticket | None, str | None]:
+    """Resolve a submitted ticket id against a ticket rule.
+
+    Returns ``(ticket, None)`` on success or ``(None, reason)`` — the reason is
+    a stable code the checkout can show, instead of failing silently.
+    """
     if not ticket_id:
-        return None
+        return None, "ticket_not_found"
     source = await get_ticket(ticket_id)
     if not source:
-        return None
-    if not source.paid or source.extra.deactivated:
-        return None
-    if source.event != event.id:
-        return None
-    return source
+        return None, "ticket_not_found"
+    if not source.paid or source.extra.deactivated or source.extra.refunded:
+        return None, "ticket_not_eligible"
+    if source.extra.upgraded_to:
+        return None, "ticket_already_used"
+    if not _source_scope_matches(promo, source, event):
+        return None, "ticket_out_of_scope"
+    source_event = await get_event(source.event)
+    if not source_event:
+        return None, "ticket_not_found"
+    if (source_event.currency or "").lower() != (event.currency or "").lower():
+        return None, "currency_mismatch"
+    return source, None
+
+
+async def _source_credit(promo, source: Ticket) -> float:
+    """Credit contributed by the source ticket, in the target event's currency."""
+    if _promo_source(promo).credit != "paid":
+        return 0.0
+    value = source.extra.paid_value
+    if value is None and source.ticket_type_id:
+        # Tickets sold before paid_value was recorded fall back to the ticket
+        # type's price (the documented backfill fallback).
+        ticket_type = await get_ticket_type(source.ticket_type_id)
+        if ticket_type:
+            value = ticket_type.price
+    return float(value or 0)
 
 
 def _active_redemption_count(redemptions: list, now: datetime) -> int:
@@ -252,16 +338,41 @@ def _ticket_voucher_available(source: Ticket, promo: PromoCode, now: datetime) -
     return count < (promo.redemptions_per_ticket or 1)
 
 
+def _source_gate_ok(promo, item_count: int) -> bool:
+    """Whether the promo may apply to a basket of ``item_count`` tickets."""
+    source_axis = _promo_source(promo)
+    # A move upgrade is strictly one ticket in, one ticket out.
+    if source_axis.move and item_count != 1:
+        return False
+    if promo.max_tickets is not None and item_count > promo.max_tickets:
+        return False
+    return True
+
+
+async def _match_ticket_rule(
+    event: Event, ticket_id: str, item_count: int, active_only: bool = True
+) -> tuple[PromoCode, Ticket] | None:
+    """Find the ticket rule a submitted ticket id satisfies (rule order wins)."""
+    for promo in _ticket_rules(event, active_only=active_only):
+        if not _source_gate_ok(promo, item_count):
+            continue
+        source, _reason = await _resolve_source_ticket(event, ticket_id, promo)
+        if source:
+            return promo, source
+    return None
+
+
 async def _reserve_ticket_voucher(
-    event: Event, source_ticket_id: str, basket_id: str
+    event: Event, source_ticket_id: str, basket_id: str, item_count: int = 1
 ) -> None:
-    """Authoritative, concurrency-safe reservation of one voucher slot."""
-    promo = _find_ticket_voucher_promo(event)
-    if not promo:
-        raise ValueError("Ticket-ID discount is not configured for this event.")
-    source = await _resolve_ticket_id_voucher(event, source_ticket_id)
-    if not source:
+    """Authoritative, concurrency-safe reservation of one redemption slot.
+
+    Callers must hold the lock for ``source_ticket_id``.
+    """
+    match = await _match_ticket_rule(event, source_ticket_id, item_count)
+    if not match:
         raise ValueError("Invalid or ineligible ticket ID for discount.")
+    promo, source = match
     now = datetime.now(timezone.utc)
     if not _ticket_voucher_available(source, promo, now):
         raise ValueError("This ticket has already been used for its discount.")
@@ -291,6 +402,267 @@ async def _finalize_ticket_voucher(source: Ticket, basket_id: str) -> None:
     if changed:
         source.extra.ticket_id_voucher_redemptions = redemptions
         await update_ticket(source)
+
+
+async def _consume_upgraded_source(
+    promo, source: Ticket, successor_ticket_id: str | None
+) -> None:
+    """Void a source ticket consumed by a move upgrade and release its seat.
+
+    The seat is only released when the source ticket had not been used: an
+    already-registered/attended ticket still represents a seat that was
+    occupied, so decrementing ``sold`` would over-state availability.
+    """
+    source.extra.deactivated = True
+    source.extra.upgraded_to = successor_ticket_id
+    await update_ticket(source)
+
+    if not source.registered:
+        source_event = await get_event(source.event)
+        if source_event and source_event.sold > 0:
+            source_event.sold -= 1
+            await update_event(source_event)
+        if source.ticket_type_id:
+            ticket_type = await get_ticket_type(source.ticket_type_id)
+            if ticket_type and ticket_type.sold > 0:
+                ticket_type.sold -= 1
+                await update_ticket_type(ticket_type)
+
+    if successor_ticket_id:
+        successor = await get_ticket(successor_ticket_id)
+        if successor:
+            successor.extra.upgraded_from = source.id
+            await update_ticket(successor)
+
+
+async def backfill_paid_values(wallet_ids: str | list[str]) -> dict:
+    """Backfill ``TicketExtra.paid_value`` for tickets sold before it existed.
+
+    Prefers reconstructing the charged amount from the ticket's basket, falling
+    back to the ticket type's price when a basket can't be resolved. Idempotent:
+    only fills tickets whose ``paid_value`` is still None.
+    """
+    summary = {
+        "events": 0,
+        "filled": 0,
+        "basket_reconstructed": 0,
+        "type_price_fallback": 0,
+    }
+    for event in await get_events(wallet_ids):
+        summary["events"] += 1
+        basket_cache: dict[str, list[Ticket]] = {}
+        for ticket in await get_event_tickets(event.id):
+            if not ticket.paid or ticket.extra.paid_value is not None:
+                continue
+            value = None
+            if ticket.basket_id:
+                basket = await get_basket(ticket.basket_id)
+                if basket:
+                    siblings = basket_cache.get(ticket.basket_id)
+                    if siblings is None:
+                        siblings = await get_basket_tickets(ticket.basket_id)
+                        basket_cache[ticket.basket_id] = siblings
+                    total = basket.total
+                    if total is None:
+                        total = await _recompute_basket_total(basket, event)
+                    if total:
+                        value = float(total) / len(siblings or [ticket])
+                        summary["basket_reconstructed"] += 1
+            if value is None and ticket.ticket_type_id:
+                ticket_type = await get_ticket_type(ticket.ticket_type_id)
+                if ticket_type:
+                    value = float(ticket_type.price)
+                    summary["type_price_fallback"] += 1
+            if value is None:
+                continue
+            ticket.extra.paid_value = value
+            await update_ticket(ticket)
+            summary["filled"] += 1
+    return summary
+
+
+class _TicketRuleResolution(NamedTuple):
+    """Outcome of pairing submitted offer codes + ticket ids against the rules."""
+
+    promos: list[PromoCode]
+    # (rule, ticket-id token, source ticket) for every rule that actually applied
+    pairs: list[tuple[PromoCode, str, Ticket]]
+    pending: list[PromoRequirement]
+    rejections: list[PromoRejection]
+
+
+def _rule_selected(rule, selected: set[str]) -> bool:
+    """Whether the buyer chose this rule (a codeless rule is always chosen)."""
+    rule_code = _rule_code(rule)
+    return (not rule_code) or (rule_code in selected)
+
+
+def _rule_uses_available(rule, allow_consumed: bool) -> bool:
+    """Whether a rule still has global uses left.
+
+    A ticket rule can now cap its own usage ("first 20 upgrades"), which the
+    retired code-less design could not express because every rule shared an
+    empty code and so could not be counted.
+    """
+    if allow_consumed:
+        return True
+    max_uses = getattr(rule, "max_uses", None)
+    if max_uses is None:
+        return True
+    return (getattr(rule, "used_count", 0) or 0) < max_uses
+
+
+async def _resolve_ticket_rules(
+    event: Event,
+    promo_codes: list[str],
+    item_count: int,
+    *,
+    allow_consumed: bool = False,
+) -> _TicketRuleResolution:
+    """Pair submitted offer codes and ticket ids against the ticket rules.
+
+    A token matching a rule's offer code is an OFFER CODE; every other token is
+    a TICKET-ID CANDIDATE (ticket ids are case-sensitive PKs, so candidates keep
+    their raw case while codes compare uppercased). A rule applies when it was
+    SELECTED (its code typed, or it has no code) and a candidate resolves
+    against it.
+
+    Two outcomes are reported rather than swallowed, because a silent
+    no-discount is indistinguishable from a wrong code:
+
+    * ``pending``    — a rule was selected but no ticket was supplied at all.
+      This is what drives the checkout's "now enter your ticket ID" prompt.
+    * ``rejections`` — a ticket was supplied and did not work, with a stable
+      reason code.
+
+    Rule order decides ties: the first eligible rule a ticket satisfies wins.
+    """
+    rules = _ticket_rules(event)
+    if not rules:
+        return _TicketRuleResolution([], [], [], [])
+
+    offer_codes = {
+        _rule_code(p) for p in event.extra.promo_codes if _rule_code(p)
+    }
+    selected = {c.upper() for c in promo_codes if c.upper() in offer_codes}
+    candidates = [c for c in promo_codes if c.upper() not in offer_codes]
+
+    # Probe each candidate against each eligible rule, once. A ticket may
+    # satisfy more than one rule, so rank the offers the buyer actually named
+    # FIRST — otherwise a ticket would bind to whichever rule happens to sit
+    # earliest in the event config and the typed offer code would be ignored.
+    # A codeless rule (applies to any eligible ticket) outranks an un-named
+    # coded offer, but not a named one.
+    def _rank(rule) -> int:
+        rule_code = _rule_code(rule)
+        if rule_code and rule_code in selected:
+            return 0
+        return 1 if not rule_code else 2
+
+    resolved: dict[tuple[int, str], Ticket] = {}
+    reasons: dict[str, str] = {}
+    exhausted: set[str] = set()
+    gate_blocked: set[str] = set()
+    for token in candidates:
+        for idx in sorted(range(len(rules)), key=lambda i: (_rank(rules[i]), i)):
+            rule = rules[idx]
+            # Resolve BEFORE the basket-shape gate so a valid ticket that simply
+            # doesn't fit the basket gets an accurate reason instead of falling
+            # through to a generic one.
+            source, reason = await _resolve_source_ticket(event, token, rule)
+            if not source:
+                reasons.setdefault(token, reason or "ticket_not_found")
+                continue
+            if not _source_gate_ok(rule, item_count):
+                # The ticket is fine; the BASKET shape is what this rule refuses.
+                gate_blocked.add(token)
+                continue
+            if not _rule_uses_available(rule, allow_consumed):
+                # The ticket is fine; the OFFER has run out. Remember it so the
+                # reason below is accurate rather than a generic one.
+                exhausted.add(token)
+                continue
+            resolved[(idx, token)] = source
+            break
+
+    now = datetime.now(timezone.utc)
+    promos: list[PromoCode] = []
+    pairs: list[tuple[PromoCode, str, Ticket]] = []
+    pending: list[PromoRequirement] = []
+    rejections: list[PromoRejection] = []
+    rejected: set[str] = set()
+
+    for idx, rule in enumerate(rules):
+        if not _rule_selected(rule, selected):
+            continue
+        if not _source_gate_ok(rule, item_count):
+            continue
+        token = next((t for t in candidates if (idx, t) in resolved), None)
+        if token is None:
+            # No usable ticket. Prompt only when the buyer supplied nothing at
+            # all; otherwise the per-token rejection below explains the failure.
+            if not candidates and _rule_code(rule):
+                pending.append(
+                    PromoRequirement(code=rule.code, requires="ticket_id")
+                )
+            continue
+        source = resolved[(idx, token)]
+        if not allow_consumed and not _ticket_voucher_available(source, rule, now):
+            rejections.append(
+                PromoRejection(code=token, reason="ticket_redemptions_exhausted")
+            )
+            rejected.add(token)
+            continue
+        credit = await _source_credit(rule, source)
+        promos.append(
+            # construct() bypasses validation so the rule passes through with
+            # the resolved credit. `code` is the offer code so the buyer sees
+            # WHICH offer applied and max_uses can count it; a codeless rule
+            # falls back to the ticket id so the checkout still shows something
+            # identifying rather than a blank.
+            PromoCode.construct(
+                code=rule.code or token,
+                source=_promo_source(rule),
+                discount_percent=rule.discount_percent,
+                discount_fixed=rule.discount_fixed,
+                active=True,
+                combinable=rule.combinable,
+                max_uses=None,
+                used_count=0,
+                ticket_type_ids=rule.ticket_type_ids,
+                max_tickets=rule.max_tickets,
+                credit_value=credit,
+            )
+        )
+        pairs.append((rule, token, source))
+
+    # Every candidate that did not produce a discount gets a reason — a ticket
+    # supplied without its offer code must not fail silently either, and a token
+    # must never collect two explanations.
+    used = {token for _rule, token, _source in pairs}
+    for token in candidates:
+        if token in used or token in rejected:
+            continue
+        reason = reasons.get(token)
+        if reason is None:
+            if token in exhausted:
+                reason = "promo_uses_exhausted"
+            elif token in gate_blocked:
+                reason = "ticket_count_not_eligible"
+            else:
+                matches_unselected = any(
+                    (idx, token) in resolved
+                    and not _rule_selected(rules[idx], selected)
+                    for idx in range(len(rules))
+                )
+                reason = (
+                    "ticket_needs_offer_code"
+                    if matches_unselected
+                    else "ticket_not_applicable"
+                )
+        rejections.append(PromoRejection(code=token, reason=reason))
+
+    return _TicketRuleResolution(promos, pairs, pending, rejections)
 
 
 async def _increment_promo_uses(event: Event, promo_codes: list[BasketDiscount]) -> None:
@@ -331,52 +703,18 @@ async def calculate_basket_total(
         subtotal = int(subtotal)
 
     submitted = [c.upper() for c in promo_codes]
-    promos = [p for p in event.extra.promo_codes if p.code in submitted]
+    # Plain promos: identified by their offer code, no ticket involved. Ticket
+    # rules selected by the same code are resolved separately below.
+    promos = [
+        p for p in event.extra.promo_codes
+        if not _requires_ticket(p) and p.code and p.code in submitted
+    ]
 
-    # Resolve ticket-ID vouchers: a submitted code that is not a configured
-    # promo string is treated as an existing ticket id. The ticket-count gate
-    # is configurable via the voucher's max_tickets (None = any number; the
-    # pre-existing behaviour was a single-ticket basket). Ticket ids are
-    # case-sensitive, so resolve against the RAW submitted codes, not the
-    # upper-cased forms used for static promo matching.
     item_count = sum(item.get("quantity", 1) for item in items)
-    voucher_promo = _find_ticket_voucher_promo(event)
-    if voucher_promo and (
-        voucher_promo.max_tickets is None or item_count <= voucher_promo.max_tickets
-    ):
-        matched_codes = {p.code for p in promos}
-        for code in promo_codes:
-            if code.upper() in matched_codes:
-                continue
-            source = await _resolve_ticket_id_voucher(event, code)
-            if not source:
-                continue
-            # allow_consumed is used for re-displaying an already-created/
-            # paid basket: enforcement happens at checkout creation, so an
-            # overview must show the applied voucher even once the source
-            # ticket's redemption slots are consumed.
-            if not allow_consumed and not _ticket_voucher_available(
-                source, voucher_promo, datetime.now(timezone.utc)
-            ):
-                continue
-            promos.append(
-                # construct() bypasses the code-uppercasing validator, keeping
-                # the source ticket id's original case (it is a PK lookup key).
-                # ticket_type_ids/max_tickets are carried from the configured
-                # voucher so scoping and the ticket-count gate hold here.
-                PromoCode.construct(
-                    code=code,
-                    type="ticket",
-                    discount_percent=voucher_promo.discount_percent,
-                    discount_fixed=voucher_promo.discount_fixed,
-                    active=True,
-                    combinable=False,
-                    max_uses=None,
-                    used_count=0,
-                    ticket_type_ids=voucher_promo.ticket_type_ids,
-                    max_tickets=voucher_promo.max_tickets,
-                )
-            )
+    resolution = await _resolve_ticket_rules(
+        event, promo_codes, item_count, allow_consumed=allow_consumed
+    )
+    promos.extend(resolution.promos)
 
     # Ordering (scoped bases first, then basket-wide) is handled inside
     # _apply_promo_codes, which needs per-ticket-type bases to compute it.
@@ -399,6 +737,8 @@ async def calculate_basket_total(
         discount=total_discount,
         total=total,
         discounts_applied=discounts_applied,
+        pending=resolution.pending,
+        rejections=resolution.rejections,
     )
 
 
@@ -436,26 +776,25 @@ async def create_basket_with_charge(
     )
 
     basket_id = urlsafe_short_hash()
-    # Keep the RAW submitted codes so ticket-ID vouchers (case-sensitive)
-    # survive into basket.promo_codes. Static-code matching upper-cases at the
-    # point of comparison.
+    # Keep the RAW submitted codes so ticket-source promos (whose codes are
+    # case-sensitive ticket ids) survive into basket.promo_codes. Literal-code
+    # matching upper-cases at the point of comparison.
     promo_code_strings = list(data.promo_codes)
 
-    # Authoritatively reserve ticket-ID voucher redemptions on their source
-    # tickets. This is the write that closes the single-use race: it happens
-    # under a per-event lock, before any charge is created, so two concurrent
-    # checkouts can't both claim the last available slot.
-    if sum(i.quantity for i in data.items) == 1:
-        static_codes = {p.code for p in event.extra.promo_codes}
-        voucher_discounts = [
-            d
-            for d in totals.discounts_applied
-            if d.code not in static_codes
-        ]
-        if voucher_discounts:
-            async with _reservation_lock(event.id):
-                for discount in voucher_discounts:
-                    await _reserve_ticket_voucher(event, discount.code, basket_id)
+    item_count = sum(i.quantity for i in data.items)
+
+    # Authoritatively reserve ticket-rule redemptions on their SOURCE tickets.
+    # This is the write that closes the single-use race: it happens under a lock
+    # keyed on the SOURCE ticket id, before any charge is created, so two
+    # concurrent checkouts — in this event or any other — can't both claim the
+    # last available slot of the same source ticket. Only rules that actually
+    # applied get a reservation, so a stray token can never block checkout.
+    reservation = await _resolve_ticket_rules(event, promo_code_strings, item_count)
+    for _rule, token, _source in reservation.pairs:
+        async with _reservation_lock(token):
+            await _reserve_ticket_voucher(
+                event, token, basket_id, item_count=item_count
+            )
 
     basket = Basket(
         id=basket_id,
@@ -468,6 +807,7 @@ async def create_basket_with_charge(
         fiat_provider=data.fiat_provider,
         nostr_identifier=data.nostr_identifier,
         refund_address=data.refund_address,
+        total=float(totals.total),
     )
 
     charge = None
@@ -571,23 +911,64 @@ async def create_basket_from_model(basket: Basket) -> Basket:
     return await create_basket(basket)
 
 
+async def _recompute_basket_total(basket: Basket, event: Event) -> float:
+    """Total for a basket created before Basket.total existed."""
+    items = []
+    for ticket in await get_basket_tickets(basket.id):
+        if ticket.ticket_type_id:
+            items.append({"ticket_type_id": ticket.ticket_type_id, "quantity": 1})
+    if not items:
+        return 0.0
+    totals = await calculate_basket_total(
+        event, items, list(basket.promo_codes or []), allow_consumed=True
+    )
+    return float(totals.total)
+
+
 async def _activate_basket_tickets(
     basket: Basket, tickets: list[Ticket], event: Event
 ) -> None:
+    # Stamp each ticket with the amount actually charged, in the event's
+    # currency. This is the credit basis if the ticket is later upgraded:
+    # deriving credit from what was paid (rather than the ticket type's face
+    # price) means a chain of upgrades can never inflate its own value.
+    if tickets:
+        charged = basket.total
+        if charged is None:
+            charged = await _recompute_basket_total(basket, event)
+        share = float(charged or 0) / len(tickets)
+        for ticket in tickets:
+            if ticket.extra.paid_value is None:
+                ticket.extra.paid_value = share
+
     for ticket in tickets:
         await set_ticket_paid(ticket)
     basket.paid = True
     await update_basket(basket)
     await _increment_promo_uses_from_basket(event, basket)
-    # Finalize ticket-ID voucher redemptions (pending -> completed) now that
-    # this basket is actually paid.
-    static_codes = {p.code for p in event.extra.promo_codes}
-    for code in basket.promo_codes or []:
-        if code.upper() in static_codes:
+
+    # Finalize ticket-source redemptions (pending -> completed) now that this
+    # basket is actually paid, and consume the source ticket for move upgrades.
+    # Resolution here ignores `active` so that deactivating a promo between
+    # checkout and payment can never leave a discounted ticket paid while the
+    # source ticket stays valid.
+    item_count = len(tickets) or 1
+    offer_codes = {
+        _rule_code(p) for p in event.extra.promo_codes if _rule_code(p)
+    }
+    for token in basket.promo_codes or []:
+        if token.upper() in offer_codes:
             continue
-        source = await _resolve_ticket_id_voucher(event, code)
-        if source:
-            await _finalize_ticket_voucher(source, basket.id)
+        match = await _match_ticket_rule(
+            event, token, item_count, active_only=False
+        )
+        if not match:
+            continue
+        rule, source = match
+        await _finalize_ticket_voucher(source, basket.id)
+        if _promo_source(rule).move:
+            successor = tickets[0].id if tickets else None
+            await _consume_upgraded_source(rule, source, successor)
     _send_basket_notifications_in_background(basket, tickets, event)
     if event.admin_email:
         create_task(_send_admin_sale_notification(event, basket, tickets))

@@ -10,6 +10,7 @@ window.PageEventsDisplay = {
       basketEmail: '',
       promoCodeInput: '',
       discountBreakdown: [],
+      promoMessages: [],
       basketTotal: 0,
       applyingPromo: false,
       basketItems: [],
@@ -143,6 +144,7 @@ window.PageEventsDisplay = {
       )
       if (this.basketItems.length === 0) {
         this.discountBreakdown = []
+        this.promoMessages = []
         this.basketTotal = 0
         return
       }
@@ -155,11 +157,15 @@ window.PageEventsDisplay = {
       }
       this.basketTotal = subtotal
       this.discountBreakdown = []
+      this.promoMessages = []
     },
     async applyPromoCode() {
+      // Offer codes are matched case-insensitively by the server, but TICKET
+      // IDs are case-sensitive primary keys — never upper-case what the buyer
+      // typed or a valid ticket ID stops resolving.
       const codes = this.promoCodeInput
         .split(',')
-        .map(c => c.trim().toUpperCase())
+        .map(c => c.trim())
         .filter(c => c.length > 0)
       if (!codes.length) {
         this.rebuildBasket()
@@ -182,8 +188,28 @@ window.PageEventsDisplay = {
         this.discountBreakdown = (data.discounts_applied || []).map(d => ({
           label: `${d.code}: ${d.amount_saved} ${this.basketCurrency}`
         }))
-        if (!data.discounts_applied?.length && codes.length) {
-          this.discountBreakdown = [{label: 'No valid promo codes found'}]
+        // An offer that needs a ticket ID reports what it still wants, so the
+        // buyer is told to add one instead of seeing nothing happen.
+        this.promoMessages = (data.pending || []).map(p => ({
+          kind: 'pending',
+          label: this.$t('events.promo_pending_ticket', {code: p.code})
+        }))
+        // A token that could not be used says why, instead of silently doing
+        // nothing (which is indistinguishable from a mistyped code).
+        this.promoMessages = this.promoMessages.concat(
+          (data.rejections || []).map(r => ({
+            kind: 'rejected',
+            label: `${r.code}: ${this.promoReasonLabel(r.reason)}`
+          }))
+        )
+        if (
+          !this.discountBreakdown.length &&
+          !this.promoMessages.length &&
+          codes.length
+        ) {
+          this.promoMessages = [
+            {kind: 'rejected', label: this.$t('events.promo_none_found')}
+          ]
         }
       } catch (error) {
         LNbits.utils.notifyApiError(error)
@@ -191,6 +217,13 @@ window.PageEventsDisplay = {
       } finally {
         this.applyingPromo = false
       }
+    },
+    promoReasonLabel(reason) {
+      const key = `events.promo_reason_${reason}`
+      const label = this.$t(key)
+      // $t returns the key itself when it is missing; fall back to a generic
+      // message rather than showing a raw i18n key to a buyer.
+      return label === key ? this.$t('events.promo_reason_generic') : label
     },
   
     async checkout() {
@@ -201,9 +234,11 @@ window.PageEventsDisplay = {
           ticket_type_id: bi.ticketTypeId,
           quantity: bi.quantity
         }))
+        // Same as applyPromoCode: codes are case-insensitive server-side but
+        // ticket IDs are not, so send what the buyer typed.
         const promo_codes = this.promoCodeInput
           .split(',')
-          .map(c => c.trim().toUpperCase())
+          .map(c => c.trim())
           .filter(c => c.length > 0)
         const refundAddr = (this.event?.extra?.conditional)
           ? ''

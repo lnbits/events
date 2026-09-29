@@ -296,3 +296,108 @@ async def m009_ticket_types_and_baskets(db):
             "UPDATE events.events SET extra = :extra WHERE id = :id",
             {"extra": json.dumps(extra), "id": event_id},
         )
+
+
+async def m010_promo_source_axis(db):
+    """
+    Move promo codes onto the offer-code + ticket-requirement axis.
+
+    Three shapes are normalised onto `source: {require_ticket, event_ids,
+    ticket_type_ids, move, credit}`:
+
+      * pre-axis rows, `type: "code"`   -> require_ticket=False
+      * pre-axis rows, `type: "ticket"` -> require_ticket=True, move=False,
+        credit="none", event_ids=None (same event only), and the "TICKETID"
+        sentinel code cleared because it was never a real code
+      * pre-axis rows with no `type` (hand-written config) -> require_ticket=False
+      * the intermediate revision's `source.kind` -> `source.require_ticket`
+
+    Handling `kind` as well as `type` makes this safe to re-run over either
+    revision, which matters because the intermediate one was deployed.
+
+    Promos already on the final axis are left untouched.
+    """
+    import json
+
+    # NOTE: db.fetchall returns SQLAlchemy RowMappings (no model= passed), so
+    # rows must be read BY COLUMN NAME. Unpacking them (`for a, b in rows`)
+    # yields the column names instead of the values, and the JSON decode error
+    # that follows is swallowed below as if it were bad data — which silently
+    # converts nothing while still recording the migration as applied.
+    rows = await db.fetchall("SELECT id, extra FROM events.events")
+    for row in rows:
+        event_id = row["id"]
+        raw = row["extra"]
+        if not raw:
+            continue
+        try:
+            extra = json.loads(raw)
+        except (TypeError, ValueError):
+            continue
+        promos = extra.get("promo_codes")
+        if not isinstance(promos, list) or not promos:
+            continue
+
+        changed = False
+        for promo in promos:
+            if not isinstance(promo, dict):
+                continue
+            source = promo.get("source")
+            if isinstance(source, dict):
+                # Already on an axis revision. `kind` was the intermediate
+                # discriminator; normalise it onto `require_ticket` so this
+                # migration is safe to re-run over either revision.
+                if "kind" in source:
+                    is_ticket = source.pop("kind") == "ticket"
+                    source["require_ticket"] = is_ticket
+                    changed = True
+                else:
+                    is_ticket = bool(source.get("require_ticket", False))
+            else:
+                # Pre-axis rows: `type` was the discriminator, and a missing
+                # `type` meant "code".
+                is_ticket = promo.pop("type", None) == "ticket"
+                promo["source"] = {
+                    "require_ticket": is_ticket,
+                    "event_ids": None,
+                    "ticket_type_ids": None,
+                    "move": False,
+                    "credit": "none",
+                }
+                changed = True
+            if is_ticket and promo.get("code") == "TICKETID":
+                promo["code"] = ""
+                changed = True
+
+        if changed:
+            await db.execute(
+                "UPDATE events.events SET extra = :extra WHERE id = :id",
+                {"extra": json.dumps(extra), "id": event_id},
+            )
+
+
+async def m011_basket_total(db):
+    """
+    Add ``Basket.total`` — the amount actually charged for the basket.
+
+    This is a TOP-LEVEL COLUMN, not `extra` JSON config, so adding the field to
+    the model is not enough: without this ALTER every basket INSERT fails with
+    "table events.baskets has no column named total" and checkout 500s.
+    The migration runner only applies versions above the recorded one, so this
+    runs once on a database that predates the column.
+
+    Existing baskets keep a NULL total; `_recompute_basket_total` reconstructs
+    it from the tickets when a legacy row needs it.
+    """
+    from sqlalchemy.exc import OperationalError
+
+    # NOTE: no column introspection here. `PRAGMA table_info(events.baskets)` is
+    # NOT valid SQLite (schema-qualified pragmas are `PRAGMA events.table_info`),
+    # and it fails as a syntax error that the runner reports and retries forever.
+    # The runner only applies versions above the recorded one, so a plain guarded
+    # ALTER (the m003/m009 idiom) is both sufficient and safest.
+    try:
+        await db.execute("ALTER TABLE events.baskets ADD COLUMN total REAL;")
+    except OperationalError:
+        # Column already present (fresh schema, or a re-run) — nothing to do.
+        pass

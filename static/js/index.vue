@@ -829,7 +829,12 @@
               <div class="row items-center">
                 <div class="col">
                   <div class="row items-center q-gutter-x-sm">
-                    <span class="text-h6 text-weight-medium">{{ code.type === 'ticket' ? $t('events.promo_code_ticket_badge') : (code.code || $t('events.promo_code_label')) }}</span>
+                    <span class="text-h6 text-weight-medium">{{ code.code || $t('events.promo_source_ticket_badge') }}</span>
+                    <q-badge
+                      v-if="code.source?.require_ticket"
+                      color="primary"
+                      :label="$t('events.promo_requires_ticket_badge')"
+                    ></q-badge>
                     <q-badge
                       :color="code.active ? 'positive' : 'grey'"
                       :label="code.active ? $t('events.active') : $t('events.inactive')"
@@ -851,34 +856,99 @@
               </div>
             </q-card-section>
             <q-card-section class="q-pt-none">
-              <q-select
+              <q-toggle
                 class="q-mt-sm"
-                v-model="promoCodesDialog.data.extra.promo_codes[index].type"
-                filled
-                dense
-                :label="$t('events.promo_type')"
-                :options="[
-                  {label: $t('events.promo_type_code'), value: 'code'},
-                  {label: $t('events.promo_type_ticket'), value: 'ticket'}
-                ]"
-                emit-value
-                map-options
-              ></q-select>
+                v-model="promoCodesDialog.data.extra.promo_codes[index].source.require_ticket"
+                :label="$t('events.promo_require_ticket')"
+              ></q-toggle>
+              <div
+                class="text-caption q-mt-none q-mb-sm"
+                v-text="$t('events.promo_require_ticket_hint')"
+              ></div>
 
               <q-input
-                v-if="promoCodesDialog.data.extra.promo_codes[index].type === 'code'"
                 class="q-mt-sm"
                 filled
                 dense
                 v-model.trim="promoCodesDialog.data.extra.promo_codes[index].code"
                 type="text"
                 :label="$t('events.promo_code_label')"
+                :hint="
+                  promoCodesDialog.data.extra.promo_codes[index].source
+                    .require_ticket
+                    ? $t('events.promo_code_optional_hint')
+                    : $t('events.promo_code_required_hint')
+                "
               ></q-input>
-              <div
-                v-else
-                class="text-caption q-mt-sm"
-                v-text="$t('events.promo_ticket_code_hint')"
-              ></div>
+
+              <template
+                v-if="promoCodesDialog.data.extra.promo_codes[index].source.require_ticket"
+              >
+                <q-select
+                  class="q-mt-sm"
+                  filled
+                  dense
+                  multiple
+                  use-chips
+                  emit-value
+                  map-options
+                  v-model="promoCodesDialog.data.extra.promo_codes[index].source.event_ids"
+                  :options="sourceEventOptions(promoCodesDialog.data.id)"
+                  :label="$t('events.promo_source_events')"
+                  :hint="$t('events.promo_source_events_hint')"
+                ></q-select>
+
+                <q-select
+                  class="q-mt-sm"
+                  filled
+                  dense
+                  multiple
+                  use-chips
+                  emit-value
+                  map-options
+                  v-model="promoCodesDialog.data.extra.promo_codes[index].source.ticket_type_ids"
+                  :options="
+                    sourceTicketTypeOptions(
+                      promoCodesDialog.data.extra.promo_codes[index].source,
+                      promoCodesDialog.data.id
+                    )
+                  "
+                  :label="$t('events.promo_source_ticket_types')"
+                  :hint="$t('events.promo_source_ticket_types_hint')"
+                ></q-select>
+
+                <div class="row q-col-gutter-sm q-mt-sm items-center">
+                  <div class="col-6">
+                    <q-toggle
+                      v-model="promoCodesDialog.data.extra.promo_codes[index].source.move"
+                      :label="$t('events.promo_source_move')"
+                      left-label
+                    ></q-toggle>
+                  </div>
+                  <div class="col-6">
+                    <q-select
+                      filled
+                      dense
+                      emit-value
+                      map-options
+                      v-model="promoCodesDialog.data.extra.promo_codes[index].source.credit"
+                      :options="[
+                        {label: $t('events.promo_source_credit_none'), value: 'none'},
+                        {label: $t('events.promo_source_credit_paid'), value: 'paid'}
+                      ]"
+                      :label="$t('events.promo_source_credit')"
+                    ></q-select>
+                  </div>
+                </div>
+                <div
+                  class="text-caption text-grey-7 q-mt-xs"
+                  v-text="$t('events.promo_source_move_hint')"
+                ></div>
+                <div
+                  class="text-caption text-grey-7 q-mt-xs"
+                  v-text="$t('events.promo_source_credit_hint')"
+                ></div>
+              </template>
 
               <div class="row q-col-gutter-sm q-mt-sm">
                 <div class="col-6">
@@ -899,19 +969,18 @@
               </div>
 
               <q-input
-                v-if="promoCodesDialog.data.extra.promo_codes[index].type === 'code'"
                 class="q-mt-sm"
                 filled
                 dense
                 v-model.number="promoCodesDialog.data.extra.promo_codes[index].max_uses"
                 type="number"
                 :label="$t('events.promo_max_uses')"
-                hint="0 = unlimited"
+                :hint="$t('events.promo_max_uses_hint')"
                 min="0"
               ></q-input>
 
               <q-input
-                v-else
+                v-if="promoCodesDialog.data.extra.promo_codes[index].source.require_ticket"
                 class="q-mt-sm"
                 filled
                 dense
@@ -923,7 +992,10 @@
               ></q-input>
 
               <q-input
-                v-if="promoCodesDialog.data.extra.promo_codes[index].type === 'ticket'"
+                v-if="
+                  promoCodesDialog.data.extra.promo_codes[index].source.require_ticket &&
+                  !promoCodesDialog.data.extra.promo_codes[index].source.move
+                "
                 class="q-mt-sm"
                 filled
                 dense
@@ -1039,34 +1111,94 @@
             v-text="editPromoCodeDialog.codeIndex === -1 ? $t('events.add_promo_code') : $t('events.edit_promo_code')"
           ></div>
 
-          <q-select
-            v-model="editPromoCodeDialog.data.type"
-            filled
-            dense
-            :label="$t('events.promo_type')"
-            :options="[
-              {label: $t('events.promo_type_code'), value: 'code'},
-              {label: $t('events.promo_type_ticket'), value: 'ticket'}
-            ]"
-            emit-value
-            map-options
-            @update:model-value="onPromoTypeChange($event)"
-          ></q-select>
-
+          <q-toggle
+            v-model="editPromoCodeDialog.data.source.require_ticket"
+            :label="$t('events.promo_require_ticket')"
+            @update:model-value="onPromoRequireTicketChange($event)"
+          ></q-toggle>
           <div
-            v-if="editPromoCodeDialog.data.type === 'ticket'"
-            class="text-caption q-mt-xs"
-            v-text="$t('events.promo_ticket_code_hint')"
+            class="text-caption q-mt-none q-mb-sm"
+            v-text="$t('events.promo_require_ticket_hint')"
           ></div>
 
           <q-input
-            v-if="editPromoCodeDialog.data.type === 'code'"
             filled
             dense
             v-model.trim="editPromoCodeDialog.data.code"
             type="text"
             :label="$t('events.promo_code_label')"
+            :hint="
+              editPromoCodeDialog.data.source.require_ticket
+                ? $t('events.promo_code_optional_hint')
+                : $t('events.promo_code_required_hint')
+            "
           ></q-input>
+
+          <template v-if="editPromoCodeDialog.data.source.require_ticket">
+            <q-select
+              filled
+              dense
+              multiple
+              use-chips
+              emit-value
+              map-options
+              v-model="editPromoCodeDialog.data.source.event_ids"
+              :options="sourceEventOptions(editPromoCodeDialog.eventId)"
+              :label="$t('events.promo_source_events')"
+              :hint="$t('events.promo_source_events_hint')"
+            ></q-select>
+
+            <q-select
+              filled
+              dense
+              multiple
+              use-chips
+              emit-value
+              map-options
+              v-model="editPromoCodeDialog.data.source.ticket_type_ids"
+              :options="
+                sourceTicketTypeOptions(
+                  editPromoCodeDialog.data.source,
+                  editPromoCodeDialog.eventId
+                )
+              "
+              :label="$t('events.promo_source_ticket_types')"
+              :hint="$t('events.promo_source_ticket_types_hint')"
+            ></q-select>
+
+            <div class="row items-center">
+              <div class="col-6 q-mr-xs">
+                <q-toggle
+                  v-model="editPromoCodeDialog.data.source.move"
+                  :label="$t('events.promo_source_move')"
+                  left-label
+                  @update:model-value="onPromoMoveChange($event)"
+                ></q-toggle>
+              </div>
+              <div class="col-6">
+                <q-select
+                  filled
+                  dense
+                  emit-value
+                  map-options
+                  v-model="editPromoCodeDialog.data.source.credit"
+                  :options="[
+                    {label: $t('events.promo_source_credit_none'), value: 'none'},
+                    {label: $t('events.promo_source_credit_paid'), value: 'paid'}
+                  ]"
+                  :label="$t('events.promo_source_credit')"
+                ></q-select>
+              </div>
+            </div>
+            <div
+              class="text-caption text-grey-7 q-mt-xs"
+              v-text="$t('events.promo_source_move_hint')"
+            ></div>
+            <div
+              class="text-caption text-grey-7 q-mt-xs"
+              v-text="$t('events.promo_source_credit_hint')"
+            ></div>
+          </template>
 
           <div class="row">
             <div class="col-6 q-mr-xs">
@@ -1087,18 +1219,17 @@
           </div>
 
           <q-input
-            v-if="editPromoCodeDialog.data.type === 'code'"
             filled
             dense
             v-model.number="editPromoCodeDialog.data.max_uses"
             type="number"
             :label="$t('events.promo_max_uses')"
-            hint="0 = unlimited"
+            :hint="$t('events.promo_max_uses_hint')"
             min="0"
           ></q-input>
 
           <q-input
-            v-if="editPromoCodeDialog.data.type === 'ticket'"
+            v-if="editPromoCodeDialog.data.source.require_ticket"
             filled
             dense
             v-model.number="editPromoCodeDialog.data.redemptions_per_ticket"
@@ -1109,7 +1240,10 @@
           ></q-input>
 
           <q-input
-            v-if="editPromoCodeDialog.data.type === 'ticket'"
+            v-if="
+              editPromoCodeDialog.data.source.require_ticket &&
+              !editPromoCodeDialog.data.source.move
+            "
             filled
             dense
             clearable
@@ -1135,12 +1269,12 @@
 
           <div
             class="text-caption q-mt-xs"
-            v-if="editPromoCodeDialog.data.type === 'code' && editPromoCodeDialog.data.max_uses != null && editPromoCodeDialog.data.max_uses > 0"
+            v-if="editPromoCodeDialog.data.max_uses != null && editPromoCodeDialog.data.max_uses > 0"
             v-text="$t('events.promo_uses_label', {used: editPromoCodeDialog.data.used_count || 0, max: editPromoCodeDialog.data.max_uses})"
           ></div>
           <div
             class="text-caption q-mt-xs"
-            v-else-if="editPromoCodeDialog.data.type === 'code' && editPromoCodeDialog.data.used_count > 0"
+            v-else-if="editPromoCodeDialog.data.used_count > 0"
             v-text="$t('events.promo_uses_unlimited', {used: editPromoCodeDialog.data.used_count || 0})"
           ></div>
 

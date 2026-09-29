@@ -64,6 +64,7 @@ from .models import (
     TicketType,
 )
 from .services import (
+    backfill_paid_values,
     calculate_basket_total,
     create_basket_with_charge,
     get_satspay_charge,
@@ -558,6 +559,20 @@ async def api_validate_promo_codes(
             status_code=HTTPStatus.NOT_FOUND, detail="Event does not exist."
         )
     return await calculate_basket_total(event, data.items, data.codes)
+
+
+@events_api_router.post("/maintenance/backfill-paid-values")
+async def api_backfill_paid_values(
+    wallet: WalletTypeInfo = Depends(require_admin_key),
+) -> dict:
+    """Backfill ``TicketExtra.paid_value`` for tickets sold before it existed.
+
+    ``paid_value`` is the credit basis when a ticket is upgraded, so tickets
+    sold earlier need it reconstructed — from the basket that charged them,
+    falling back to the ticket type's price. Idempotent: tickets that already
+    have a value are left alone, so it is safe to re-run.
+    """
+    return await backfill_paid_values(wallet.wallet.id)
 
 
 @events_api_router.post("/baskets/{basket_id}/satspay-webhook")
