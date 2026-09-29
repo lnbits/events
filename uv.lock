@@ -1088,7 +1088,7 @@ wheels = [
 
 [[package]]
 name = "lnbits-events"
-version = "0.0.0"
+version = "2.0.0"
 source = { virtual = "." }
 dependencies = [
     { name = "lnbits" },
