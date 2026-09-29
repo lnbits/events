@@ -20,6 +20,10 @@ class PromoCode(BaseModel):
     # listed ticket types (by ticket_type_id). None/empty = basket-wide (the
     # pre-existing behaviour, applied to the whole basket).
     ticket_type_ids: list[str] | None = None
+    # type=ticket only: max number of tickets a single redemption can cover
+    # (None = any number). Contrast redemptions_per_ticket (how many times the
+    # same source ticket can be redeemed).
+    max_tickets: int | None = None
 
     @validator("code")
     def uppercase_code(cls, v):
@@ -33,6 +37,12 @@ class PromoCode(BaseModel):
     @validator("redemptions_per_ticket")
     def validate_redemptions_per_ticket(cls, v):
         assert v is not None and v >= 1, "redemptions_per_ticket must be >= 1."
+        return v
+
+    @validator("max_tickets")
+    def validate_max_tickets(cls, v):
+        if v is not None:
+            assert v >= 1, "max_tickets must be >= 1."
         return v
 
     @validator("discount_percent")

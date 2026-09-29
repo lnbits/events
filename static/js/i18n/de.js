@@ -196,6 +196,8 @@ window.i18n.global.mergeLocaleMessage('de', {
     promo_type_ticket: 'Ticket-ID',
     promo_redemptions_per_ticket: 'Einlösungen pro Ticket',
     promo_redemptions_per_ticket_hint: 'Wie viele Käufe diese einzelne Ticket-ID rabattieren kann (Standard 1 = einmalig)',
+    promo_max_tickets: 'Max. Tickets pro Einlösung',
+    promo_max_tickets_hint: 'Auf wie viele Tickets eine Einlösung angewendet wird (leer = beliebig viele)',
     promo_ticket_code_hint: 'Käufer lösen ein, indem sie eine beliebige bestehende Ticket-ID dieses Events als Rabattcode eingeben',
     promo_code_ticket_badge: 'Ticket-ID-Gutschein',
     discount_type: 'Rabatt-Typ',

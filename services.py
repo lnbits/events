@@ -334,13 +334,16 @@ async def calculate_basket_total(
     promos = [p for p in event.extra.promo_codes if p.code in submitted]
 
     # Resolve ticket-ID vouchers: a submitted code that is not a configured
-    # promo string is treated as an existing ticket id. Only allowed for a
-    # single-ticket purchase (basket of exactly one ticket). Ticket ids are
+    # promo string is treated as an existing ticket id. The ticket-count gate
+    # is configurable via the voucher's max_tickets (None = any number; the
+    # pre-existing behaviour was a single-ticket basket). Ticket ids are
     # case-sensitive, so resolve against the RAW submitted codes, not the
     # upper-cased forms used for static promo matching.
-    single_ticket = sum(item.get("quantity", 1) for item in items) == 1
+    item_count = sum(item.get("quantity", 1) for item in items)
     voucher_promo = _find_ticket_voucher_promo(event)
-    if single_ticket and voucher_promo:
+    if voucher_promo and (
+        voucher_promo.max_tickets is None or item_count <= voucher_promo.max_tickets
+    ):
         matched_codes = {p.code for p in promos}
         for code in promo_codes:
             if code.upper() in matched_codes:
@@ -359,6 +362,8 @@ async def calculate_basket_total(
             promos.append(
                 # construct() bypasses the code-uppercasing validator, keeping
                 # the source ticket id's original case (it is a PK lookup key).
+                # ticket_type_ids/max_tickets are carried from the configured
+                # voucher so scoping and the ticket-count gate hold here.
                 PromoCode.construct(
                     code=code,
                     type="ticket",
@@ -368,6 +373,8 @@ async def calculate_basket_total(
                     combinable=False,
                     max_uses=None,
                     used_count=0,
+                    ticket_type_ids=voucher_promo.ticket_type_ids,
+                    max_tickets=voucher_promo.max_tickets,
                 )
             )
 

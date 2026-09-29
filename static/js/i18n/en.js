@@ -198,6 +198,8 @@ window.i18n.global.mergeLocaleMessage('en', {
     promo_type_ticket: 'Ticket ID',
     promo_redemptions_per_ticket: 'Redemptions per ticket',
     promo_redemptions_per_ticket_hint: 'How many purchases this single ticket ID can discount (default 1 = single use)',
+    promo_max_tickets: 'Max tickets per redemption',
+    promo_max_tickets_hint: 'How many tickets a single use applies to (empty = any number)',
     promo_ticket_code_hint: 'Buyers redeem by entering any existing ticket ID for this event as the discount code',
     promo_code_ticket_badge: 'Ticket-ID voucher',
     discount_type: 'Discount Type',

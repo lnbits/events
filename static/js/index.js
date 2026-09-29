@@ -180,7 +180,9 @@ active: true,
           combinable: true,
           max_uses: null,
           used_count: 0,
-          redemptions_per_ticket: 1
+          redemptions_per_ticket: 1,
+          ticket_type_ids: [],
+          max_tickets: null
         },
         discountType: 'percent'
       },
@@ -257,16 +259,14 @@ active: true,
             code.code = 'TICKETID'
             code.combinable = false
             code.max_uses = null
-            // Vouchers are redeemed against a single ticket, so ticket-type
-            // scoping does not apply to them.
-            code.ticket_type_ids = null
-          } else {
-            // Ticket-type scoping: empty selection = whole basket (null).
-            const scope = Array.isArray(code.ticket_type_ids)
-              ? code.ticket_type_ids.filter(Boolean)
-              : []
-            code.ticket_type_ids = scope.length ? scope : null
           }
+          // Ticket-type scoping: empty selection = whole basket (null).
+          // Applies to both code promos and ticket-ID vouchers.
+          const scope = Array.isArray(code.ticket_type_ids)
+            ? code.ticket_type_ids.filter(Boolean)
+            : []
+          code.ticket_type_ids = scope.length ? scope : null
+          if (!code.max_tickets) code.max_tickets = null
           return {
             ...code,
             code: code.code.trim().toUpperCase()
@@ -830,7 +830,8 @@ active: true,
         max_uses: null,
         used_count: 0,
         redemptions_per_ticket: 1,
-        ticket_type_ids: []
+        ticket_type_ids: [],
+        max_tickets: null
       })
       this.promoDiscountTypes[idx] = 'percent'
     },
@@ -910,7 +911,8 @@ active: true,
         max_uses: null,
         used_count: 0,
         redemptions_per_ticket: 1,
-        ticket_type_ids: []
+        ticket_type_ids: [],
+        max_tickets: null
       }
       this.editPromoCodeDialog.discountType = 'percent'
       if (!this.ticketTypesByEvent?.[eventId]) {
@@ -945,13 +947,12 @@ active: true,
         code.code = 'TICKETID'
         code.combinable = false
         code.max_uses = null
-        code.ticket_type_ids = null
-      } else {
-        const scope = Array.isArray(code.ticket_type_ids)
-          ? code.ticket_type_ids.filter(Boolean)
-          : []
-        code.ticket_type_ids = scope.length ? scope : null
       }
+      const scope = Array.isArray(code.ticket_type_ids)
+        ? code.ticket_type_ids.filter(Boolean)
+        : []
+      code.ticket_type_ids = scope.length ? scope : null
+      if (!code.max_tickets) code.max_tickets = null
       code.code = code.code.trim().toUpperCase()
 
       const codes = [...(event.extra?.promo_codes || [])]

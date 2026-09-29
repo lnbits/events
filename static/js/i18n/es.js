@@ -195,6 +195,8 @@ window.i18n.global.mergeLocaleMessage('es', {
     promo_type_ticket: 'ID de entrada',
     promo_redemptions_per_ticket: 'Canjes por entrada',
     promo_redemptions_per_ticket_hint: 'Cuántas compras puede descontar este ID de entrada (predeterminado 1 = un solo uso)',
+    promo_max_tickets: 'Máx. entradas por canje',
+    promo_max_tickets_hint: 'A cuántas entradas se aplica un solo uso (vacío = cualquier número)',
     promo_ticket_code_hint: 'Los compradores canjean ingresando cualquier ID de entrada existente de este evento como código de descuento',
     promo_code_ticket_badge: 'Cupón de ID de entrada',
     discount_type: 'Tipo de descuento',

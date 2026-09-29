@@ -922,8 +922,20 @@
                 min="1"
               ></q-input>
 
+              <q-input
+                v-if="promoCodesDialog.data.extra.promo_codes[index].type === 'ticket'"
+                class="q-mt-sm"
+                filled
+                dense
+                clearable
+                v-model.number="promoCodesDialog.data.extra.promo_codes[index].max_tickets"
+                type="number"
+                :label="$t('events.promo_max_tickets')"
+                :hint="$t('events.promo_max_tickets_hint')"
+                min="1"
+              ></q-input>
+
               <q-select
-                v-if="promoCodesDialog.data.extra.promo_codes[index].type === 'code'"
                 class="q-mt-sm"
                 filled
                 dense
@@ -1096,8 +1108,19 @@
             min="1"
           ></q-input>
 
+          <q-input
+            v-if="editPromoCodeDialog.data.type === 'ticket'"
+            filled
+            dense
+            clearable
+            v-model.number="editPromoCodeDialog.data.max_tickets"
+            type="number"
+            :label="$t('events.promo_max_tickets')"
+            :hint="$t('events.promo_max_tickets_hint')"
+            min="1"
+          ></q-input>
+
           <q-select
-            v-if="editPromoCodeDialog.data.type === 'code'"
             filled
             dense
             multiple
