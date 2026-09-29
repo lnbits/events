@@ -88,25 +88,72 @@ def _effective_discount(promo, price: float) -> float:
     return min(discount, price)
 
 
-def _apply_promo_codes(
-    promos: list, price: float
-) -> tuple[float, list[BasketDiscount]]:
-    discounts_applied: list[BasketDiscount] = []
-    current_price = price
-    total_discount = 0
+def _promo_scope(promo) -> list:
+    """Ticket-type ids a promo is restricted to (empty = basket-wide)."""
+    return list(getattr(promo, "ticket_type_ids", None) or [])
 
-    for promo in promos:
+
+def _apply_promo_codes(
+    promos: list, type_subtotals: dict, subtotal: float
+) -> tuple[float, list[BasketDiscount]]:
+    """Apply promo codes to a basket.
+
+    ``type_subtotals`` maps ticket_type_id -> value of that type in the basket.
+    A promo scoped to specific ticket types discounts only against the value of
+    those types; an unscoped promo discounts against the whole (remaining)
+    basket. Stacking rule: ticket-type-scoped ("base") promos are applied
+    first, each against its own base; any basket-wide promos then apply against
+    what is left, so a combinable scoped code and a combinable basket code
+    stack predictably.
+    """
+    discounts_applied: list[BasketDiscount] = []
+    remaining_by_type: dict = {k: float(v) for k, v in (type_subtotals or {}).items()}
+    remaining_total = float(subtotal)
+    total_discount = 0.0
+
+    def _base(promo) -> float:
+        scope = _promo_scope(promo)
+        if not scope:
+            return max(0.0, remaining_total)
+        total = 0.0
+        for tid in scope:
+            # Duplicate ids must not double-count.
+            value = remaining_by_type.get(tid, 0.0)
+            total += value
+        return max(0.0, total)
+
+    # Scoped promos first (each against its own base), then basket-wide ones.
+    scoped = [p for p in promos if _promo_scope(p)]
+    basket = [p for p in promos if not _promo_scope(p)]
+    scoped.sort(key=lambda p: _effective_discount(p, _base(p)), reverse=True)
+    basket.sort(key=lambda p: _effective_discount(p, _base(p)), reverse=True)
+
+    for promo in scoped + basket:
         if not promo.active:
             continue
         if (promo.max_uses is not None
                 and promo.max_uses > 0
                 and promo.used_count >= promo.max_uses):
             continue
-        discount_amount = _effective_discount(promo, current_price)
+        scope = _promo_scope(promo)
+        base = _base(promo)
+        if base <= 0:
+            continue
+        # Never discount more than the value of the base the promo targets.
+        discount_amount = min(_effective_discount(promo, base), base)
         if discount_amount <= 0:
             continue
         total_discount += discount_amount
-        current_price -= discount_amount
+        remaining_total -= discount_amount
+        if scope:
+            # Consume the discount from the targeted types, weighted by their
+            # remaining share, so a later scoped promo on the same types cannot
+            # discount value already discounted away.
+            scope_remaining = sum(remaining_by_type.get(tid, 0.0) for tid in scope)
+            for tid in scope:
+                cur = remaining_by_type.get(tid, 0.0)
+                share = (cur / scope_remaining) if scope_remaining > 0 else 0.0
+                remaining_by_type[tid] = max(0.0, cur - discount_amount * share)
         discounts_applied.append(
             BasketDiscount(
                 code=promo.code,
@@ -270,11 +317,15 @@ async def calculate_basket_total(
     types_by_id = {tt.id: tt for tt in ticket_types}
 
     subtotal = 0
+    type_subtotals: dict = {}
     for item in items:
         tt = types_by_id.get(item["ticket_type_id"])
         if not tt:
             continue
-        subtotal += float(tt.price) * item.get("quantity", 1)
+        line_total = float(tt.price) * item.get("quantity", 1)
+        subtotal += line_total
+        tid = item["ticket_type_id"]
+        type_subtotals[tid] = type_subtotals.get(tid, 0.0) + line_total
 
     if event.currency.lower() in ("sat", "sats"):
         subtotal = int(subtotal)
@@ -320,12 +371,11 @@ async def calculate_basket_total(
                 )
             )
 
-    promos.sort(
-        key=lambda p: _effective_discount(p, subtotal),
-        reverse=True,
+    # Ordering (scoped bases first, then basket-wide) is handled inside
+    # _apply_promo_codes, which needs per-ticket-type bases to compute it.
+    total_discount, discounts_applied = _apply_promo_codes(
+        promos, type_subtotals, subtotal
     )
-
-    total_discount, discounts_applied = _apply_promo_codes(promos, subtotal)
     total = max(0, subtotal - total_discount)
 
     if event.currency.lower() in ("sat", "sats"):

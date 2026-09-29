@@ -16,6 +16,10 @@ class PromoCode(BaseModel):
     used_count: int = 0
     type: str = "code"
     redemptions_per_ticket: int = 1
+    # Optional scoping: when set, the discount only applies to the value of the
+    # listed ticket types (by ticket_type_id). None/empty = basket-wide (the
+    # pre-existing behaviour, applied to the whole basket).
+    ticket_type_ids: list[str] | None = None
 
     @validator("code")
     def uppercase_code(cls, v):

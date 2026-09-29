@@ -922,6 +922,21 @@
                 min="1"
               ></q-input>
 
+              <q-select
+                v-if="promoCodesDialog.data.extra.promo_codes[index].type === 'code'"
+                class="q-mt-sm"
+                filled
+                dense
+                multiple
+                use-chips
+                emit-value
+                map-options
+                v-model="promoCodesDialog.data.extra.promo_codes[index].ticket_type_ids"
+                :options="ticketTypeOptions(promoCodesDialog.data.id)"
+                :label="$t('events.promo_ticket_type_scope')"
+                :hint="$t('events.promo_ticket_type_scope_hint')"
+              ></q-select>
+
               <div class="q-mt-md">
                 <div class="text-caption q-mb-sm" v-text="$t('events.discount_type')"></div>
                 <q-btn-toggle
@@ -1080,6 +1095,20 @@
             :hint="$t('events.promo_redemptions_per_ticket_hint')"
             min="1"
           ></q-input>
+
+          <q-select
+            v-if="editPromoCodeDialog.data.type === 'code'"
+            filled
+            dense
+            multiple
+            use-chips
+            emit-value
+            map-options
+            v-model="editPromoCodeDialog.data.ticket_type_ids"
+            :options="ticketTypeOptions(editPromoCodeDialog.eventId)"
+            :label="$t('events.promo_ticket_type_scope')"
+            :hint="$t('events.promo_ticket_type_scope_hint')"
+          ></q-select>
 
           <div
             class="text-caption q-mt-xs"
