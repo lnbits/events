@@ -44,6 +44,26 @@ class PromoSource(BaseModel):
         return values
 
 
+class PromoGrant(BaseModel):
+    """The add-on entitlement a promo may carry INSTEAD of a discount.
+
+    A grant rule authorises the buyer to ADD tickets of ``ticket_type_id`` to
+    the basket — up to ``per_source`` for every person the source ticket
+    admits — and only while a qualifying source ticket is present (already in
+    the basket, or presented by id). This is how a free add-on ticket such as
+    a Bitflix screening seat is gated: the entitlement is the effect, so no
+    discount maths is involved.
+    """
+
+    ticket_type_id: str
+    per_source: int = 1
+
+    @validator("per_source")
+    def validate_per_source(cls, v):
+        assert v >= 1, "per_source must be >= 1."
+        return v
+
+
 class PromoCode(BaseModel):
     """A discount rule.
 
@@ -69,6 +89,10 @@ class PromoCode(BaseModel):
     # Contrast redemptions_per_ticket (how many times the same source ticket
     # can be redeemed).
     max_tickets: int | None = None
+    # Add-on entitlement: when set, this rule GRANTS tickets of another type
+    # rather than discounting the basket. Requires a source ticket like every
+    # other ticket rule, and is mutually exclusive with a discount.
+    grants: PromoGrant | None = None
     # Runtime-only: set when a ticket rule is resolved, carrying the credit
     # derived from the source ticket. Never persisted as configuration.
     credit_value: float | None = None
@@ -142,6 +166,27 @@ class PromoCode(BaseModel):
         fixed = values.get("discount_fixed")
         if percent is not None and fixed is not None:
             values["discount_fixed"] = None
+        return values
+
+    @root_validator(pre=True)
+    def coerce_grant_requires_source(cls, values):
+        # A grant needs a source ticket to gate on, and a rule cannot both
+        # discount and grant. A grant therefore IMPLIES the source gate.
+        # Coerce rather than raise: this JSON is parsed on every read, so a
+        # stale row must not unload the event. pre=True so this runs BEFORE
+        # `validate_code_present`, which would otherwise reject the codeless
+        # rule such a row leaves behind.
+        if not isinstance(values, dict) or values.get("grants") is None:
+            return values
+        source = values.get("source")
+        if isinstance(source, dict):
+            source["require_ticket"] = True
+        elif source is None:
+            values["source"] = {"require_ticket": True}
+        elif not getattr(source, "require_ticket", False):
+            values["source"] = {**source.dict(), "require_ticket": True}
+        values["discount_percent"] = None
+        values["discount_fixed"] = None
         return values
 
 

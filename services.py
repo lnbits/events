@@ -18,6 +18,7 @@ from lnurl import execute
 from loguru import logger
 
 from .crud import (
+    count_tickets_by_type,
     create_basket,
     create_ticket,
     get_basket,
@@ -349,6 +350,119 @@ def _source_gate_ok(promo, item_count: int) -> bool:
     return True
 
 
+def _rule_grants(rule) -> bool:
+    """Whether a rule GRANTS add-on tickets instead of discounting."""
+    return getattr(rule, "grants", None) is not None
+
+
+def ticket_admits(ticket_type: TicketType | None) -> int:
+    """How many people a ticket of this type admits (``extra.admits``, default 1).
+
+    Read on every checkout, so anything unparseable falls back to 1 rather
+    than breaking the flow.
+    """
+    if ticket_type is None:
+        return 1
+    try:
+        value = int((ticket_type.extra or {}).get("admits", 1))
+    except (TypeError, ValueError):
+        return 1
+    return value if value >= 1 else 1
+
+
+def _addon_rules(
+    event: Event, addon_type_id: str, active_only: bool = True
+) -> list[PromoCode]:
+    """Rules that authorise ADDING tickets of ``addon_type_id``."""
+    return [
+        p for p in event.extra.promo_codes
+        if _rule_grants(p)
+        and p.grants.ticket_type_id == addon_type_id
+        and (p.active or not active_only)
+    ]
+
+
+def _source_scope_type_ids(promo, ticket_types: list[TicketType]) -> set[str]:
+    """Types that may act as a source for ``promo``.
+
+    An empty scope means any type in the event, minus the add-on itself: an
+    add-on ticket must never be able to satisfy its own requirement.
+    """
+    ids = set(_promo_source(promo).ticket_type_ids or [tt.id for tt in ticket_types])
+    grant = getattr(promo, "grants", None)
+    if grant:
+        ids.discard(grant.ticket_type_id)
+    return ids
+
+
+def _addon_allowance(
+    rule, items, ticket_types_by_id: dict, presented: list
+) -> int:
+    """How many add-on tickets ``rule`` authorises for this basket.
+
+    Qualifying sources are the tickets in the basket itself PLUS any source
+    ticket the buyer presented by id. Each source ticket admits ``admits``
+    people and ``per_source`` add-ons are allowed per person, so a Family -
+    Weekend ticket (admits 4) is worth four seats where a Single is worth one.
+    """
+    grant = rule.grants
+    source_ids = _source_scope_type_ids(rule, list(ticket_types_by_id.values()))
+    people = 0
+    for item in items:
+        if item.ticket_type_id in source_ids:
+            people += item.quantity * ticket_admits(
+                ticket_types_by_id.get(item.ticket_type_id)
+            )
+    for other, _token, source in presented or []:
+        if not _rule_grants(other) or other.grants.ticket_type_id != grant.ticket_type_id:
+            continue
+        if other.grants.per_source != grant.per_source:
+            continue
+        if _rule_code(other) != _rule_code(rule):
+            continue
+        # A cross-event source's type is not in this event's map; admits then
+        # defaults to 1, which is the conservative reading.
+        people += ticket_admits(ticket_types_by_id.get(source.ticket_type_id))
+    return people * grant.per_source
+
+
+async def _validate_addon_items(
+    event: Event, items, ticket_types: list[TicketType], reservation
+) -> None:
+    """Enforce add-on entitlements and the counted cap on add-on types.
+
+    The gate lives HERE, not in the checkout's cosmetic filter: an add-on may
+    only be added while a qualifying source ticket is present, and never
+    beyond ``per_source × admits`` per source ticket. The cap is counted from
+    real ticket rows because ``ticket_types.sold`` under-counts.
+    """
+    by_id = {tt.id: tt for tt in ticket_types}
+    presented = list(getattr(reservation, "pairs", None) or [])
+    for item in items:
+        rules = _addon_rules(event, item.ticket_type_id)
+        if not rules:
+            continue
+        name = by_id[item.ticket_type_id].name if item.ticket_type_id in by_id else item.ticket_type_id
+        allowance = max(
+            _addon_allowance(rule, items, by_id, presented) for rule in rules
+        )
+        if allowance <= 0:
+            raise ValueError(
+                f"'{name}' can only be added with a qualifying ticket. "
+                "Add that ticket to your basket, or enter your existing ticket ID."
+            )
+        if item.quantity > allowance:
+            raise ValueError(
+                f"'{name}': only {allowance} can be added with your ticket(s)."
+            )
+        ticket_type = by_id.get(item.ticket_type_id)
+        if ticket_type and ticket_type.max_tickets > 0:
+            issued = await count_tickets_by_type(ticket_type.id)
+            if issued + item.quantity > ticket_type.max_tickets:
+                remaining = max(0, ticket_type.max_tickets - issued)
+                raise ValueError(f"Only {remaining} '{name}' left.")
+
+
 async def _match_ticket_rule(
     event: Event, ticket_id: str, item_count: int, active_only: bool = True
 ) -> tuple[PromoCode, Ticket] | None:
@@ -614,6 +728,12 @@ async def _resolve_ticket_rules(
             rejected.add(token)
             continue
         credit = await _source_credit(rule, source)
+        if _rule_grants(rule):
+            # A grant rule carries no discount: it authorises ADDING tickets of
+            # another type. It still pairs, so the reservation, redemption
+            # accounting and finalize-on-payment machinery apply unchanged.
+            pairs.append((rule, token, source))
+            continue
         promos.append(
             # construct() bypasses validation so the rule passes through with
             # the resolved credit. `code` is the offer code so the buyer sees
@@ -790,6 +910,7 @@ async def create_basket_with_charge(
     # last available slot of the same source ticket. Only rules that actually
     # applied get a reservation, so a stray token can never block checkout.
     reservation = await _resolve_ticket_rules(event, promo_code_strings, item_count)
+    await _validate_addon_items(event, data.items, ticket_types, reservation)
     for _rule, token, _source in reservation.pairs:
         async with _reservation_lock(token):
             await _reserve_ticket_voucher(

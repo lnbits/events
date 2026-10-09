@@ -73,6 +73,11 @@ async def get_ticket_type(tt_id):
     return _STORE["ticket_types"].get(tt_id)
 
 
+async def count_tickets_by_type(ticket_type_id):
+    return sum(1 for t in _STORE["tickets"].values()
+               if t.ticket_type_id == ticket_type_id)
+
+
 async def create_ticket_type(ticket_type):
     _STORE["ticket_types"][ticket_type.id] = ticket_type
     return ticket_type

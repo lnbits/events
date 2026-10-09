@@ -176,6 +176,20 @@ async def get_ticket_types(event_id: str) -> list[TicketType]:
     )
 
 
+async def count_tickets_by_type(ticket_type_id: str) -> int:
+    """Real number of tickets issued for a type.
+
+    Counted from ``events.ticket`` rather than ``ticket_types.sold``, which
+    under-counts: ``set_ticket_paid`` bumps ``sold`` but returns early for a
+    ticket that already arrived paid, so historical imports skip it.
+    """
+    row = await db.fetchone(
+        "SELECT COUNT(*) AS n FROM events.ticket WHERE ticket_type_id = :t",
+        {"t": ticket_type_id},
+    )
+    return int(row["n"]) if row else 0
+
+
 async def get_ticket_type(ticket_type_id: str) -> TicketType | None:
     return await db.fetchone(
         "SELECT * FROM events.ticket_types WHERE id = :id",
