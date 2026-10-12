@@ -28,7 +28,10 @@
         </q-card-section>
       </q-card>
 
-      <div v-if="ticketTypes.length === 0 && !eventErrorLabel" class="q-pa-lg">
+      <div
+        v-if="ticketTypesLoaded && ticketTypes.length === 0 && !eventErrorLabel"
+        class="q-pa-lg"
+      >
         <q-banner class="bg-grey-3 text-grey-8">
           <template v-slot:avatar>
             <q-icon name="info" color="grey-8" />
@@ -100,7 +103,10 @@
         :hint="$t('events.refund_hint', {min_tickets: event.extra?.min_tickets})"
       ></q-input>
 
-      <q-card v-if="basket.length > 0 || basketTotal > 0">
+      <q-card
+        v-if="basket.length > 0 || basketTotal > 0"
+        ref="basketCard"
+      >
         <q-card-section>
           <h5 class="q-mt-none" v-text="$t('events.basket')"></h5>
           <div v-for="bi in basket" :key="bi.ticketTypeId" class="row items-center q-mb-sm q-col-gutter-sm">
@@ -198,6 +204,31 @@
         </q-card-section>
       </q-card>
 
+      <q-card
+        v-if="basket.length > 0"
+        class="q-mt-md"
+        style="position: sticky; bottom: 16px; z-index: 10"
+      >
+        <q-card-section class="q-py-sm">
+          <div class="row items-center no-wrap q-col-gutter-sm">
+            <div class="col">
+              <q-icon name="shopping_basket" size="sm" class="q-mr-xs"></q-icon>
+              <span class="text-subtitle2" v-text="basketSummary"></span>
+            </div>
+            <div class="col-auto">
+              <q-btn
+                unelevated
+                dense
+                color="primary"
+                icon="arrow_downward"
+                :label="$t('events.view_basket')"
+                @click="scrollToBasket"
+              ></q-btn>
+            </div>
+          </div>
+        </q-card-section>
+      </q-card>
+
       <q-card v-show="ticketLink.show" class="q-pa-lg">
         <div class="text-center q-mb-lg">
           <q-btn
@@ -213,7 +244,10 @@
       </q-card>
     </div>
   </div>
-  <div v-else class="row q-col-gutter-md justify-center">
+  <div
+    v-else-if="eventErrorLabel"
+    class="row q-col-gutter-md justify-center"
+  >
     <div class="col-12 col-md-7 col-lg-6 q-gutter-y-md">
       <q-card class="q-pa-lg">
         <q-card-section class="q-pa-none">
@@ -222,4 +256,45 @@
       </q-card>
     </div>
   </div>
+
+  <div v-else class="row q-col-gutter-md justify-center">
+    <div class="col-12 col-md-7 col-lg-6 q-gutter-y-md">
+      <div class="text-center q-pa-lg">
+        <q-spinner-bars color="primary" size="2em"></q-spinner-bars>
+      </div>
+    </div>
+  </div>
+
+  <q-dialog v-model="anonDialog">
+    <q-card style="max-width: 460px">
+      <q-card-section class="row items-center no-wrap">
+        <q-icon name="lock" size="2em" color="primary" class="q-mr-md"></q-icon>
+        <div class="text-h6" v-text="$t('events.anon_dialog_title')"></div>
+        <q-space></q-space>
+        <q-btn
+          flat
+          round
+          dense
+          icon="close"
+          :aria-label="$q.lang.label.close"
+          v-close-popup
+        ></q-btn>
+      </q-card-section>
+      <q-card-section class="q-pt-none" v-text="$t('events.anon_dialog_body')"></q-card-section>
+      <q-card-actions align="right">
+        <q-btn
+          flat
+          color="primary"
+          :label="$t('events.anon_dialog_back')"
+          v-close-popup
+        ></q-btn>
+        <q-btn
+          unelevated
+          color="primary"
+          :label="$t('events.anon_dialog_confirm')"
+          @click="confirmAnonCheckout"
+        ></q-btn>
+      </q-card-actions>
+    </q-card>
+  </q-dialog>
 </template>

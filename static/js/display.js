@@ -5,6 +5,7 @@ window.PageEventsDisplay = {
       eventErrorLabel: '',
       event: null,
       ticketTypes: [],
+      ticketTypesLoaded: false,
       itemQuantities: {},
       basketName: '',
       basketEmail: '',
@@ -16,6 +17,7 @@ window.PageEventsDisplay = {
       basketItems: [],
       submitting: false,
       checkoutLoading: false,
+      anonDialog: false,
       nostrIdentifier: '',
       attendeeFields: {},
       copyDetailsToAll: {},
@@ -56,6 +58,22 @@ window.PageEventsDisplay = {
           }
         })
         .filter(Boolean)
+    },
+    basketItemCount() {
+      return this.basketItems.reduce((n, item) => n + item.quantity, 0)
+    },
+    basketSummary() {
+      const key =
+        this.basketItemCount === 1
+          ? 'events.basket_summary_one'
+          : 'events.basket_summary_many'
+      return this.$t(key, {
+        count: this.basketItemCount,
+        total: `${this.basketTotal} ${this.basketCurrency}`
+      })
+    },
+    needsAnonWarning() {
+      return !this.basketName || !this.basketEmail
     },
     canCheckout() {
       if (this.submitting || this.checkoutLoading) return false
@@ -110,6 +128,8 @@ window.PageEventsDisplay = {
         }
       } catch (error) {
         LNbits.utils.notifyApiError(error)
+      } finally {
+        this.ticketTypesLoaded = true
       }
     },
     addToBasket(tt, qty) {
@@ -124,14 +144,34 @@ window.PageEventsDisplay = {
       }
       this.itemQuantities[tt.id] = qty
       this.rebuildBasket()
+      this.$q.notify({
+        message: this.$t('events.ticket_added_to_basket', {
+          qty,
+          name: tt.name
+        }),
+        type: 'positive',
+        position: 'top',
+        timeout: 2000
+      })
     },
     removeFromBasket(ttId) {
+      const removed = this.basket.find(item => item.ticketTypeId === ttId)
       this.basketItems = this.basketItems.filter(
         item => item.ticketTypeId !== ttId
       )
       this.itemQuantities[ttId] = 0
       this.attendeeFields[ttId] = []
       this.rebuildBasket()
+      if (removed) {
+        this.$q.notify({
+          message: this.$t('events.ticket_removed_from_basket', {
+            name: removed.name
+          }),
+          type: 'info',
+          position: 'top',
+          timeout: 2000
+        })
+      }
     },
     addToBasketBtn(tt) {
       const qty = this.itemQuantities[tt.id] || 0
@@ -226,8 +266,24 @@ window.PageEventsDisplay = {
       return label === key ? this.$t('events.promo_reason_generic') : label
     },
   
+    scrollToBasket() {
+      const card = this.$refs.basketCard
+      const el = card && card.$el ? card.$el : card
+      if (el && el.scrollIntoView) {
+        el.scrollIntoView({behavior: 'smooth', block: 'start'})
+      }
+    },
     async checkout() {
       if (this.checkoutLoading || !this.canCheckout) return
+      // An anonymous ticket (no name and/or no email) can only be reached again
+      // through the ticket link we hand back, so acknowledge that first.
+      if (this.needsAnonWarning) {
+        this.anonDialog = true
+        return
+      }
+      await this.submitCheckout()
+    },
+    async submitCheckout() {
       this.checkoutLoading = true
       try {
         const items = this.basketItems.map(bi => ({
@@ -274,6 +330,10 @@ window.PageEventsDisplay = {
       } finally {
         this.checkoutLoading = false
       }
+    },
+    confirmAnonCheckout() {
+      this.anonDialog = false
+      this.submitCheckout()
     }
   }
 }
