@@ -479,6 +479,26 @@ def _parse_date(value: str) -> date:
     return datetime.strptime(value, "%Y-%m-%d").date()
 
 
+def sold_counts(tickets: list[Ticket]) -> dict[str, int]:
+    """Committed seats per ticket type -- DERIVED, never read from the column.
+
+    A seat is committed when its ticket is paid and neither refunded nor
+    deactivated (an upgrade voids its source ticket, which frees the seat).
+    ``TicketType.sold`` is incremented by ``set_ticket_paid``, but that returns
+    early for a ticket which arrives already paid -- an import or a migration --
+    so the stored column drifts low and every cap derived from it leaks.
+    """
+    counts: dict[str, int] = {}
+    for ticket in tickets:
+        if not ticket.paid or not ticket.ticket_type_id:
+            continue
+        extra = ticket.extra
+        if extra is not None and (extra.refunded or extra.deactivated):
+            continue
+        counts[ticket.ticket_type_id] = counts.get(ticket.ticket_type_id, 0) + 1
+    return counts
+
+
 def get_active_ticket_types(
     ticket_types: list[TicketType], today: date | None = None
 ) -> list[TicketType]:

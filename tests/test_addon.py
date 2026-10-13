@@ -50,12 +50,12 @@ async def make_event(addon_cap=100):
     return ev
 
 
-async def make_ticket(ticket_id, ticket_type_id, paid=True, event="EV1"):
+async def make_ticket(ticket_id, ticket_type_id, paid=True, event="EV1", extra=None):
     t = M.Ticket(
         id=ticket_id, wallet="w1", event=event, name="Holder", email="a@b.c",
         registered=False, paid=paid, time=datetime.now(timezone.utc),
         reg_timestamp=datetime.now(timezone.utc), ticket_type_id=ticket_type_id,
-        basket_id=None, extra=M.TicketExtra(),
+        basket_id=None, extra=extra or M.TicketExtra(),
     )
     await crud.update_ticket(t)
     return t
@@ -111,6 +111,53 @@ def test_admits_defaults_and_survives_junk():
     assert S.ticket_admits(M.TicketType(
         id="x", event_id="EV1", name="n", available_from=TODAY,
         available_to="2026-12-31", extra={"admits": "junk"})) == 1
+
+
+# --- the count itself ---------------------------------------------------------
+
+def test_sold_counts_is_committed_seats_only():
+    def mk(i, ttype, paid=True, refunded=False, deactivated=False):
+        return M.Ticket(
+            id=i, wallet="w", event="EV1", name="n", email="a@b.c", registered=False,
+            paid=paid, time=datetime.now(timezone.utc), ticket_type_id=ttype,
+            extra=M.TicketExtra(refunded=refunded, deactivated=deactivated))
+    tickets = [
+        mk("1", "A"), mk("2", "A"),
+        mk("3", "A", paid=False),          # unpaid basket
+        mk("4", "A", refunded=True),       # refunded frees the seat
+        mk("5", "A", deactivated=True),    # an upgrade voids its source
+        mk("6", "B"),
+        mk("7", None),                     # no type -> not attributable
+    ]
+    assert M.sold_counts(tickets) == {"A": 2, "B": 1}
+
+
+def test_sold_is_derived_not_the_stored_column():
+    """The stored `sold` drifts (imported tickets skip the increment). Readers
+    must derive it from the rows, so a wrong column cannot leak a cap."""
+    async def run():
+        await make_event()
+        tt = await crud.get_ticket_type(ADDON)
+        tt.sold = 999
+        await crud.update_ticket_type(tt)
+        await make_ticket("S1", ADDON)
+        await make_ticket("S2", ADDON, paid=False)
+        types = {t.id: t for t in await crud.get_ticket_types("EV1")}
+        assert types[ADDON].sold == 1, "derived from rows, ignoring the stored 999"
+    asyncio.run(run())
+
+
+def test_addon_cap_counts_only_committed_seats():
+    async def run():
+        ev = await make_event(addon_cap=2)
+        await make_ticket("U1", ADDON, paid=False)                       # abandoned
+        await make_ticket("R1", ADDON, extra=M.TicketExtra(refunded=True))
+        await gate(ev, items((WEEKEND, 2), (ADDON, 2)))                  # 2 committed -> fits
+        await make_ticket("P1", ADDON)                                   # now 1 committed
+        with pytest.raises(ValueError):
+            await gate(ev, items((WEEKEND, 2), (ADDON, 2)))              # 1+2 > 2
+        await gate(ev, items((WEEKEND, 2), (ADDON, 1)))                  # only 1 left
+    asyncio.run(run())
 
 
 # --- the gate ---------------------------------------------------------------

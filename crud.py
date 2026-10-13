@@ -6,6 +6,7 @@ from lnbits.helpers import urlsafe_short_hash
 
 from .models import (
     Basket,
+    sold_counts,
     CreateEvent,
     Event,
     Ticket,
@@ -168,12 +169,19 @@ async def get_event_tickets(event_id: str) -> list[Ticket]:
 
 
 async def get_ticket_types(event_id: str) -> list[TicketType]:
-    return await db.fetchall(
+    ticket_types = await db.fetchall(
         "SELECT * FROM events.ticket_types WHERE event_id = :event_id"
         " ORDER BY sort_order ASC",
         {"event_id": event_id},
         TicketType,
     )
+    # `sold` is DERIVED on every read (see models.sold_counts): the stored
+    # column under-counts, and the checkout's availability, its `remaining`
+    # check and the public display filter all trust this value.
+    counts = sold_counts(await get_event_tickets(event_id))
+    for ticket_type in ticket_types:
+        ticket_type.sold = counts.get(ticket_type.id, 0)
+    return ticket_types
 
 
 async def get_all_ticket_types() -> list[TicketType]:
@@ -187,17 +195,12 @@ async def get_all_ticket_types() -> list[TicketType]:
 
 
 async def count_tickets_by_type(ticket_type_id: str) -> int:
-    """Real number of tickets issued for a type.
-
-    Counted from ``events.ticket`` rather than ``ticket_types.sold``, which
-    under-counts: ``set_ticket_paid`` bumps ``sold`` but returns early for a
-    ticket that already arrived paid, so historical imports skip it.
-    """
-    row = await db.fetchone(
-        "SELECT COUNT(*) AS n FROM events.ticket WHERE ticket_type_id = :t",
-        {"t": ticket_type_id},
-    )
-    return int(row["n"]) if row else 0
+    """Committed seats for one ticket type -- same definition as ``sold``."""
+    ticket_type = await get_ticket_type(ticket_type_id)
+    if not ticket_type:
+        return 0
+    counts = sold_counts(await get_event_tickets(ticket_type.event_id))
+    return counts.get(ticket_type_id, 0)
 
 
 async def get_ticket_type(ticket_type_id: str) -> TicketType | None:
