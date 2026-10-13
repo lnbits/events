@@ -155,6 +155,25 @@ active: true,
            }
          },
        ticketTypesByEvent: {},
+      editPromoCodeDialog: {
+        show: false,
+        eventId: null,
+        codeIndex: -1,
+        data: {
+          code: '',
+          type: 'code',
+          discount_percent: null,
+          discount_fixed: null,
+          active: true,
+          combinable: true,
+          max_uses: null,
+          used_count: 0,
+          redemptions_per_ticket: 1,
+          ticket_type_ids: [],
+          max_tickets: null
+        },
+        discountType: 'percent'
+      },
       watchonlyWallets: [],
       paymentMethods: {
         ln: false,
