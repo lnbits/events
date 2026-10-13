@@ -14,9 +14,20 @@
 
 ## Sell tickets for events and use the built-in scanner for registering attendees
 
-Events allows you to create tickets for an event. Each ticket is in the form of a unique QR code. After registering and paying, the user gets a QR code to present at registration/entrance.
+Events allows you to create events with multiple ticket types and sell tickets. Each ticket is in the form of a unique QR code. After paying, the user gets a QR code to present at registration/entrance.
 
 Events includes a shareable ticket scanner, which can be used to register attendees.
+
+### Features
+
+- **Multi-ticket basket checkout** — buy multiple tickets of different types in one transaction
+- **Promo codes** — percentage or fixed discounts, combinable or exclusive
+- **Payment methods** — Lightning, on-chain, and fiat (Stripe, PayPal, Square, Revolut) configured per event
+- **Ticket types** — multiple ticket tiers with different pricing, availability windows, and max limits
+- **Email & Nostr delivery** — automatic ticket link delivery via email or Nostr DM
+- **Bulk actions** — resend all ticket emails, send custom messages to all attendees
+- **Ticket management** — deactivation, refunds, registration tracking
+- **Fiat provider** — credentials configured at LNbits server level, authorized per user
 
 ## Usage
 

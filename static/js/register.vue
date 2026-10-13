@@ -2,61 +2,31 @@
   <div class="row q-col-gutter-md justify-center">
     <div class="col-12 col-md-7 col-lg-6 q-gutter-y-md">
       <q-card class="q-pa-lg">
-        <q-card-section class="q-pa-none">
-          <center>
-            <h3 class="q-my-none" v-text="$t('events.registration')"></h3>
-            <br />
-
-            <br />
-
-            <q-btn
-              unelevated
-              color="primary"
-              @click="showCamera"
-              size="xl"
-              v-text="$t('events.scan_ticket')"
-            ></q-btn>
-          </center>
+        <q-card-section class="q-pa-none text-center">
+          <h5 v-if="eventName" v-text="eventName" class="q-my-sm"></h5>
+          <h3 class="q-my-xs" v-text="$t('events.registration')"></h3>
+          <q-btn unelevated color="primary" @click="showCamera" size="xl" class="q-my-lg">
+            <q-icon left name="qr_code_scanner" size="lg"></q-icon>
+            <span v-text="$t('events.scan_ticket')"></span>
+          </q-btn>
         </q-card-section>
       </q-card>
 
-      <q-card
-        v-if="lastScan"
-        :class="lastScan.success ? 'bg-positive' : 'bg-negative'"
-      >
-        <q-card-section class="text-white">
+      <q-card v-if="lastScan" :class="lastScan.success ? 'bg-positive' : 'bg-negative'">
+        <q-card-section class="text-white text-center">
           <div v-if="lastScan.success">
-            <div
-              class="text-h6 q-mb-sm"
-              v-text="$t('events.registered_success')"
-            ></div>
-            <div>
-              <strong v-text="$t('events.name_label')"></strong>
-              {{ lastScan.ticket.name }}
-            </div>
-            <div>
-              <strong v-text="$t('events.email_label')"></strong>
-              {{ lastScan.ticket.email }}
-            </div>
-            <div>
-              <strong v-text="$t('events.paid_label')"></strong>
-              {{ lastScan.ticket.paid }}
-            </div>
-            <div>
-              <strong v-text="$t('events.id_label')"></strong>
-              {{ shortId(lastScan.ticket.id) }}
+            <q-icon name="check_circle" size="3em" color="white" class="q-mb-sm"></q-icon>
+            <div class="text-h6 q-mb-sm" v-text="lastScan.ticket.name || $t('events.anon')"></div>
+            <div class="text-caption" v-text="$t('events.col_ticket_type') + ': ' + (lastScan.ticket.ticket_type_name || '-')"></div>
+            <div class="text-caption">
+              ID:
+              <a :href="'/events/ticket/' + lastScan.ticket.id" target="_blank" class="text-white" v-text="lastScan.ticket.id"></a>
             </div>
           </div>
           <div v-else>
+            <q-icon name="cancel" size="3em" color="white" class="q-mb-sm"></q-icon>
             <div class="text-h6 q-mb-sm" v-text="$t('events.failed')"></div>
-            <div>
-              <strong v-text="$t('events.ticket_id_label')"></strong>
-              {{ shortId(lastScan.ticketId) }}
-            </div>
-            <div>
-              <strong v-text="$t('events.error_label')"></strong>
-              {{ lastScan.error }}
-            </div>
+            <div class="text-caption" v-text="lastScan.error"></div>
           </div>
         </q-card-section>
       </q-card>
@@ -81,7 +51,8 @@
             <template v-slot:body="props">
               <q-tr :props="props">
                 <q-td v-for="col in props.cols" :key="col.name" :props="props">
-                  <span v-text="col.value"></span>
+                  <a v-if="col.name === 'id'" :href="'/events/ticket/' + col.value" target="_blank" class="text-white" v-text="col.value"></a>
+                  <span v-else v-text="col.value"></span>
                 </q-td>
               </q-tr>
             </template>

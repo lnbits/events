@@ -4,77 +4,85 @@ window.PageEventsDisplay = {
     return {
       eventErrorLabel: '',
       event: null,
-      paymentReq: null,
-      redirectUrl: null,
-      formDialog: {
-        show: false,
-        data: {
-          name: '',
-          email: '',
-          refund: '',
-          nostr_identifier: '',
-          ticket_wave_id: null,
-          payment_method: 'lightning'
-        }
-      },
+      ticketTypes: [],
+      ticketTypesLoaded: false,
+      itemQuantities: {},
+      basketName: '',
+      basketEmail: '',
+      promoCodeInput: '',
+      discountBreakdown: [],
+      promoMessages: [],
+      basketTotal: 0,
+      applyingPromo: false,
+      basketItems: [],
+      submitting: false,
+      checkoutLoading: false,
+      anonDialog: false,
+      nostrIdentifier: '',
+      attendeeFields: {},
+      copyDetailsToAll: {},
       ticketLink: {
         show: false,
         data: {
           link: ''
         }
-      },
-      receive: {
-        show: false,
-        status: 'pending',
-        paymentReq: null,
-        isFiat: false
-      },
-      paymentDismissMsg: null,
-      paymentWebsocket: null
+      }
     }
   },
-  async created() {
+  async mounted() {
     this.eventId = this.$route.params.id
-    this.event = await this.getEvent()
+    await this.loadEvent()
+    if (this.event) {
+      await this.loadTicketTypes()
+    }
   },
   computed: {
     formatDescription() {
       return LNbits.utils.convertMarkdown(this.event?.info || '')
     },
-    activeTicketWaves() {
-      const today = new Date().toISOString().slice(0, 10)
-      return (this.event?.extra?.ticket_waves || []).filter(
-        wave =>
-          wave.amount_tickets > 0 &&
-          wave.opening_date <= today &&
-          wave.closing_date >= today
-      )
+    basketCurrency() {
+      const c = this.event?.currency || 'sat'
+      return c === 'sat' ? 'sats' : c
     },
-    selectedTicketWave() {
-      return (
-        this.activeTicketWaves.find(
-          wave => wave.id === this.formDialog.data.ticket_wave_id
-        ) ||
-        this.activeTicketWaves[0] ||
-        null
-      )
+    basket() {
+      return this.basketItems
+        .map(item => {
+          const tt = this.ticketTypes.find(t => t.id === item.ticketTypeId)
+          if (!tt) return null
+          return {
+            ticketTypeId: tt.id,
+            name: tt.name,
+            quantity: item.quantity,
+            price: tt.price,
+            subtotal: tt.price * item.quantity
+          }
+        })
+        .filter(Boolean)
     },
-    showTicketWaveSelector() {
-      return this.activeTicketWaves.length > 1
+    basketItemCount() {
+      return this.basketItems.reduce((n, item) => n + item.quantity, 0)
     },
-    allowFiatCheckout() {
-      return Boolean(this.selectedTicketWave?.allow_fiat)
-    },
-    fiatCheckoutLabel() {
-      if (!this.allowFiatCheckout) return 'Fiat'
-      const unit = ['sat', 'sats'].includes(
-        (this.selectedTicketWave?.currency || '').toLowerCase()
-      )
-        ? this.selectedTicketWave?.fiat_currency
-        : this.selectedTicketWave?.currency
-      return this.$t('events.payment_fiat', {
-        unit: (unit || 'GBP').toUpperCase()
+    basketSummary() {
+      const key =
+        this.basketItemCount === 1
+          ? 'events.basket_summary_one'
+          : 'events.basket_summary_many'
+      return this.$t(key, {
+        count: this.basketItemCount,
+        total: `${this.basketTotal} ${this.basketCurrency}`
       })
+    },
+    needsAnonWarning() {
+      return !this.basketName || !this.basketEmail
+    },
+    canCheckout() {
+      if (this.submitting || this.checkoutLoading) return false
+      const hasItems = this.basketItems.some(
+        item => item.quantity > 0
+      )
+      if (!hasItems) return false
+      if (this.basketEmail && !/^[\w\.-]+@[a-zA-Z\d\.-]+\.[a-zA-Z]{2,}$/.test(this.basketEmail)) return false
+      return true
     },
     allowEmailNotifications() {
       return Boolean(this.event?.extra?.email_notifications)
@@ -82,203 +90,250 @@ window.PageEventsDisplay = {
     allowNostrNotifications() {
       return Boolean(this.event?.extra?.nostr_notifications)
     },
-    allowOnchain() {
-      return Boolean(this.event?.extra?.onchain_enabled)
-    },
-    showPaymentMethodSelector() {
-      return this.allowFiatCheckout || this.allowOnchain
-    },
-    paymentMethodOptions() {
-      const options = [
-        {label: this.$t('events.payment_lightning'), value: 'lightning'}
-      ]
-      if (this.allowFiatCheckout) {
-        options.push({label: this.fiatCheckoutLabel, value: 'fiat'})
-      }
-      if (this.allowOnchain) {
-        options.push({
-          label: this.$t('events.payment_bitcoin'),
-          value: 'onchain'
-        })
-      }
-      return options
+    acceptedPaymentMethods() {
+      return this.event?.extra?.payment_methods || []
     }
   },
   methods: {
-    async getEvent() {
+    async loadEvent() {
       try {
         const {data} = await LNbits.api.request(
           'GET',
           `/events/api/v1/events/${this.eventId}`
         )
-        const activeWaves = (data.extra?.ticket_waves || []).filter(wave => {
-          const today = new Date().toISOString().slice(0, 10)
-          return (
-            wave.amount_tickets > 0 &&
-            wave.opening_date <= today &&
-            wave.closing_date >= today
-          )
-        })
-        this.formDialog.data.ticket_wave_id =
-          activeWaves.length === 1 ? activeWaves[0].id : null
-        return data
+        this.event = data
       } catch (error) {
         this.eventErrorLabel = this.$t('events.event_unavailable')
         LNbits.utils.notifyApiError(error)
       }
     },
-    resetForm(e) {
-      e.preventDefault()
-      this.formDialog.data.name = ''
-      this.formDialog.data.email = ''
-      this.formDialog.data.refund = ''
-      this.formDialog.data.nostr_identifier = ''
-      this.formDialog.data.ticket_wave_id =
-        this.activeTicketWaves.length === 1
-          ? this.activeTicketWaves[0].id
-          : null
-      this.formDialog.data.payment_method = 'lightning'
-    },
-
-    closeReceiveDialog() {
-      if (this.paymentDismissMsg) {
-        this.paymentDismissMsg()
-        this.paymentDismissMsg = null
-      }
-      if (this.paymentWebsocket) {
-        this.paymentWebsocket.close()
-        this.paymentWebsocket = null
-      }
-      this.paymentReq = null
-      this.receive = {
-        show: false,
-        status: 'pending',
-        paymentReq: null,
-        isFiat: false
-      }
-    },
-    nameValidation(val) {
-      const regex = /[`!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~]/g
-      return !regex.test(val) || this.$t('events.name_validation')
-    },
-    emailValidation(val) {
-      const regex = /^[\w\.-]+@[a-zA-Z\d\.-]+\.[a-zA-Z]{2,}$/
-      return regex.test(val) || this.$t('events.email_validation')
-    },
-    paymentSuccess(paymentHash) {
-      if (this.paymentDismissMsg) {
-        this.paymentDismissMsg()
-        this.paymentDismissMsg = null
-      }
-      this.paymentReq = null
-      this.formDialog.data.name = ''
-      this.formDialog.data.email = ''
-      this.formDialog.data.refund = ''
-      this.formDialog.data.nostr_identifier = ''
-      this.formDialog.data.ticket_wave_id =
-        this.activeTicketWaves.length === 1
-          ? this.activeTicketWaves[0].id
-          : null
-      this.formDialog.data.payment_method = 'lightning'
-      Quasar.Notify.create({
-        type: 'positive',
-        message: this.$t('events.payment_sent'),
-        icon: null
-      })
-      this.receive = {
-        show: false,
-        status: 'complete',
-        paymentReq: null,
-        isFiat: false
-      }
-      this.ticketLink = {
-        show: true,
-        data: {
-          link: `/events/ticket/${paymentHash}`
-        }
-      }
-      window.open(`/events/ticket/${paymentHash}`, '_blank', 'noopener')
-    },
-    async createInvoice() {
+    async loadTicketTypes() {
       try {
         const {data} = await LNbits.api.request(
-          'POST',
-          `/events/api/v1/tickets/${this.eventId}`,
-          null,
-          {
-            name: this.formDialog.data.name,
-            email: this.formDialog.data.email,
-            ticket_wave_id: this.formDialog.data.ticket_wave_id || null,
-            promo_code: this.formDialog.data.promo_code || null,
-            refund_address: this.formDialog.data.refund || null,
-            nostr_identifier: this.formDialog.data.nostr_identifier || null,
-            payment_method: this.showPaymentMethodSelector
-              ? this.formDialog.data.payment_method
-              : 'lightning'
-          }
+          'GET',
+          `/events/api/v1/ticket-types/${this.eventId}`
         )
-        if (data.satspay_charge_url) {
-          window.location.href = data.satspay_charge_url
-          return
+        const today = new Date().toISOString().slice(0, 10)
+        this.ticketTypes = data.filter(
+          tt =>
+            (tt.extra?.active ?? true) &&
+            tt.available_from <= today &&
+            tt.available_to >= today &&
+            (tt.max_tickets === 0 || tt.sold < tt.max_tickets)
+        )
+        for (const tt of this.ticketTypes) {
+          this.itemQuantities[tt.id] = 0
+          this.attendeeFields[tt.id] = []
+          this.copyDetailsToAll[tt.id] = false
         }
-
-        const isFiat = Boolean(data.is_fiat)
-        this.paymentReq = isFiat
-          ? data.fiat_payment_request || null
-          : data.payment_request
-        this.paymentHash = data.payment_hash
-
-        this.paymentDismissMsg = Quasar.Notify.create({
-          timeout: 0,
-          message: this.$t('events.waiting_for_payment')
-        })
-        this.receive = {
-          show: true,
-          status: 'pending',
-          paymentReq: this.paymentReq,
-          isFiat
-        }
-        if (isFiat && this.paymentReq) {
-          window.open(this.paymentReq, '_blank', 'noopener')
-        }
-        this.paymentWatcher(this.paymentHash)
       } catch (error) {
         LNbits.utils.notifyApiError(error)
+      } finally {
+        this.ticketTypesLoaded = true
       }
     },
-    paymentWatcher(paymentHash) {
-      if (this.paymentWebsocket) {
-        this.paymentWebsocket.close()
+    addToBasket(tt, qty) {
+      if (qty <= 0) return
+      const existing = this.basketItems.find(
+        item => item.ticketTypeId === tt.id
+      )
+      if (existing) {
+        existing.quantity = qty
+      } else {
+        this.basketItems.push({ticketTypeId: tt.id, quantity: qty})
       }
-
-      const url = new URL(window.location)
-      url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
-      url.pathname = `/events/api/v1/tickets/ws/${paymentHash}`
-      url.search = ''
-      url.hash = ''
-
-      const ws = new WebSocket(url.toString())
-      this.paymentWebsocket = ws
-
-      ws.onmessage = event => {
-        const data = JSON.parse(event.data)
-        if (data.paid === true) {
-          this.paymentSuccess(paymentHash)
-          ws.close()
+      this.itemQuantities[tt.id] = qty
+      this.rebuildBasket()
+      this.$q.notify({
+        message: this.$t('events.ticket_added_to_basket', {
+          qty,
+          name: tt.name
+        }),
+        type: 'positive',
+        position: 'top',
+        timeout: 2000
+      })
+    },
+    removeFromBasket(ttId) {
+      const removed = this.basket.find(item => item.ticketTypeId === ttId)
+      this.basketItems = this.basketItems.filter(
+        item => item.ticketTypeId !== ttId
+      )
+      this.itemQuantities[ttId] = 0
+      this.attendeeFields[ttId] = []
+      this.rebuildBasket()
+      if (removed) {
+        this.$q.notify({
+          message: this.$t('events.ticket_removed_from_basket', {
+            name: removed.name
+          }),
+          type: 'info',
+          position: 'top',
+          timeout: 2000
+        })
+      }
+    },
+    addToBasketBtn(tt) {
+      const qty = this.itemQuantities[tt.id] || 0
+      if (qty <= 0) return
+      this.addToBasket(tt, qty)
+    },
+    rebuildBasket() {
+      this.basketItems = this.basketItems.filter(
+        item => item.quantity > 0
+      )
+      if (this.basketItems.length === 0) {
+        this.discountBreakdown = []
+        this.promoMessages = []
+        this.basketTotal = 0
+        return
+      }
+      let subtotal = 0
+      for (const bi of this.basketItems) {
+        const tt = this.ticketTypes.find(t => t.id === bi.ticketTypeId)
+        if (tt) {
+          subtotal += tt.price * bi.quantity
         }
       }
-      ws.onerror = error => {
-        console.error('WebSocket error:', error)
+      this.basketTotal = subtotal
+      this.discountBreakdown = []
+      this.promoMessages = []
+    },
+    async applyPromoCode() {
+      // Offer codes are matched case-insensitively by the server, but TICKET
+      // IDs are case-sensitive primary keys — never upper-case what the buyer
+      // typed or a valid ticket ID stops resolving.
+      const codes = this.promoCodeInput
+        .split(',')
+        .map(c => c.trim())
+        .filter(c => c.length > 0)
+      if (!codes.length) {
+        this.rebuildBasket()
+        return
       }
-      ws.onclose = () => {
-        if (this.paymentWebsocket !== ws) return
-        this.paymentWebsocket = null
-        if (this.receive.show) {
-          setTimeout(() => {
-            if (this.receive.show) this.paymentWatcher(paymentHash)
-          }, 3000)
+      if (!this.basketItems.length) return
+      this.applyingPromo = true
+      try {
+        const items = this.basketItems.map(bi => ({
+          ticket_type_id: bi.ticketTypeId,
+          quantity: bi.quantity
+        }))
+        const {data} = await LNbits.api.request(
+          'POST',
+          `/events/api/v1/promo/validate/${this.eventId}`,
+          null,
+          {codes, items}
+        )
+        this.basketTotal = data.total
+        this.discountBreakdown = (data.discounts_applied || []).map(d => ({
+          label: `${d.code}: ${d.amount_saved} ${this.basketCurrency}`
+        }))
+        // An offer that needs a ticket ID reports what it still wants, so the
+        // buyer is told to add one instead of seeing nothing happen.
+        this.promoMessages = (data.pending || []).map(p => ({
+          kind: 'pending',
+          label: this.$t('events.promo_pending_ticket', {code: p.code})
+        }))
+        // A token that could not be used says why, instead of silently doing
+        // nothing (which is indistinguishable from a mistyped code).
+        this.promoMessages = this.promoMessages.concat(
+          (data.rejections || []).map(r => ({
+            kind: 'rejected',
+            label: `${r.code}: ${this.promoReasonLabel(r.reason)}`
+          }))
+        )
+        if (
+          !this.discountBreakdown.length &&
+          !this.promoMessages.length &&
+          codes.length
+        ) {
+          this.promoMessages = [
+            {kind: 'rejected', label: this.$t('events.promo_none_found')}
+          ]
         }
+      } catch (error) {
+        LNbits.utils.notifyApiError(error)
+        this.rebuildBasket()
+      } finally {
+        this.applyingPromo = false
       }
+    },
+    promoReasonLabel(reason) {
+      const key = `events.promo_reason_${reason}`
+      const label = this.$t(key)
+      // $t returns the key itself when it is missing; fall back to a generic
+      // message rather than showing a raw i18n key to a buyer.
+      return label === key ? this.$t('events.promo_reason_generic') : label
+    },
+  
+    scrollToBasket() {
+      const card = this.$refs.basketCard
+      const el = card && card.$el ? card.$el : card
+      if (el && el.scrollIntoView) {
+        el.scrollIntoView({behavior: 'smooth', block: 'start'})
+      }
+    },
+    async checkout() {
+      if (this.checkoutLoading || !this.canCheckout) return
+      // An anonymous ticket (no name and/or no email) can only be reached again
+      // through the ticket link we hand back, so acknowledge that first.
+      if (this.needsAnonWarning) {
+        this.anonDialog = true
+        return
+      }
+      await this.submitCheckout()
+    },
+    async submitCheckout() {
+      this.checkoutLoading = true
+      try {
+        const items = this.basketItems.map(bi => ({
+          ticket_type_id: bi.ticketTypeId,
+          quantity: bi.quantity
+        }))
+        // Same as applyPromoCode: codes are case-insensitive server-side but
+        // ticket IDs are not, so send what the buyer typed.
+        const promo_codes = this.promoCodeInput
+          .split(',')
+          .map(c => c.trim())
+          .filter(c => c.length > 0)
+        const refundAddr = (this.event?.extra?.conditional)
+          ? ''
+          : undefined
+
+        const body = {
+          name: this.basketName,
+          email: this.basketEmail || null,
+          items,
+          promo_codes,
+          payment_method: null,
+          fiat_provider: this.event?.extra?.fiat_provider || null,
+          nostr_identifier: this.nostrIdentifier || null,
+          refund_address: refundAddr || null
+        }
+
+        const {data} = await LNbits.api.request(
+          'POST',
+          `/events/api/v1/baskets/${this.eventId}`,
+          null,
+          body
+        )
+
+        const firstTicket = data.tickets?.[0]
+        if (data.basket?.id) {
+          this.$router.push(`/events/basket/${data.basket.id}`)
+        } else if (firstTicket) {
+          this.ticketLink.show = true
+          this.ticketLink.data.link = `/events/ticket/${firstTicket.id}`
+        }
+      } catch (error) {
+        LNbits.utils.notifyApiError(error)
+      } finally {
+        this.checkoutLoading = false
+      }
+    },
+    confirmAnonCheckout() {
+      this.anonDialog = false
+      this.submitCheckout()
     }
   }
 }

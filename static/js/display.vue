@@ -6,126 +6,226 @@
           v-if="event.banner"
           :src="event.banner"
           transition="slide-up"
+          style="max-height: 300px"
+          :img-style="{ objectFit: 'contain' }"
         ></q-img>
         <q-card-section class="q-pa-none">
           <h3 class="q-my-none q-pa-lg" v-text="event.name"></h3>
-          <div v-html="event.info" class="q-pa-lg"></div>
+          <div class="q-px-lg q-pb-md" v-if="acceptedPaymentMethods.length > 0">
+            <span class="text-caption">
+              <span v-for="(method, idx) in acceptedPaymentMethods" :key="method">
+                <q-icon
+                  :name="method === 'ln' ? 'bolt' : method === 'onchain' ? 'link' : 'credit_card'"
+                  size="xs"
+                  class="q-mr-xs"
+                ></q-icon>
+                <span v-text="method === 'ln' ? 'LN' : method === 'onchain' ? 'BTC' : method.charAt(0).toUpperCase() + method.slice(1)"></span>
+                <span v-if="idx < acceptedPaymentMethods.length - 1" class="q-mx-xs">|</span>
+              </span>
+            </span>
+          </div>
+          <div v-html="formatDescription" class="q-pa-lg"></div>
         </q-card-section>
       </q-card>
-      <q-card class="q-pa-lg">
-        <q-card-section class="q-pa-none">
-          <h5 class="q-mt-none" v-text="$t('events.buy_ticket')"></h5>
-          <q-form @submit="createInvoice()" class="q-gutter-md">
-            <div class="row">
-              <div class="col-12">
-                <q-input
-                  filled
-                  dense
-                  v-model.trim="formDialog.data.name"
-                  :label="$t('events.your_name_label')"
-                  :rules="[val => nameValidation(val)]"
-                ></q-input>
+
+      <div
+        v-if="ticketTypesLoaded && ticketTypes.length === 0 && !eventErrorLabel"
+        class="q-pa-lg"
+      >
+        <q-banner class="bg-grey-3 text-grey-8">
+          <template v-slot:avatar>
+            <q-icon name="info" color="grey-8" />
+          </template>
+          <span v-text="$t('events.no_ticket_types_available')"></span>
+        </q-banner>
+      </div>
+
+      <div v-for="tt in ticketTypes" :key="tt.id" class="q-mb-md">
+        <q-card>
+          <q-card-section>
+            <div class="row items-center q-mb-sm">
+              <h5 class="q-my-none" v-text="tt.name"></h5>
+            </div>
+            <div v-if="tt.description" class="text-body2 q-mb-sm" v-text="tt.description"></div>
+            <div class="row q-col-gutter-sm q-mb-sm">
+              <div class="col-auto">
+                <q-chip color="primary" text-color="white">
+                  {{ tt.price }} {{ basketCurrency }}
+                </q-chip>
               </div>
-              <div class="col-12 col-md-6 q-pr-sm">
-                <q-input
-                  filled
-                  dense
-                  v-model.trim="formDialog.data.email"
-                  type="email"
-                  :label="
-                    allowEmailNotifications
-                      ? $t('events.your_email_delivery_label')
-                      : $t('events.your_email_label')
-                  "
-                  :rules="[
-                    val => !!val || $t('events.required'),
-                    val => emailValidation(val)
-                  ]"
-                  lazy-rules
-                ></q-input>
+              <div v-if="tt.max_tickets > 0 && tt.extra?.show_remaining && (tt.max_tickets - tt.sold <= (tt.extra.remaining_threshold || tt.max_tickets))" class="col-auto">
+                <q-chip outline>
+                  <template v-if="tt.max_tickets - tt.sold > 0">
+                    {{ tt.max_tickets - tt.sold }} remaining
+                  </template>
+                  <template v-else>Sold out</template>
+                </q-chip>
               </div>
-              <div v-if="allowNostrNotifications" class="col-12 col-md-6">
-                <q-input
-                  filled
-                  dense
-                  v-model.trim="formDialog.data.nostr_identifier"
-                  :label="$t('events.nostr_nip05_label')"
-                  :hint="$t('events.nostr_nip05_hint')"
-                ></q-input>
+              <div class="col-auto">
+                <q-chip outline>
+                  {{ $t('events.available_until') }} {{ tt.available_to }}
+                </q-chip>
               </div>
             </div>
+            <div class="row items-center q-col-gutter-sm">
+              <div class="col-12 col-md-4">
+                <q-input
+                  filled
+                  dense
+                  v-model.number="itemQuantities[tt.id]"
+                  type="number"
+                  :label="$t('events.quantity')"
+                  min="0"
+                  :max="tt.max_tickets > 0 ? tt.max_tickets - tt.sold : undefined"
+                ></q-input>
+              </div>
+              <div class="col-auto">
+                <q-btn
+                  unelevated
+                  color="primary"
+                  :label="$t('events.add_to_basket')"
+                  :disable="!itemQuantities[tt.id] || itemQuantities[tt.id] <= 0"
+                  @click="addToBasketBtn(tt)"
+                ></q-btn>
+              </div>
+            </div>
+          </q-card-section>
+        </q-card>
+      </div>
+
+      <q-input
+        v-if="event.extra?.conditional"
+        filled
+        dense
+        class="q-mb-md"
+        v-model.trim="refundAddress"
+        :label="$t('events.refund_label')"
+        :hint="$t('events.refund_hint', {min_tickets: event.extra?.min_tickets})"
+      ></q-input>
+
+      <q-card
+        v-if="basket.length > 0 || basketTotal > 0"
+        ref="basketCard"
+      >
+        <q-card-section>
+          <h5 class="q-mt-none" v-text="$t('events.basket')"></h5>
+          <div v-for="bi in basket" :key="bi.ticketTypeId" class="row items-center q-mb-sm q-col-gutter-sm">
+            <div class="col" v-text="`${bi.name} x${bi.quantity}`"></div>
+            <div class="col-auto" v-text="`${bi.subtotal} ${basketCurrency}`"></div>
+            <div class="col-auto">
+              <q-btn
+                flat
+                dense
+                round
+                icon="delete"
+                color="negative"
+                @click="removeFromBasket(bi.ticketTypeId)"
+              ></q-btn>
+            </div>
+          </div>
+
+          <div v-if="basket.length > 0" class="q-mt-md q-gutter-md">
             <q-input
-              v-if="event.extra?.conditional"
               filled
               dense
-              v-model.trim="formDialog.data.refund"
-              :label="$t('events.refund_label')"
-              :rules="[val => !!val || $t('events.required')]"
-              lazy-rules
-              :hint="
-                $t('events.refund_hint', {
-                  min_tickets: event.extra?.min_tickets
-                })
-              "
+              v-model.trim="basketName"
+              :label="$t('events.your_name_label')"
             ></q-input>
-            <q-select
-              v-if="showTicketWaveSelector"
+            <q-input
               filled
               dense
-              v-model="formDialog.data.ticket_wave_id"
-              emit-value
-              map-options
-              :label="$t('events.ticket_wave_label')"
-              :options="
-                activeTicketWaves.map(wave => ({
-                  label: `${wave.title} - ${wave.price_per_ticket} ${wave.currency}`,
-                  value: wave.id
-                }))
-              "
-            ></q-select>
-            <div class="row q-col-gutter-md q-pt-lg items-center">
-              <div v-if="showPaymentMethodSelector" class="col-auto">
-                <q-option-group
-                  v-model="formDialog.data.payment_method"
-                  inline
-                  :options="paymentMethodOptions"
-                ></q-option-group>
-              </div>
-              <div
-                :class="
-                  showPaymentMethodSelector ? 'col-12 col-md-3' : 'col-12'
-                "
-              >
+              v-model.trim="basketEmail"
+              type="email"
+              :label="$t('events.your_email_delivery_label')"
+            ></q-input>
+          </div>
+
+          <div v-if="allowNostrNotifications" class="q-mt-md">
+            <q-input
+              filled
+              dense
+              v-model.trim="nostrIdentifier"
+              :label="$t('events.nostr_nip05_label')"
+              :hint="$t('events.nostr_nip05_hint')"
+            ></q-input>
+          </div>
+
+          <div class="q-mt-md">
+            <div class="row items-center q-col-gutter-sm">
+              <div class="col">
                 <q-input
                   filled
                   dense
-                  v-model.trim="formDialog.data.promo_code"
-                  :label="$t('events.promo_code_optional')"
+                  v-model.trim="promoCodeInput"
+                  :label="$t('events.promo_code_comma_separated')"
+                  @keyup.enter="applyPromoCode"
                 ></q-input>
               </div>
+              <div class="col-auto">
+                <q-btn
+                  unelevated
+                  color="primary"
+                  :label="$t('events.apply')"
+                  :loading="applyingPromo"
+                  :disable="!basketItems.length"
+                  @click="applyPromoCode"
+                ></q-btn>
+              </div>
             </div>
-            <div class="row q-mt-lg">
+          </div>
+          <div v-if="discountBreakdown.length > 0" class="q-mt-md">
+            <div v-for="(d, idx) in discountBreakdown" :key="idx" class="text-caption text-positive">
+              {{ d.label }}
+            </div>
+          </div>
+          <div v-if="promoMessages.length > 0" class="q-mt-md">
+            <div
+              v-for="(m, idx) in promoMessages"
+              :key="idx"
+              class="text-caption"
+              :class="m.kind === 'pending' ? 'text-warning' : 'text-negative'"
+            >
+              {{ m.label }}
+            </div>
+          </div>
+          <div class="text-h6 q-mt-md text-right">
+            Total: {{ basketTotal }} {{ basketCurrency }}
+          </div>
+          <div class="text-center q-mt-lg">
+            <q-btn
+              unelevated
+              color="primary"
+              :disable="!canCheckout"
+              :loading="checkoutLoading"
+              @click="checkout"
+              v-text="$t('events.checkout')"
+            ></q-btn>
+          </div>
+        </q-card-section>
+      </q-card>
+
+      <q-card
+        v-if="basket.length > 0"
+        class="q-mt-md"
+        style="position: sticky; bottom: 16px; z-index: 10"
+      >
+        <q-card-section class="q-py-sm">
+          <div class="row items-center no-wrap q-col-gutter-sm">
+            <div class="col">
+              <q-icon name="shopping_basket" size="sm" class="q-mr-xs"></q-icon>
+              <span class="text-subtitle2" v-text="basketSummary"></span>
+            </div>
+            <div class="col-auto">
               <q-btn
                 unelevated
+                dense
                 color="primary"
-                :disable="
-                  formDialog.data.name == '' ||
-                  formDialog.data.email == '' ||
-                  (showTicketWaveSelector && !formDialog.data.ticket_wave_id) ||
-                  (receive.show && Boolean(paymentReq))
-                "
-                type="submit"
-                v-text="$t('events.submit')"
-              ></q-btn>
-              <q-btn
-                @click="resetForm"
-                flat
-                color="grey"
-                class="q-ml-auto"
-                v-text="$t('clear')"
+                icon="arrow_downward"
+                :label="$t('events.view_basket')"
+                @click="scrollToBasket"
               ></q-btn>
             </div>
-          </q-form>
+          </div>
         </q-card-section>
       </q-card>
 
@@ -143,78 +243,11 @@
         </div>
       </q-card>
     </div>
-
-    <q-dialog v-model="receive.show" position="top" @hide="closeReceiveDialog">
-      <q-card
-        v-if="!receive.paymentReq"
-        class="q-pa-lg q-pt-xl lnbits__dialog-card"
-      >
-      </q-card>
-      <q-card
-        v-else-if="receive.isFiat"
-        class="q-pa-lg q-pt-xl lnbits__dialog-card"
-      >
-        <div class="text-center q-mb-lg">
-          <div
-            class="text-h6 q-mb-sm"
-            v-text="$t('events.continue_to_checkout')"
-          ></div>
-          <div
-            class="text-body2 text-grey-5 q-mb-lg"
-            v-text="$t('events.fiat_checkout_opened')"
-          ></div>
-          <q-btn
-            unelevated
-            color="primary"
-            type="a"
-            :href="receive.paymentReq"
-            target="_blank"
-            rel="noopener"
-            v-text="$t('events.go_to_checkout')"
-          ></q-btn>
-        </div>
-        <div class="row q-mt-lg">
-          <q-btn
-            outline
-            color="grey"
-            @click="utils.copyText(receive.paymentReq)"
-            v-text="$t('events.copy_payment_link')"
-          ></q-btn>
-          <q-btn
-            v-close-popup
-            flat
-            color="grey"
-            class="q-ml-auto"
-            v-text="$t('close')"
-          ></q-btn>
-        </div>
-      </q-card>
-      <q-card v-else class="q-pa-lg q-pt-xl lnbits__dialog-card">
-        <div class="text-center q-mb-lg">
-          <lnbits-qrcode
-            :href="'lightning:' + receive.paymentReq"
-            :value="'LIGHTNING:' + receive.paymentReq.toUpperCase()"
-          ></lnbits-qrcode>
-        </div>
-        <div class="row q-mt-lg">
-          <q-btn
-            outline
-            color="grey"
-            @click="utils.copyText(receive.paymentReq)"
-            v-text="$t('events.copy_invoice')"
-          ></q-btn>
-          <q-btn
-            v-close-popup
-            flat
-            color="grey"
-            class="q-ml-auto"
-            v-text="$t('close')"
-          ></q-btn>
-        </div>
-      </q-card>
-    </q-dialog>
   </div>
-  <div v-else class="row q-col-gutter-md justify-center">
+  <div
+    v-else-if="eventErrorLabel"
+    class="row q-col-gutter-md justify-center"
+  >
     <div class="col-12 col-md-7 col-lg-6 q-gutter-y-md">
       <q-card class="q-pa-lg">
         <q-card-section class="q-pa-none">
@@ -223,4 +256,45 @@
       </q-card>
     </div>
   </div>
+
+  <div v-else class="row q-col-gutter-md justify-center">
+    <div class="col-12 col-md-7 col-lg-6 q-gutter-y-md">
+      <div class="text-center q-pa-lg">
+        <q-spinner-bars color="primary" size="2em"></q-spinner-bars>
+      </div>
+    </div>
+  </div>
+
+  <q-dialog v-model="anonDialog">
+    <q-card style="max-width: 460px">
+      <q-card-section class="row items-center no-wrap">
+        <q-icon name="lock" size="2em" color="primary" class="q-mr-md"></q-icon>
+        <div class="text-h6" v-text="$t('events.anon_dialog_title')"></div>
+        <q-space></q-space>
+        <q-btn
+          flat
+          round
+          dense
+          icon="close"
+          :aria-label="$q.lang.label.close"
+          v-close-popup
+        ></q-btn>
+      </q-card-section>
+      <q-card-section class="q-pt-none" v-text="$t('events.anon_dialog_body')"></q-card-section>
+      <q-card-actions align="right">
+        <q-btn
+          flat
+          color="primary"
+          :label="$t('events.anon_dialog_back')"
+          v-close-popup
+        ></q-btn>
+        <q-btn
+          unelevated
+          color="primary"
+          :label="$t('events.anon_dialog_confirm')"
+          @click="confirmAnonCheckout"
+        ></q-btn>
+      </q-card-actions>
+    </q-card>
+  </q-dialog>
 </template>

@@ -1,12 +1,12 @@
 {
   "id": "events",
-  "version": "1.6.9",
+  "version": "2.0.0",
   "name": "Events",
   "repo": "https://github.com/lnbits/events",
   "short_description": "Sell and register event tickets",
   "description": "",
   "tile": "/events/static/image/events.png",
-  "min_lnbits_version": "1.5.5",
+  "min_lnbits_version": "1.5.4",
   "contributors": [
     {
       "name": "talvasconcelos",
@@ -31,6 +31,11 @@
     {
       "name": "motorina0",
       "uri": "https://github.com/motorina0",
+      "role": "Developer"
+    },
+    {
+      "name": "Nathan Day",
+      "uri": "https://github.com/dadofsambonzuki",
       "role": "Developer"
     }
   ],
@@ -58,5 +63,6 @@
   "paid_features": "",
   "tags": ["Fun & Social", "Ticketing"],
   "donate": "",
-  "hidden": false
+  "hidden": false,
+  "dependencies": ["satspay"]
 }

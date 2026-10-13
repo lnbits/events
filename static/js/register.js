@@ -1,4 +1,4 @@
-window.PageEventsRegister = {
+;window.PageEventsRegister = {
   template: '#page-events-register',
   computed: {
     ticketsColumns() {
@@ -7,26 +7,26 @@ window.PageEventsRegister = {
           name: 'name',
           align: 'left',
           label: this.$t('events.col_name'),
-          field: 'name'
+          field: row => row.name || this.$t('events.anon')
         },
         {
-          name: 'email',
+          name: 'ticket_type',
           align: 'left',
-          label: this.$t('email'),
-          field: 'email'
+          label: this.$t('events.col_ticket_type'),
+          field: row => row.ticket_type_name || '-'
         },
         {
           name: 'id',
           align: 'left',
-          label: this.$t('id'),
-          field: 'id',
-          format: val => this.shortId(val)
+          label: 'Ticket ID',
+          field: 'id'
         }
       ]
     }
   },
   data() {
     return {
+      eventName: '',
       tickets: [],
       ticketsTable: {
         pagination: {
@@ -37,7 +37,8 @@ window.PageEventsRegister = {
         show: false,
         camera: 'auto'
       },
-      lastScan: null
+      lastScan: null,
+      ticketTypes: []
     }
   },
   methods: {
@@ -48,17 +49,29 @@ window.PageEventsRegister = {
       this.tickets = Quasar.LocalStorage.getItem(this.storageKey()) || []
     },
     saveScannedTicket(ticket) {
+      if (!ticket.name) ticket.name = 'Anon'
+      if (ticket.ticket_type_id && this.ticketTypes.length) {
+        const tt = this.ticketTypes.find(t => t.id === ticket.ticket_type_id)
+        if (tt) ticket.ticket_type_name = tt.name
+      }
+      const existingIndex = this.tickets.findIndex(t => t.id === ticket.id)
+      if (existingIndex >= 0) {
+        this.tickets.splice(existingIndex, 1)
+      }
       this.tickets.unshift(ticket)
       Quasar.LocalStorage.set(this.storageKey(), this.tickets)
+    },
+    resolveTypeName(ticket) {
+      if (ticket.ticket_type_id && this.ticketTypes.length) {
+        const tt = this.ticketTypes.find(t => t.id === ticket.ticket_type_id)
+        if (tt) ticket.ticket_type_name = tt.name
+      }
     },
     closeCamera() {
       this.sendCamera.show = false
     },
     showCamera() {
       this.sendCamera.show = true
-    },
-    shortId(id) {
-      return id ? `${id.slice(0, 6)}...${id.slice(-4)}` : ''
     },
     decodeQR(res) {
       this.sendCamera.show = false
@@ -68,7 +81,6 @@ window.PageEventsRegister = {
         .then(response => {
           this.saveScannedTicket(response.data)
           this.lastScan = {success: true, ticket: response.data}
-          Quasar.Notify.create({type: 'positive', message: 'Registered!'})
         })
         .catch(error => {
           this.lastScan = {
@@ -77,12 +89,30 @@ window.PageEventsRegister = {
             error:
               error.response?.data?.detail || error.message || 'Unknown error'
           }
-          LNbits.utils.notifyApiError(error)
         })
     }
   },
-  created() {
+  async created() {
     this.eventId = this.$route.params.id
+    try {
+      const {data} = await LNbits.api.request(
+        'GET',
+        `/events/api/v1/events/${this.eventId}`
+      )
+      this.eventName = data.name || ''
+    } catch (error) {
+      // ignore
+    }
+    try {
+      const {data} = await LNbits.api.request(
+        'GET',
+        `/events/api/v1/ticket-types/${this.eventId}`
+      )
+      this.ticketTypes = data || []
+    } catch (error) {
+      this.ticketTypes = []
+    }
     this.loadScannedTickets()
+    this.tickets.forEach(t => this.resolveTypeName(t))
   }
 }

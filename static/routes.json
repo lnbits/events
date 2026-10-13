@@ -7,6 +7,13 @@
     "i18n": "/events/static/js/i18n"
   },
   {
+    "path": "/events/basket/:id",
+    "name": "PageEventsBasket",
+    "template": "/events/static/js/basket.vue",
+    "component": "/events/static/js/basket.js",
+    "i18n": "/events/static/js/i18n"
+  },
+  {
     "path": "/events/:id",
     "name": "PageEventsDisplay",
     "template": "/events/static/js/display.vue",
