@@ -98,14 +98,17 @@ def test_grant_implies_the_source_gate():
     assert promo.source.require_ticket is True
 
 
-def test_grant_clears_any_discount():
+def test_grant_keeps_and_ignores_a_discount():
+    """A grant must not DESTROY a discount the admin typed — only ignore it, so
+    flipping the effect back and forth in the UI is lossless."""
     promo = M.PromoCode(
         code="", discount_percent=50,
         source=M.PromoSource(require_ticket=True),
         grants=M.PromoGrant(ticket_type_id=ADDON, per_source=2),
     )
     assert promo.grants.per_source == 2
-    assert promo.discount_percent is None, "cannot both discount and grant"
+    assert promo.discount_percent == 50, "the typed discount is retained"
+    assert promo.source.require_ticket is True, "a grant implies the source gate"
 
 
 def test_per_source_must_be_positive():
@@ -312,7 +315,8 @@ def test_shared_cap_spans_events():
 
 
 def test_grant_rule_discounts_nothing():
-    """A grant rule must not leak into the discount engine."""
+    """A grant rule must not leak into the discount engine — not even when it
+    carries a retained discount value (the lossless-UI case)."""
     async def run():
         ev = await make_event()
         totals = await S.calculate_basket_total(
@@ -320,6 +324,17 @@ def test_grant_rule_discounts_nothing():
         )
         assert totals.total == 149 and totals.discount == 0, (
             "no discount applied for a grant rule with no source presented"
+        )
+        # now make it carry a discount AND present an eligible source ticket
+        rule = ev.extra.promo_codes[0]
+        rule.discount_percent = 50
+        await crud.update_event(ev)
+        await make_ticket("SRC-D", WEEKEND)
+        totals2 = await S.calculate_basket_total(
+            ev, [{"ticket_type_id": WEEKEND, "quantity": 1}], ["SRC-D"]
+        )
+        assert totals2.discount == 0 and totals2.total == 149, (
+            "a grant rule's retained discount must stay inert"
         )
     asyncio.run(run())
 

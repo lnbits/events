@@ -318,18 +318,17 @@ active: true,
       return `${name} - ${amount}${uses}`
     },
     onPromoEffectChange(code, enabled) {
-      // A grant ADDS a ticket instead of discounting one, so it must require a
-      // source ticket and cannot carry a discount -- the API coerces the same
-      // way, but doing it here keeps the form honest as you edit it.
+      // Switching the effect keeps every other field: values you typed are only
+      // ever changed by you, so flipping to a grant and back must not lose the
+      // discount. A grant rule ignores a discount at runtime, so a retained
+      // value is inert, not wrong.
       if (enabled) {
         code.grants = code.grants || {ticket_type_id: '', per_source: 1}
         code.source = code.source || {}
         code.source.require_ticket = true
-        code.discount_percent = null
-        code.discount_fixed = null
       } else {
         delete code.grants
-        // a discount rule with no magnitude would do nothing at all
+        // only fill a BLANK magnitude; never overwrite one
         if (code.discount_percent == null && code.discount_fixed == null) {
           code.discount_percent = 0
         }
@@ -1016,16 +1015,12 @@ active: true,
     onPromoRequireTicketChange(requireTicket) {
       const data = this.editPromoCodeDialog?.data
       if (!data) return
-      if (!requireTicket) {
-        // The ticket-only settings are meaningless without a ticket, and the
-        // backend drops them anyway — clear them so the form matches what will
-        // be saved. The offer code is NOT blanked: it identifies the offer and
-        // is required when no ticket is involved.
-        data.source.move = false
-        data.source.credit = 'none'
-        data.source.event_ids = []
-        data.source.ticket_type_ids = []
-      }
+      // Nothing is cleared here: the ticket-only settings are simply not shown
+      // (and not used) without a ticket requirement, and they keep their values
+      // so re-enabling it restores them. The offer code is never blanked either
+      // -- it identifies the offer and is required when no ticket is involved.
+      // NB the backend still drops `move`/`credit` on save without a ticket
+      // requirement; that is a load-safety invariant, not a UI choice.
       // max_uses is deliberately left alone in both directions: a ticket rule
       // can cap its own usage now ("first 20 upgrades").
       this.loadPromoScopeTicketTypes(
@@ -1033,13 +1028,10 @@ active: true,
         this.editPromoCodeDialog?.eventId
       )
     },
-    onPromoMoveChange(move) {
-      const data = this.editPromoCodeDialog?.data
-      if (!data) return
-      if (move) {
-        // "Move my ticket" is strictly one ticket in, one ticket out.
-        data.max_tickets = null
-      }
+    onPromoMoveChange() {
+      // Voiding already forces a single-ticket basket at runtime, so the
+      // basket-size limit is hidden while it is on -- but it keeps its value,
+      // so turning the toggle back off restores what you had typed.
     },
     saveEditPromoCode() {
       const {eventId, codeIndex, data, discountType} = this.editPromoCodeDialog
@@ -1056,10 +1048,9 @@ active: true,
       } else {
         code.discount_fixed = null
       }
-      if (source.move) {
-        // "Move my ticket" is strictly one ticket in, one ticket out.
-        code.max_tickets = null
-      }
+      // A void upgrade is already strictly one ticket in, one ticket out at
+      // runtime, so a basket limit is redundant here but KEPT -- voiding the
+      // ticket and back must not lose a limit you set.
       const scope = Array.isArray(code.ticket_type_ids)
         ? code.ticket_type_ids.filter(Boolean)
         : []

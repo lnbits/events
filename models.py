@@ -174,8 +174,11 @@ class PromoCode(BaseModel):
 
     @root_validator(pre=True)
     def coerce_grant_requires_source(cls, values):
-        # A grant needs a source ticket to gate on, and a rule cannot both
-        # discount and grant. A grant therefore IMPLIES the source gate.
+        # A grant needs a source ticket to gate on, so it IMPLIES the source
+        # gate. A discount is deliberately NOT cleared here: a grant rule is
+        # dropped from the discount engine entirely, so a retained discount is
+        # inert, and clearing it would silently destroy a value the admin typed
+        # (see test_grant_keeps_and_ignores_a_discount).
         # Coerce rather than raise: this JSON is parsed on every read, so a
         # stale row must not unload the event. pre=True so this runs BEFORE
         # `validate_code_present`, which would otherwise reject the codeless
@@ -189,8 +192,6 @@ class PromoCode(BaseModel):
             values["source"] = {"require_ticket": True}
         elif not getattr(source, "require_ticket", False):
             values["source"] = {**source.dict(), "require_ticket": True}
-        values["discount_percent"] = None
-        values["discount_fixed"] = None
         return values
 
 
