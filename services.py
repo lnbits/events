@@ -19,6 +19,7 @@ from loguru import logger
 
 from .crud import (
     count_tickets_by_type,
+    get_all_ticket_types,
     create_basket,
     create_ticket,
     get_basket,
@@ -426,6 +427,29 @@ def _addon_allowance(
     return people * grant.per_source
 
 
+def _cap_group(ticket_type) -> str | None:
+    """The shared-cap label on a ticket type, if it has one."""
+    try:
+        group = (ticket_type.extra or {}).get("cap_group")
+    except AttributeError:
+        return None
+    return str(group) if group else None
+
+
+async def _cap_scope_types(ticket_type: TicketType) -> list[TicketType]:
+    """Every type that shares ``ticket_type``'s cap.
+
+    A cap often spans events: one screening has one pool of seats, sold from
+    both the Bitfest and the Freedom Fest checkout. The types carry the same
+    ``extra.cap_group``, and each one's ``max_tickets`` is the group's cap.
+    """
+    group = _cap_group(ticket_type)
+    if not group:
+        return [ticket_type]
+    members = [tt for tt in await get_all_ticket_types() if _cap_group(tt) == group]
+    return members or [ticket_type]
+
+
 async def _validate_addon_items(
     event: Event, items, ticket_types: list[TicketType], reservation
 ) -> None:
@@ -466,7 +490,9 @@ async def _validate_addon_items(
             )
         ticket_type = by_id.get(item.ticket_type_id)
         if ticket_type and ticket_type.max_tickets > 0:
-            issued = await count_tickets_by_type(ticket_type.id)
+            issued = 0
+            for member in await _cap_scope_types(ticket_type):
+                issued += await count_tickets_by_type(member.id)
             if issued + item.quantity > ticket_type.max_tickets:
                 remaining = max(0, ticket_type.max_tickets - issued)
                 raise ValueError(f"Only {remaining} '{name}' left.")

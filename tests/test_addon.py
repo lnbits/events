@@ -50,9 +50,9 @@ async def make_event(addon_cap=100):
     return ev
 
 
-async def make_ticket(ticket_id, ticket_type_id, paid=True):
+async def make_ticket(ticket_id, ticket_type_id, paid=True, event="EV1"):
     t = M.Ticket(
-        id=ticket_id, wallet="w1", event="EV1", name="Holder", email="a@b.c",
+        id=ticket_id, wallet="w1", event=event, name="Holder", email="a@b.c",
         registered=False, paid=paid, time=datetime.now(timezone.utc),
         reg_timestamp=datetime.now(timezone.utc), ticket_type_id=ticket_type_id,
         basket_id=None, extra=M.TicketExtra(),
@@ -222,6 +222,28 @@ def test_counted_cap_is_enforced():
         await gate(ev, items((WEEKEND, 2), (ADDON, 1)))           # allowance 2, 1 left
         with pytest.raises(ValueError) as exc:
             await gate(ev, items((WEEKEND, 2), (ADDON, 2)))       # 1 left of a cap of 2
+        assert "left" in str(exc.value)
+    asyncio.run(run())
+
+
+def test_shared_cap_spans_events():
+    """Types sharing extra.cap_group consume ONE pool, so issuing seats on
+    another event's checkout eats this one's headroom."""
+    async def run():
+        ev = await make_event(addon_cap=3)
+        await crud.create_ticket_type(M.TicketType(
+            id="ADDON_FF", event_id="EV2", name="Bitflix (Freedom Fest)", price=0,
+            max_tickets=3, available_from=TODAY, available_to="2026-12-31",
+            sort_order=0, extra={"admits": 1, "cap_group": "bitflix"}))
+        tt = await crud.get_ticket_type(ADDON)
+        tt.extra = {**tt.extra, "cap_group": "bitflix"}
+        await crud.update_ticket_type(tt)
+        await make_ticket("F1", "ADDON_FF", event="EV2")
+        await make_ticket("F2", "ADDON_FF", event="EV2")
+        # two weekend tickets authorise two seats, so the CAP is what refuses
+        await gate(ev, items((WEEKEND, 2), (ADDON, 1)))            # 1 seat left of 3
+        with pytest.raises(ValueError) as exc:
+            await gate(ev, items((WEEKEND, 2), (ADDON, 2)))        # only 1 left
         assert "left" in str(exc.value)
     asyncio.run(run())
 

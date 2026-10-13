@@ -176,6 +176,16 @@ async def get_ticket_types(event_id: str) -> list[TicketType]:
     )
 
 
+async def get_all_ticket_types() -> list[TicketType]:
+    """Every ticket type across all events.
+
+    The table is tiny, and a shared cap (``extra.cap_group``) has to be counted
+    across events: one screening has one set of seats, sold from more than one
+    event's checkout.
+    """
+    return await db.fetchall("SELECT * FROM events.ticket_types", {}, TicketType)
+
+
 async def count_tickets_by_type(ticket_type_id: str) -> int:
     """Real number of tickets issued for a type.
 
