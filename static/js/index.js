@@ -298,6 +298,35 @@ active: true,
         // activated by any eligible ticket id).
         .filter(code => code.source.require_ticket || code.code !== '')
     },
+    grantedTicketTypeName(grant) {
+      // A granted type is named by id only; look it up across the loaded
+      // events, since it need not belong to the rule's own event.
+      if (!grant || !grant.ticket_type_id) return ''
+      for (const types of Object.values(this.ticketTypesByEvent || {})) {
+        const match = (types || []).find(tt => tt.id === grant.ticket_type_id)
+        if (match) return match.name
+      }
+      return grant.ticket_type_id
+    },
+    promoChipLabel(code, currency) {
+      const uses =
+        code.max_uses != null && code.max_uses > 0
+          ? ` (${code.used_count || 0}/${code.max_uses})`
+          : ''
+      if (code.grants) {
+        // A grant discounts nothing, so the old label rendered as a blank
+        // " - " and the rule looked purposeless. Name what it adds instead.
+        const prefix = code.code ? code.code.toUpperCase() + ' ' : ''
+        return `${prefix}\u2192 ${this.grantedTicketTypeName(code.grants)}${uses}`
+      }
+      const amount =
+        code.discount_percent != null
+          ? code.discount_percent + '%'
+          : code.discount_fixed != null
+            ? ` ${code.discount_fixed} ${currency === 'sat' ? 'sats' : currency}`
+            : ''
+      return `${(code.code || '').toUpperCase()} - ${amount}${uses}`
+    },
     ticketTypeOptions(eventId) {
       const tts = this.ticketTypesByEvent?.[eventId] || []
       return tts.map(tt => ({

@@ -193,6 +193,9 @@ window.i18n.global.mergeLocaleMessage('es', {
     promo_uses_unlimited: 'Usado: {used} veces (ilimitado)',
     promo_require_ticket: 'Requiere un ID de entrada',
     promo_require_ticket_hint: 'El comprador debe ingresar un ID de entrada existente además del código. Úsalo para mejoras ("cambiar mi entrada") y ofertas de entradas adicionales ("trae un amigo a mitad de precio").',
+    promo_grants_label: 'Otorga',
+    promo_grants_hint:
+      'Añade esta entrada en lugar de aplicar un descuento: {per} por persona cubierta por la entrada presentada.',
     promo_requires_ticket_badge: 'Necesita ID de entrada',
     promo_code_optional_hint: 'Opcional: déjalo vacío y cualquier ID de entrada válido activa esta oferta.',
     promo_code_required_hint: 'El comprador escribe este código al pagar.',

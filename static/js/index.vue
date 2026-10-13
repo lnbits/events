@@ -192,9 +192,7 @@
                           >
                             <span
                               style="white-space: normal; line-height: 1.3"
-                              v-text="
-                                `${code.code.toUpperCase()} - ${code.discount_percent != null ? code.discount_percent + '%' : ''}${code.discount_fixed != null ? ` ${code.discount_fixed} ${props.row.currency === 'sat' ? 'sats' : props.row.currency}` : ''}${code.max_uses != null && code.max_uses > 0 ? ` (${code.used_count || 0}/${code.max_uses})` : ''}`
-                              "
+                              v-text="promoChipLabel(code, props.row.currency)"
                             ></span>
                           </q-chip>
                         </div>
@@ -866,6 +864,27 @@
                 v-text="$t('events.promo_require_ticket_hint')"
               ></div>
 
+              <div v-if="code.grants" class="q-mb-sm">
+                <q-badge
+                  color="primary"
+                  class="q-mr-xs"
+                  v-text="$t('events.promo_grants_label')"
+                ></q-badge>
+                <span
+                  class="text-caption"
+                  v-text="grantedTicketTypeName(code.grants)"
+                ></span>
+              </div>
+              <div
+                v-if="code.grants"
+                class="text-caption q-mt-none q-mb-sm"
+                v-text="
+                  $t('events.promo_grants_hint', {
+                    per: code.grants.per_source || 1
+                  })
+                "
+              ></div>
+
               <q-input
                 class="q-mt-sm"
                 filled
@@ -1016,6 +1035,7 @@
                 emit-value
                 map-options
                 v-model="promoCodesDialog.data.extra.promo_codes[index].ticket_type_ids"
+                :disable="!!code.grants"
                 :options="ticketTypeOptions(promoCodesDialog.data.id)"
                 :label="$t('events.promo_ticket_type_scope')"
                 :hint="$t('events.promo_ticket_type_scope_hint')"
@@ -1025,6 +1045,7 @@
                 <div class="text-caption q-mb-sm" v-text="$t('events.discount_type')"></div>
                 <q-btn-toggle
                   v-model="promoDiscountTypes[index]"
+                  :disable="!!code.grants"
                   toggle-color="primary"
                   :options="[
                     {label: '% ' + $t('events.discount_percent_label'), value: 'percent'},
@@ -1039,6 +1060,7 @@
               <div class="q-mt-sm">
                 <q-input
                   v-if="promoDiscountTypes[index] !== 'fixed'"
+                  :disable="!!code.grants"
                   filled
                   dense
                   v-model.number="
@@ -1056,6 +1078,7 @@
                 </q-input>
                 <q-input
                   v-else
+                  :disable="!!code.grants"
                   filled
                   dense
                   v-model.number="
@@ -1119,6 +1142,27 @@
           <div
             class="text-caption q-mt-none q-mb-sm"
             v-text="$t('events.promo_require_ticket_hint')"
+          ></div>
+
+          <div v-if="editPromoCodeDialog.data.grants" class="q-mb-sm">
+            <q-badge
+              color="primary"
+              class="q-mr-xs"
+              v-text="$t('events.promo_grants_label')"
+            ></q-badge>
+            <span
+              class="text-caption"
+              v-text="grantedTicketTypeName(editPromoCodeDialog.data.grants)"
+            ></span>
+          </div>
+          <div
+            v-if="editPromoCodeDialog.data.grants"
+            class="text-caption q-mt-none q-mb-sm"
+            v-text="
+              $t('events.promo_grants_hint', {
+                per: editPromoCodeDialog.data.grants.per_source || 1
+              })
+            "
           ></div>
 
           <q-input
@@ -1262,6 +1306,7 @@
             emit-value
             map-options
             v-model="editPromoCodeDialog.data.ticket_type_ids"
+            :disable="!!editPromoCodeDialog.data.grants"
             :options="ticketTypeOptions(editPromoCodeDialog.eventId)"
             :label="$t('events.promo_ticket_type_scope')"
             :hint="$t('events.promo_ticket_type_scope_hint')"
@@ -1282,6 +1327,7 @@
             <div class="text-caption q-mb-sm" v-text="$t('events.discount_type')"></div>
             <q-btn-toggle
               v-model="editPromoCodeDialog.discountType"
+              :disable="!!editPromoCodeDialog.data.grants"
               toggle-color="primary"
               :options="[
                 {label: $t('events.discount_percent_label'), value: 'percent'},
@@ -1295,6 +1341,7 @@
 
           <q-input
             v-if="editPromoCodeDialog.discountType !== 'fixed'"
+            :disable="!!editPromoCodeDialog.data.grants"
             filled
             dense
             v-model.number="editPromoCodeDialog.data.discount_percent"
@@ -1307,6 +1354,7 @@
           </q-input>
           <q-input
             v-else
+            :disable="!!editPromoCodeDialog.data.grants"
             filled
             dense
             v-model.number="editPromoCodeDialog.data.discount_fixed"

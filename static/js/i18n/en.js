@@ -196,6 +196,9 @@ window.i18n.global.mergeLocaleMessage('en', {
     promo_ticket_type_scope_all: 'All ticket types',
     promo_require_ticket: 'Requires a ticket ID',
     promo_require_ticket_hint: 'The buyer must enter an existing ticket ID as well as the code. Use it for upgrades ("move my ticket") and extra-ticket offers ("bring a friend half price").',
+    promo_grants_label: 'Grants',
+    promo_grants_hint:
+      'Adds this ticket instead of applying a discount: {per} per person the presented ticket covers.',
     promo_requires_ticket_badge: 'Needs a ticket ID',
     promo_code_optional_hint: 'Optional: leave blank and any eligible ticket ID activates this offer.',
     promo_code_required_hint: 'The buyer types this code at checkout.',

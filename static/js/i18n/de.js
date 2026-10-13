@@ -194,6 +194,9 @@ window.i18n.global.mergeLocaleMessage('de', {
     promo_uses_unlimited: 'Verwendet: {used} mal (unbegrenzt)',
     promo_require_ticket: 'Ticket-ID erforderlich',
     promo_require_ticket_hint: 'Der Käufer muss zusätzlich zum Code eine bestehende Ticket-ID eingeben. Für Upgrades ("Ticket umbuchen") und Zusatzticket-Angebote ("Freund zum halben Preis mitbringen").',
+    promo_grants_label: 'Gewährt',
+    promo_grants_hint:
+      'Fügt dieses Ticket hinzu, statt einen Rabatt zu gewähren: {per} pro abgedeckter Person des vorgelegten Tickets.',
     promo_requires_ticket_badge: 'Ticket-ID nötig',
     promo_code_optional_hint: 'Optional: leer lassen — jede berechtigte Ticket-ID aktiviert dieses Angebot.',
     promo_code_required_hint: 'Der Käufer gibt diesen Code beim Bezahlen ein.',
