@@ -264,7 +264,8 @@ window.i18n.global.mergeLocaleMessage('en', {
     name: 'Name',
     basket: 'Basket',
     promo_code_comma_separated: 'Promo Code(s) (comma separated)',
-    promo_pending_ticket: '{code} also needs your ticket ID — add it after the code, separated by a comma.',
+    promo_pending_ticket:
+      '{code} also needs your existing ticket ID — add it in the same Promo Code box, separated by a comma.',
     promo_none_found: 'No valid promo codes found',
     promo_reason_generic: 'This code could not be used.',
     promo_reason_ticket_not_found: 'Not a recognised offer code or ticket ID.',
@@ -273,7 +274,8 @@ window.i18n.global.mergeLocaleMessage('en', {
     promo_reason_ticket_already_used: 'That ticket has already been used for an offer.',
     promo_reason_ticket_redemptions_exhausted: 'That ticket has already used all of its redemptions for this offer.',
     promo_reason_promo_uses_exhausted: 'This offer has reached its usage limit.',
-    promo_reason_ticket_needs_offer_code: 'Enter the offer code as well as your ticket ID.',
+    promo_reason_ticket_needs_offer_code:
+      'Enter the offer code as well as your ticket ID, both in the Promo Code box.',
     promo_reason_ticket_count_not_eligible: 'This offer does not cover the number of tickets in your basket.',
     promo_reason_ticket_not_applicable: 'That ticket ID cannot be used with the codes entered.',
     promo_reason_currency_mismatch: 'That ticket is in a different currency and cannot be credited.',

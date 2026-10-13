@@ -181,6 +181,9 @@ def test_addon_alone_is_refused():
         with pytest.raises(ValueError) as exc:
             await gate(ev, items((ADDON, 1)))
         assert "qualifying ticket" in str(exc.value)
+        assert "Promo Code box" in str(exc.value), (
+            "the message must say WHERE to put the ticket ID"
+        )
     asyncio.run(run())
 
 

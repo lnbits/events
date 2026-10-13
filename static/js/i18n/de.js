@@ -262,7 +262,8 @@ window.i18n.global.mergeLocaleMessage('de', {
     name: 'Name',
     basket: 'Warenkorb',
     promo_code_comma_separated: 'Promo-Code(s) (durch Kommas getrennt)',
-    promo_pending_ticket: '{code} benötigt zusätzlich deine Ticket-ID — füge sie nach dem Code durch ein Komma getrennt hinzu.',
+    promo_pending_ticket:
+      '{code} benötigt zusätzlich deine bestehende Ticket-ID — füge sie im selben Promo-Code-Feld hinzu, durch ein Komma getrennt.',
     promo_none_found: 'Keine gültigen Promo-Codes gefunden',
     promo_reason_generic: 'Dieser Code konnte nicht verwendet werden.',
     promo_reason_ticket_not_found: 'Kein bekannter Angebotscode oder keine bekannte Ticket-ID.',
@@ -271,7 +272,8 @@ window.i18n.global.mergeLocaleMessage('de', {
     promo_reason_ticket_already_used: 'Dieses Ticket wurde bereits für ein Angebot verwendet.',
     promo_reason_ticket_redemptions_exhausted: 'Dieses Ticket hat alle Einlösungen für dieses Angebot genutzt.',
     promo_reason_promo_uses_exhausted: 'Dieses Angebot hat sein Nutzungslimit erreicht.',
-    promo_reason_ticket_needs_offer_code: 'Gib zusätzlich zur Ticket-ID den Angebotscode ein.',
+    promo_reason_ticket_needs_offer_code:
+      'Gib den Angebotscode und deine Ticket-ID ein, beide im Promo-Code-Feld.',
     promo_reason_ticket_count_not_eligible: 'Dieses Angebot gilt nicht für die Anzahl der Tickets in deinem Warenkorb.',
     promo_reason_ticket_not_applicable: 'Diese Ticket-ID kann nicht mit den eingegebenen Codes verwendet werden.',
     promo_reason_currency_mismatch: 'Dieses Ticket hat eine andere Währung und kann nicht angerechnet werden.',

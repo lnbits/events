@@ -261,7 +261,8 @@ window.i18n.global.mergeLocaleMessage('es', {
     name: 'Nombre',
     basket: 'Cesta',
     promo_code_comma_separated: 'Código(s) promocional(es) (separados por comas)',
-    promo_pending_ticket: '{code} también necesita tu ID de entrada: añádelo después del código, separado por una coma.',
+    promo_pending_ticket:
+      '{code} también necesita tu ID de entrada existente: añádelo en la misma casilla de Promo Code, separado por una coma.',
     promo_none_found: 'No se encontraron códigos promocionales válidos',
     promo_reason_generic: 'Este código no se pudo usar.',
     promo_reason_ticket_not_found: 'No es un código de oferta ni un ID de entrada reconocido.',
@@ -270,7 +271,8 @@ window.i18n.global.mergeLocaleMessage('es', {
     promo_reason_ticket_already_used: 'Esa entrada ya se usó para una oferta.',
     promo_reason_ticket_redemptions_exhausted: 'Esa entrada ya ha agotado todos sus canjes para esta oferta.',
     promo_reason_promo_uses_exhausted: 'Esta oferta ha alcanzado su límite de uso.',
-    promo_reason_ticket_needs_offer_code: 'Introduce el código de la oferta junto con tu ID de entrada.',
+    promo_reason_ticket_needs_offer_code:
+      'Introduce el código de oferta además de tu ID de entrada, ambos en la casilla de Promo Code.',
     promo_reason_ticket_count_not_eligible: 'Esta oferta no cubre el número de entradas de tu cesta.',
     promo_reason_ticket_not_applicable: 'Ese ID de entrada no se puede usar con los códigos introducidos.',
     promo_reason_currency_mismatch: 'Esa entrada está en otra moneda y no se puede acreditar.',

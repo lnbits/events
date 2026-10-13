@@ -482,7 +482,8 @@ async def _validate_addon_items(
         if allowance <= 0:
             raise ValueError(
                 f"'{name}' can only be added with a qualifying ticket. "
-                "Add that ticket to your basket, or enter your existing ticket ID."
+                "Add that ticket to your basket, or enter your existing ticket ID "
+                "in the Promo Code box."
             )
         if item.quantity > allowance:
             raise ValueError(
