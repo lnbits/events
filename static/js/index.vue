@@ -823,372 +823,6 @@
       </q-card>
     </q-dialog>
 
-    <q-dialog v-model="promoCodesDialog.show" position="top">
-      <q-card class="q-pa-lg q-pt-xl lnbits__dialog-card" style="max-width: 640px">
-        <q-form @submit="savePromoCodes" class="q-gutter-md">
-          <div
-            class="text-subtitle1"
-            v-text="$t('events.promo_codes_title')"
-          ></div>
-          <div
-            class="text-caption"
-            v-text="$t('events.promo_codes_desc')"
-          ></div>
-
-          <q-card
-            v-for="(code, index) in promoCodesDialog.data.extra.promo_codes"
-            :key="index"
-            class="q-mb-md"
-          >
-            <q-card-section>
-              <div class="row items-center">
-                <div class="col">
-                  <div class="row items-center q-gutter-x-sm">
-                    <span class="text-h6 text-weight-medium">{{ code.code || code.title || $t('events.promo_source_ticket_badge') }}</span>
-                    <q-badge
-                      v-if="code.source?.require_ticket"
-                      color="primary"
-                      :label="$t('events.promo_requires_ticket_badge')"
-                    ></q-badge>
-                    <q-badge
-                      :color="code.active ? 'positive' : 'grey'"
-                      :label="code.active ? $t('events.active') : $t('events.inactive')"
-                    ></q-badge>
-                  </div>
-                </div>
-                <div class="col-auto">
-                  <q-btn
-                    round
-                    dense
-                    flat
-                    color="negative"
-                    icon="delete"
-                    @click="
-                      promoCodesDialog.data.extra.promo_codes.splice(index, 1)
-                    "
-                  ></q-btn>
-                </div>
-              </div>
-            </q-card-section>
-            <q-card-section class="q-pt-none">
-              <q-toggle
-                class="q-mt-sm"
-                v-model="promoCodesDialog.data.extra.promo_codes[index].source.require_ticket"
-                :label="$t('events.promo_require_ticket')"
-              ></q-toggle>
-              <div
-                class="text-caption q-mt-none q-mb-sm"
-                v-text="$t('events.promo_require_ticket_hint')"
-              ></div>
-
-              <div
-                v-if="code.grants"
-                class="text-caption q-mt-none q-mb-sm"
-                v-text="
-                  $t('events.promo_grants_hint', {
-                    per: code.grants.per_source || 1
-                  })
-                "
-              ></div>
-
-              <q-input
-                class="q-mt-sm"
-                filled
-                dense
-                v-model.trim="promoCodesDialog.data.extra.promo_codes[index].code"
-                type="text"
-                :label="$t('events.promo_code_label')"
-                :hint="
-                  promoCodesDialog.data.extra.promo_codes[index].source
-                    .require_ticket
-                    ? $t('events.promo_code_optional_hint')
-                    : $t('events.promo_code_required_hint')
-                "
-              ></q-input>
-
-              <q-input
-                class="q-mt-sm"
-                filled
-                dense
-                v-model.trim="
-                  promoCodesDialog.data.extra.promo_codes[index].title
-                "
-                type="text"
-                :label="$t('events.promo_title_label')"
-                :hint="$t('events.promo_title_hint')"
-              ></q-input>
-
-              <q-toggle
-                class="q-mt-sm"
-                :model-value="
-                  !!promoCodesDialog.data.extra.promo_codes[index].grants
-                "
-                :label="$t('events.promo_grants_toggle')"
-                @update:model-value="
-                  onPromoEffectChange(
-                    promoCodesDialog.data.extra.promo_codes[index],
-                    $event
-                  )
-                "
-              ></q-toggle>
-
-              <template
-                v-if="promoCodesDialog.data.extra.promo_codes[index].grants"
-              >
-                <q-select
-                  class="q-mt-sm"
-                  filled
-                  dense
-                  emit-value
-                  map-options
-                  v-model="
-                    promoCodesDialog.data.extra.promo_codes[index].grants
-                      .ticket_type_id
-                  "
-                  :options="ticketTypeOptions(promoCodesDialog.data.id)"
-                  :label="$t('events.promo_grants_ticket_type')"
-                ></q-select>
-                <q-input
-                  class="q-mt-sm"
-                  filled
-                  dense
-                  v-model.number="
-                    promoCodesDialog.data.extra.promo_codes[index].grants
-                      .per_source
-                  "
-                  type="number"
-                  min="1"
-                  :label="$t('events.promo_grants_per_source')"
-                  :hint="$t('events.promo_grants_per_source_hint')"
-                ></q-input>
-              </template>
-
-              <template
-                v-if="promoCodesDialog.data.extra.promo_codes[index].source.require_ticket"
-              >
-                <q-select
-                  class="q-mt-sm"
-                  filled
-                  dense
-                  multiple
-                  use-chips
-                  emit-value
-                  map-options
-                  v-model="promoCodesDialog.data.extra.promo_codes[index].source.event_ids"
-                  :options="sourceEventOptions(promoCodesDialog.data.id)"
-                  :label="$t('events.promo_source_events')"
-                  :hint="$t('events.promo_source_events_hint')"
-                ></q-select>
-
-                <q-select
-                  class="q-mt-sm"
-                  filled
-                  dense
-                  multiple
-                  use-chips
-                  emit-value
-                  map-options
-                  v-model="promoCodesDialog.data.extra.promo_codes[index].source.ticket_type_ids"
-                  :options="
-                    sourceTicketTypeOptions(
-                      promoCodesDialog.data.extra.promo_codes[index].source,
-                      promoCodesDialog.data.id
-                    )
-                  "
-                  :label="$t('events.promo_source_ticket_types')"
-                  :hint="$t('events.promo_source_ticket_types_hint')"
-                ></q-select>
-
-                <div class="row q-col-gutter-sm q-mt-sm items-center">
-                  <div class="col-6">
-                    <q-toggle
-                      v-model="promoCodesDialog.data.extra.promo_codes[index].source.move"
-                      :label="$t('events.promo_source_move')"
-                      left-label
-                    ></q-toggle>
-                  </div>
-                  <div class="col-6">
-                    <q-select
-                      filled
-                      dense
-                      emit-value
-                      map-options
-                      v-model="promoCodesDialog.data.extra.promo_codes[index].source.credit"
-                      :options="[
-                        {label: $t('events.promo_source_credit_none'), value: 'none'},
-                        {label: $t('events.promo_source_credit_paid'), value: 'paid'}
-                      ]"
-                      :label="$t('events.promo_source_credit')"
-                    ></q-select>
-                  </div>
-                </div>
-                <div
-                  class="text-caption text-grey-7 q-mt-xs"
-                  v-text="$t('events.promo_source_move_hint')"
-                ></div>
-                <div
-                  class="text-caption text-grey-7 q-mt-xs"
-                  v-text="$t('events.promo_source_credit_hint')"
-                ></div>
-              </template>
-
-              <div class="row q-col-gutter-sm q-mt-sm">
-                <div class="col-6">
-                  <q-toggle
-                    v-model="promoCodesDialog.data.extra.promo_codes[index].active"
-                    :label="promoCodesDialog.data.extra.promo_codes[index].active ? $t('events.active') : $t('events.inactive')"
-                    left-label
-                    color="positive"
-                  ></q-toggle>
-                </div>
-                <div class="col-6">
-                  <q-toggle
-                    v-model="promoCodesDialog.data.extra.promo_codes[index].combinable"
-                    :label="$t('events.promo_combinable')"
-                    left-label
-                  ></q-toggle>
-                </div>
-              </div>
-
-              <q-input
-                class="q-mt-sm"
-                filled
-                dense
-                v-model.number="promoCodesDialog.data.extra.promo_codes[index].max_uses"
-                type="number"
-                :label="$t('events.promo_max_uses')"
-                :hint="$t('events.promo_max_uses_hint')"
-                min="0"
-              ></q-input>
-
-              <q-input
-                v-if="promoCodesDialog.data.extra.promo_codes[index].source.require_ticket"
-                class="q-mt-sm"
-                filled
-                dense
-                v-model.number="promoCodesDialog.data.extra.promo_codes[index].redemptions_per_ticket"
-                type="number"
-                :label="$t('events.promo_redemptions_per_ticket')"
-                :hint="$t('events.promo_redemptions_per_ticket_hint')"
-                min="1"
-              ></q-input>
-
-              <q-input
-                v-if="
-                  promoCodesDialog.data.extra.promo_codes[index].source.require_ticket &&
-                  !promoCodesDialog.data.extra.promo_codes[index].source.move
-                "
-                class="q-mt-sm"
-                filled
-                dense
-                clearable
-                v-model.number="promoCodesDialog.data.extra.promo_codes[index].max_tickets"
-                type="number"
-                :label="$t('events.promo_max_tickets')"
-                :hint="$t('events.promo_max_tickets_hint')"
-                min="1"
-              ></q-input>
-
-              <q-select
-                class="q-mt-sm"
-                filled
-                dense
-                multiple
-                use-chips
-                emit-value
-                map-options
-                v-model="promoCodesDialog.data.extra.promo_codes[index].ticket_type_ids"
-                :disable="!!code.grants"
-                :options="ticketTypeOptions(promoCodesDialog.data.id)"
-                :label="$t('events.promo_ticket_type_scope')"
-                :hint="$t('events.promo_ticket_type_scope_hint')"
-              ></q-select>
-
-              <div class="q-mt-md">
-                <div class="text-caption q-mb-sm" v-text="$t('events.discount_type')"></div>
-                <q-btn-toggle
-                  v-model="promoDiscountTypes[index]"
-                  :disable="!!code.grants"
-                  toggle-color="primary"
-                  :options="[
-                    {label: '% ' + $t('events.discount_percent_label'), value: 'percent'},
-                    {label: ' ' + (promoCodesDialog.data.currency === 'sat' ? 'sats' : promoCodesDialog.data.currency) + ' ' + $t('events.discount_fixed_label'), value: 'fixed'}
-                  ]"
-                  spread
-                  no-caps
-                  size="sm"
-                ></q-btn-toggle>
-              </div>
-
-              <div class="q-mt-sm">
-                <q-input
-                  v-if="promoDiscountTypes[index] !== 'fixed'"
-                  :disable="!!code.grants"
-                  filled
-                  dense
-                  v-model.number="
-                    promoCodesDialog.data.extra.promo_codes[index].discount_percent
-                  "
-                  type="number"
-                  :label="$t('events.discount_percent_label')"
-                  min="0"
-                  max="100"
-                  @update:model-value="onPromoDiscountTypeChange(index, 'percent')"
-                >
-                  <template v-slot:after>
-                    <span>%</span>
-                  </template>
-                </q-input>
-                <q-input
-                  v-else
-                  :disable="!!code.grants"
-                  filled
-                  dense
-                  v-model.number="
-                    promoCodesDialog.data.extra.promo_codes[index].discount_fixed
-                  "
-                  type="number"
-                  :label="$t('events.discount_fixed_label')"
-                  min="0"
-                  @update:model-value="onPromoDiscountTypeChange(index, 'fixed')"
-                >
-                  <template v-slot:after>
-                    <span>{{ promoCodesDialog.data.currency === 'sat' ? 'sats' : promoCodesDialog.data.currency }}</span>
-                  </template>
-                </q-input>
-              </div>
-            </q-card-section>
-          </q-card>
-
-          <div class="col-12">
-            <q-btn
-              @click="addPromoCodeToDialog"
-              outline
-              color="primary"
-              icon="add"
-              :label="$t('events.add_promo_code')"
-            ></q-btn>
-          </div>
-
-          <div class="row q-mt-lg">
-            <q-btn
-              unelevated
-              color="primary"
-              type="submit"
-              v-text="$t('events.save_promo_codes')"
-            ></q-btn>
-            <q-btn
-              flat
-              color="grey"
-              class="q-ml-auto"
-              @click="resetPromoCodesDialog"
-              v-text="$t('cancel')"
-            ></q-btn>
-          </div>
-        </q-form>
-      </q-card>
-    </q-dialog>
-
     <q-dialog v-model="editPromoCodeDialog.show" position="top">
       <q-card class="q-pa-lg q-pt-xl lnbits__dialog-card" style="max-width: 500px">
         <q-form @submit="saveEditPromoCode" class="q-gutter-md">
@@ -1197,26 +831,26 @@
             v-text="editPromoCodeDialog.codeIndex === -1 ? $t('events.add_promo_code') : $t('events.edit_promo_code')"
           ></div>
 
-          <q-toggle
-            v-model="editPromoCodeDialog.data.source.require_ticket"
-            :label="$t('events.promo_require_ticket')"
-            @update:model-value="onPromoRequireTicketChange($event)"
-          ></q-toggle>
           <div
-            class="text-caption q-mt-none q-mb-sm"
-            v-text="$t('events.promo_require_ticket_hint')"
+            v-if="editPromoCodeDialog.data"
+            class="text-caption"
+            style="font-style: italic"
+            v-text="promoSummary(editPromoCodeDialog.data, editPromoCodeDialog.eventId)"
           ></div>
 
+          <q-separator class="q-my-md"></q-separator>
           <div
-            v-if="editPromoCodeDialog.data.grants"
-            class="text-caption q-mt-none q-mb-sm"
-            v-text="
-              $t('events.promo_grants_hint', {
-                per: editPromoCodeDialog.data.grants.per_source || 1
-              })
-            "
+            class="text-caption text-uppercase text-weight-medium"
+            v-text="$t('events.promo_sec_identity')"
           ></div>
-
+          <q-input
+            filled
+            dense
+            v-model.trim="editPromoCodeDialog.data.title"
+            type="text"
+            :label="$t('events.promo_title_label')"
+            :hint="$t('events.promo_title_hint')"
+          ></q-input>
           <q-input
             filled
             dense
@@ -1229,25 +863,103 @@
                 : $t('events.promo_code_required_hint')
             "
           ></q-input>
-
-          <q-input
-            filled
-            dense
-            v-model.trim="editPromoCodeDialog.data.title"
-            type="text"
-            :label="$t('events.promo_title_label')"
-            :hint="$t('events.promo_title_hint')"
-          ></q-input>
-
           <q-toggle
-            :model-value="!!editPromoCodeDialog.data.grants"
-            :label="$t('events.promo_grants_toggle')"
-            @update:model-value="
-              onPromoEffectChange(editPromoCodeDialog.data, $event)
+            v-model="editPromoCodeDialog.data.active"
+            :label="
+              editPromoCodeDialog.data.active
+                ? $t('events.active')
+                : $t('events.inactive')
             "
           ></q-toggle>
 
-          <template v-if="editPromoCodeDialog.data.grants">
+          <q-separator class="q-my-md"></q-separator>
+          <div
+            class="text-caption text-uppercase text-weight-medium"
+            v-text="$t('events.promo_sec_effect')"
+          ></div>
+          <q-btn-toggle
+            :model-value="editPromoCodeDialog.data.grants ? 'grants' : 'discount'"
+            :options="[
+              {label: $t('events.promo_effect_discount'), value: 'discount'},
+              {label: $t('events.promo_effect_grants'), value: 'grants'}
+            ]"
+            @update:model-value="
+              onPromoEffectChange(editPromoCodeDialog.data, $event === 'grants')
+            "
+            toggle-color="primary"
+            spread
+            no-caps
+            size="sm"
+          ></q-btn-toggle>
+
+          <template v-if="!editPromoCodeDialog.data.grants">
+            <q-btn-toggle
+              v-model="editPromoCodeDialog.discountType"
+              :options="[
+                {label: $t('events.discount_percent_label'), value: 'percent'},
+                {label: $t('events.discount_fixed_label'), value: 'fixed'}
+              ]"
+              toggle-color="primary"
+              spread
+              no-caps
+              size="sm"
+            ></q-btn-toggle>
+            <q-input
+              v-if="editPromoCodeDialog.discountType !== 'fixed'"
+              filled
+              dense
+              v-model.number="editPromoCodeDialog.data.discount_percent"
+              type="number"
+              :label="$t('events.discount_percent_label')"
+              min="0"
+              max="100"
+            >
+              <template v-slot:after><span>%</span></template>
+            </q-input>
+            <q-input
+              v-else
+              filled
+              dense
+              v-model.number="editPromoCodeDialog.data.discount_fixed"
+              type="number"
+              :label="$t('events.discount_fixed_label')"
+              min="0"
+            >
+              <template v-slot:after>
+                <span>{{ getEventCurrency(editPromoCodeDialog.eventId) }}</span>
+              </template>
+            </q-input>
+            <div class="text-caption" v-text="$t('events.promo_applies_to')"></div>
+            <q-btn-toggle
+              :model-value="editPromoCodeDialog.data.ticket_type_ids ? 'types' : 'whole'"
+              :options="[
+                {label: $t('events.promo_applies_whole'), value: 'whole'},
+                {label: $t('events.promo_applies_types'), value: 'types'}
+              ]"
+              @update:model-value="
+                onPromoAppliesToChange(editPromoCodeDialog.data, $event)
+              "
+              toggle-color="primary"
+              spread
+              no-caps
+              size="sm"
+            ></q-btn-toggle>
+            <q-select
+              v-if="editPromoCodeDialog.data.ticket_type_ids"
+              filled
+              dense
+              multiple
+              use-chips
+              emit-value
+              map-options
+              v-model="editPromoCodeDialog.data.ticket_type_ids"
+              :options="ticketTypeOptions(editPromoCodeDialog.eventId)"
+              :label="$t('events.promo_ticket_type_scope')"
+              :hint="$t('events.promo_ticket_type_scope_hint')"
+            ></q-select>
+          </template>
+
+          <template v-else>
             <q-select
               filled
               dense
@@ -1266,7 +978,30 @@
               :label="$t('events.promo_grants_per_source')"
               :hint="$t('events.promo_grants_per_source_hint')"
             ></q-input>
+            <div
+              class="text-caption"
+              v-text="
+                $t('events.promo_grants_hint', {
+                  per: editPromoCodeDialog.data.grants.per_source || 1
+                })
+              "
+            ></div>
           </template>
+
+          <q-separator class="q-my-md"></q-separator>
+          <div
+            class="text-caption text-uppercase text-weight-medium"
+            v-text="$t('events.promo_sec_condition')"
+          ></div>
+          <q-toggle
+            v-model="editPromoCodeDialog.data.source.require_ticket"
+            :label="$t('events.promo_require_ticket')"
+            @update:model-value="onPromoRequireTicketChange($event)"
+          ></q-toggle>
+          <div
+            class="text-caption q-mt-none"
+            v-text="$t('events.promo_require_ticket_hint')"
+          ></div>
 
           <template v-if="editPromoCodeDialog.data.source.require_ticket">
             <q-select
@@ -1281,7 +1016,6 @@
               :label="$t('events.promo_source_events')"
               :hint="$t('events.promo_source_events_hint')"
             ></q-select>
-
             <q-select
               filled
               dense
@@ -1300,160 +1034,101 @@
               :hint="$t('events.promo_source_ticket_types_hint')"
             ></q-select>
 
-            <div class="row items-center">
-              <div class="col-6 q-mr-xs">
-                <q-toggle
-                  v-model="editPromoCodeDialog.data.source.move"
-                  :label="$t('events.promo_source_move')"
-                  left-label
-                  @update:model-value="onPromoMoveChange($event)"
-                ></q-toggle>
-              </div>
-              <div class="col-6">
-                <q-select
-                  filled
-                  dense
-                  emit-value
-                  map-options
-                  v-model="editPromoCodeDialog.data.source.credit"
-                  :options="[
-                    {label: $t('events.promo_source_credit_none'), value: 'none'},
-                    {label: $t('events.promo_source_credit_paid'), value: 'paid'}
-                  ]"
-                  :label="$t('events.promo_source_credit')"
-                ></q-select>
-              </div>
-            </div>
-            <div
-              class="text-caption text-grey-7 q-mt-xs"
-              v-text="$t('events.promo_source_move_hint')"
-            ></div>
-            <div
-              class="text-caption text-grey-7 q-mt-xs"
-              v-text="$t('events.promo_source_credit_hint')"
-            ></div>
+            <template v-if="!editPromoCodeDialog.data.grants">
+              <q-select
+                filled
+                dense
+                emit-value
+                map-options
+                v-model="editPromoCodeDialog.data.source.credit"
+                :options="[
+                  {label: $t('events.promo_source_credit_none'), value: 'none'},
+                  {label: $t('events.promo_source_credit_paid'), value: 'paid'}
+                ]"
+                :label="$t('events.promo_source_credit')"
+                :hint="$t('events.promo_source_credit_hint')"
+              ></q-select>
+              <q-toggle
+                v-model="editPromoCodeDialog.data.source.move"
+                :label="$t('events.promo_source_move')"
+                @update:model-value="onPromoMoveChange($event)"
+              ></q-toggle>
+              <div
+                class="text-caption q-mt-none"
+                v-text="$t('events.promo_source_move_hint')"
+              ></div>
+            </template>
+
+            <q-input
+              v-if="!editPromoCodeDialog.data.source.move"
+              filled
+              dense
+              v-model.number="editPromoCodeDialog.data.max_tickets"
+              type="number"
+              min="1"
+              :label="$t('events.promo_max_tickets')"
+              :hint="$t('events.promo_max_tickets_hint')"
+            ></q-input>
           </template>
 
-          <div class="row">
-            <div class="col-6 q-mr-xs">
-              <q-toggle
-                v-model="editPromoCodeDialog.data.active"
-                :label="editPromoCodeDialog.data.active ? $t('events.active') : $t('events.inactive')"
-                left-label
-                color="positive"
-              ></q-toggle>
-            </div>
-            <div class="col-6">
-              <q-toggle
-                v-model="editPromoCodeDialog.data.combinable"
-                :label="$t('events.promo_combinable')"
-                left-label
-              ></q-toggle>
-            </div>
-          </div>
-
+          <q-separator class="q-my-md"></q-separator>
+          <div
+            class="text-caption text-uppercase text-weight-medium"
+            v-text="$t('events.promo_sec_limits')"
+          ></div>
           <q-input
             filled
             dense
             v-model.number="editPromoCodeDialog.data.max_uses"
             type="number"
+            min="1"
             :label="$t('events.promo_max_uses')"
             :hint="$t('events.promo_max_uses_hint')"
-            min="0"
           ></q-input>
-
           <q-input
             v-if="editPromoCodeDialog.data.source.require_ticket"
             filled
             dense
             v-model.number="editPromoCodeDialog.data.redemptions_per_ticket"
             type="number"
+            min="1"
             :label="$t('events.promo_redemptions_per_ticket')"
             :hint="$t('events.promo_redemptions_per_ticket_hint')"
-            min="1"
           ></q-input>
+          <q-toggle
+            v-model="editPromoCodeDialog.data.combinable"
+            :label="$t('events.promo_combinable')"
+          ></q-toggle>
 
-          <q-input
-            v-if="
-              editPromoCodeDialog.data.source.require_ticket &&
-              !editPromoCodeDialog.data.source.move
-            "
-            filled
-            dense
-            clearable
-            v-model.number="editPromoCodeDialog.data.max_tickets"
-            type="number"
-            :label="$t('events.promo_max_tickets')"
-            :hint="$t('events.promo_max_tickets_hint')"
-            min="1"
-          ></q-input>
-
-          <q-select
-            filled
-            dense
-            multiple
-            use-chips
-            emit-value
-            map-options
-            v-model="editPromoCodeDialog.data.ticket_type_ids"
-            :disable="!!editPromoCodeDialog.data.grants"
-            :options="ticketTypeOptions(editPromoCodeDialog.eventId)"
-            :label="$t('events.promo_ticket_type_scope')"
-            :hint="$t('events.promo_ticket_type_scope_hint')"
-          ></q-select>
-
-          <div
-            class="text-caption q-mt-xs"
-            v-if="editPromoCodeDialog.data.max_uses != null && editPromoCodeDialog.data.max_uses > 0"
-            v-text="$t('events.promo_uses_label', {used: editPromoCodeDialog.data.used_count || 0, max: editPromoCodeDialog.data.max_uses})"
-          ></div>
-          <div
-            class="text-caption q-mt-xs"
-            v-else-if="editPromoCodeDialog.data.used_count > 0"
-            v-text="$t('events.promo_uses_unlimited', {used: editPromoCodeDialog.data.used_count || 0})"
-          ></div>
-
-          <div>
-            <div class="text-caption q-mb-sm" v-text="$t('events.discount_type')"></div>
-            <q-btn-toggle
-              v-model="editPromoCodeDialog.discountType"
-              :disable="!!editPromoCodeDialog.data.grants"
-              toggle-color="primary"
-              :options="[
-                {label: $t('events.discount_percent_label'), value: 'percent'},
-                {label: $t('events.discount_fixed_label'), value: 'fixed'}
-              ]"
-              spread
-              no-caps
-              size="sm"
-            ></q-btn-toggle>
-          </div>
-
-          <q-input
-            v-if="editPromoCodeDialog.discountType !== 'fixed'"
-            :disable="!!editPromoCodeDialog.data.grants"
-            filled
-            dense
-            v-model.number="editPromoCodeDialog.data.discount_percent"
-            type="number"
-            :label="$t('events.discount_percent_label')"
-            min="0"
-            max="100"
-          >
-            <template v-slot:after><span>%</span></template>
-          </q-input>
-          <q-input
-            v-else
-            :disable="!!editPromoCodeDialog.data.grants"
-            filled
-            dense
-            v-model.number="editPromoCodeDialog.data.discount_fixed"
-            type="number"
-            :label="$t('events.discount_fixed_label')"
-            min="0"
-          >
-            <template v-slot:after><span>{{ getEventCurrency(editPromoCodeDialog.eventId) }}</span></template>
-          </q-input>
+          <template v-if="editPromoCodeDialog.codeIndex !== -1">
+            <q-separator class="q-my-md"></q-separator>
+            <div
+              class="text-caption text-uppercase text-weight-medium"
+              v-text="$t('events.promo_sec_usage')"
+            ></div>
+            <div
+              class="text-caption"
+              v-if="
+                editPromoCodeDialog.data.max_uses != null &&
+                editPromoCodeDialog.data.max_uses > 0
+              "
+              v-text="
+                $t('events.promo_uses_label', {
+                  used: editPromoCodeDialog.data.used_count || 0,
+                  max: editPromoCodeDialog.data.max_uses
+                })
+              "
+            ></div>
+            <div
+              class="text-caption"
+              v-else
+              v-text="
+                $t('events.promo_uses_unlimited', {
+                  used: editPromoCodeDialog.data.used_count || 0
+                })
+              "
+            ></div>
+          </template>
 
           <div class="row q-mt-lg">
             <q-btn

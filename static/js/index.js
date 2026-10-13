@@ -155,37 +155,6 @@ active: true,
            }
          },
        ticketTypesByEvent: {},
-      promoCodesDialog: {
-        show: false,
-        data: {
-          id: null,
-          wallet: null,
-          name: '',
-          extra: {
-            promo_codes: []
-          }
-        }
-      },
-      promoDiscountTypes: {},
-      editPromoCodeDialog: {
-        show: false,
-        eventId: null,
-        codeIndex: -1,
-        data: {
-          code: '',
-          type: 'code',
-          discount_percent: null,
-          discount_fixed: null,
-          active: true,
-          combinable: true,
-          max_uses: null,
-          used_count: 0,
-          redemptions_per_ticket: 1,
-          ticket_type_ids: [],
-          max_tickets: null
-        },
-        discountType: 'percent'
-      },
       watchonlyWallets: [],
       paymentMethods: {
         ln: false,
@@ -341,7 +310,74 @@ active: true,
         code.discount_fixed = null
       } else {
         delete code.grants
+        // a discount rule with no magnitude would do nothing at all
+        if (code.discount_percent == null && code.discount_fixed == null) {
+          code.discount_percent = 0
+        }
       }
+    },
+    ticketTypeName(typeId) {
+      if (!typeId) return ''
+      for (const types of Object.values(this.ticketTypesByEvent || {})) {
+        const match = (types || []).find(tt => tt.id === typeId)
+        if (match) return match.name
+      }
+      return typeId
+    },
+    promoSummary(code, eventId) {
+      // A short, generated statement of what this rule does. Assembled from
+      // fragments rather than a sentence so word order stays translatable.
+      if (!code) return ''
+      const parts = []
+      parts.push(
+        code.code
+          ? this.$t('events.promo_sum_code', {code: code.code})
+          : this.$t('events.promo_sum_no_code')
+      )
+      if (code.grants) {
+        parts.push(
+          this.$t('events.promo_sum_grant', {
+            qty: code.grants.per_source || 1,
+            ticket: this.ticketTypeName(code.grants.ticket_type_id) || '?'
+          })
+        )
+      } else if (code.discount_percent != null) {
+        parts.push(
+          this.$t('events.promo_sum_discount_percent', {
+            percent: code.discount_percent
+          })
+        )
+      } else if (code.discount_fixed != null) {
+        parts.push(
+          this.$t('events.promo_sum_discount_fixed', {
+            amount: code.discount_fixed,
+            currency: eventId ? this.getEventCurrency(eventId) : ''
+          })
+        )
+      }
+      if (code.source && code.source.move) {
+        parts.push(this.$t('events.promo_sum_swap'))
+      }
+      if (code.source && code.source.require_ticket) {
+        const ids = code.source.ticket_type_ids || []
+        const types = ids.length
+          ? ids.map(id => this.ticketTypeName(id)).join(', ')
+          : this.$t('events.promo_sum_any_ticket')
+        parts.push(this.$t('events.promo_sum_requires', {types}))
+      } else {
+        parts.push(this.$t('events.promo_sum_any_buyer'))
+      }
+      parts.push(
+        code.max_uses != null && code.max_uses > 0
+          ? this.$t('events.promo_sum_uses', {max: code.max_uses})
+          : this.$t('events.promo_sum_unlimited')
+      )
+      return parts.join(' \u00b7 ')
+    },
+    onPromoAppliesToChange(code, mode) {
+      // "only these ticket types" reveals the picker; the saver turns an empty
+      // selection back into null (= the whole basket).
+      code.ticket_type_ids = mode === 'types' ? code.ticket_type_ids || [] : null
     },
     ticketTypeOptions(eventId) {
       const tts = this.ticketTypesByEvent?.[eventId] || []
@@ -896,119 +932,6 @@ active: true,
             })
             .catch(LNbits.utils.notifyApiError)
         })
-    },
-    openPromoCodesDialog(event) {
-      // Normalise every promo onto the source axis and give the list's
-      // q-selects real arrays to bind to (they default to null on the wire).
-      const codes = (event.extra?.promo_codes || []).map(code => {
-        const {type: _legacyType, ...rest} = code
-        const source = this.normalizePromoSource(code)
-        return {
-          ...rest,
-          source: {
-            require_ticket: source.require_ticket,
-            event_ids: source.event_ids || [],
-            ticket_type_ids: source.ticket_type_ids || [],
-            move: source.move,
-            credit: source.credit
-          },
-          ticket_type_ids: [...(code.ticket_type_ids || [])]
-        }
-      })
-      this.promoCodesDialog.data = {
-        ...event,
-        extra: {
-          ...event.extra,
-          promo_codes: codes
-        }
-      }
-      this.promoDiscountTypes = {}
-      codes.forEach((code, idx) => {
-        this.promoDiscountTypes[idx] =
-          code.discount_fixed != null ? 'fixed' : 'percent'
-      })
-      this.loadPromoScopeTicketTypes(codes, event.id)
-      this.promoCodesDialog.show = true
-    },
-    resetPromoCodesDialog() {
-      this.promoCodesDialog.show = false
-      this.promoCodesDialog.data = {
-        id: null,
-        wallet: null,
-        name: '',
-        extra: {
-          promo_codes: []
-        }
-      }
-      this.promoDiscountTypes = {}
-    },
-    addPromoCodeToDialog() {
-      const idx = this.promoCodesDialog.data.extra.promo_codes.length
-      this.promoCodesDialog.data.extra.promo_codes.push({
-        code: '',
-        source: {
-          require_ticket: false,
-          event_ids: [],
-          ticket_type_ids: [],
-          move: false,
-          credit: 'none'
-        },
-        discount_percent: undefined,
-        discount_fixed: undefined,
-        active: true,
-        combinable: true,
-        max_uses: null,
-        used_count: 0,
-        redemptions_per_ticket: 1,
-        ticket_type_ids: [],
-        max_tickets: null
-      })
-      this.promoDiscountTypes[idx] = 'percent'
-    },
-    onPromoDiscountTypeChange(index, type) {
-      this.promoDiscountTypes[index] = type
-      const code = this.promoCodesDialog.data.extra.promo_codes[index]
-      if (!code) return
-      if (type === 'fixed') {
-        code.discount_percent = undefined
-      } else {
-        code.discount_fixed = undefined
-      }
-    },
-    savePromoCodes() {
-      const data = this.promoCodesDialog.data
-      const wallet = _.findWhere(this.g.user.wallets, {
-        id: data.wallet
-      })
-      if (!wallet) return
-
-      const payload = {
-        ...data,
-        extra: {
-          ...data.extra,
-          promo_codes: this.normalizePromoCodes(data.extra?.promo_codes || [])
-        }
-      }
-
-      LNbits.api
-        .request(
-          'PUT',
-          '/events/api/v1/events/' + data.id,
-          wallet.adminkey,
-          payload
-        )
-        .then(response => {
-          this.events = this.events.map(event =>
-            event.id === data.id ? response.data : event
-          )
-          Quasar.Notify.create({
-            type: 'positive',
-            message: this.$t('events.promo_codes_updated'),
-            icon: null
-          })
-          this.resetPromoCodesDialog()
-        })
-        .catch(LNbits.utils.notifyApiError)
     },
     openEditPromoCodeDialog(eventId, codeIndex) {
       const event = _.findWhere(this.events, {id: eventId})
