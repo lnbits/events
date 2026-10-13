@@ -163,6 +163,39 @@ def test_presented_family_ticket_authorises_four():
     asyncio.run(run())
 
 
+def test_cross_event_source_keeps_its_admits():
+    """A source ticket belonging to ANOTHER event must still be worth its
+    admits rather than defaulting to one: the allowance looks its type up."""
+    async def run():
+        ev = await make_event()
+        other = M.Event(
+            id="EV2", wallet="w1", name="Freedom Fest", info="", canceled=False,
+            event_start_date="2026-01-01", event_end_date="2026-12-31",
+            currency="GBP", admin_email=None, allow_fiat=False, fiat_currency="GBP",
+            amount_tickets=10, price_per_ticket=119, time=datetime.now(timezone.utc),
+            sold=0, banner=None, extra=M.EventExtra(promo_codes=[]),
+        )
+        await crud.create_event(other)
+        await crud.create_ticket_type(M.TicketType(
+            id="FF_FAMILY", event_id="EV2", name="Family (Full Access)", price=119,
+            max_tickets=21, available_from=TODAY, available_to="2026-12-31",
+            sort_order=0, extra={"admits": 4},
+        ))
+        rule = ev.extra.promo_codes[0]
+        rule.source.event_ids = ["EV1", "EV2"]
+        rule.source.ticket_type_ids = [WEEKEND, FAMILY, "FF_FAMILY"]
+        await crud.update_event(ev)
+        await crud.update_ticket(M.Ticket(
+            id="FF1", wallet="w1", event="EV2", name="Holder", email="a@b.c",
+            registered=False, paid=True, time=datetime.now(timezone.utc),
+            reg_timestamp=datetime.now(timezone.utc), ticket_type_id="FF_FAMILY",
+            basket_id=None, extra=M.TicketExtra()))
+        await gate(ev, items((ADDON, 4)), presented=["FF1"])      # four allowed
+        with pytest.raises(ValueError):
+            await gate(ev, items((ADDON, 5)), presented=["FF1"])  # not five
+    asyncio.run(run())
+
+
 def test_unpaid_source_is_refused():
     async def run():
         ev = await make_event()

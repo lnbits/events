@@ -438,6 +438,15 @@ async def _validate_addon_items(
     """
     by_id = {tt.id: tt for tt in ticket_types}
     presented = list(getattr(reservation, "pairs", None) or [])
+    # A presented source may belong to ANOTHER event (a Freedom Fest ticket
+    # claiming a Bitfest screening seat). Its type is not in this event's map,
+    # so load it or `admits` silently defaults to 1.
+    for _other, _token, source in presented:
+        type_id = source.ticket_type_id
+        if type_id and type_id not in by_id:
+            source_type = await get_ticket_type(type_id)
+            if source_type:
+                by_id[type_id] = source_type
     for item in items:
         rules = _addon_rules(event, item.ticket_type_id)
         if not rules:
