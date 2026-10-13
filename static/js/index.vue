@@ -192,6 +192,7 @@
                           >
                             <span
                               style="white-space: normal; line-height: 1.3"
+                              :title="code.code || null"
                               v-text="promoChipLabel(code, props.row.currency)"
                             ></span>
                           </q-chip>

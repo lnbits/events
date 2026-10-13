@@ -301,9 +301,9 @@ active: true,
         code.max_uses != null && code.max_uses > 0
           ? ` (${code.used_count || 0}/${code.max_uses})`
           : ''
-      // A code-less offer has no identifier of its own, so its `title` is what
-      // names it; a code wins when there is one.
-      const name = code.code ? code.code.toUpperCase() : code.title || ''
+      // The offer NAME is what the admin recognises the rule by, so it wins
+      // over the code; the code is still one hover away and in the dialog.
+      const name = code.title || (code.code ? code.code.toUpperCase() : '')
       if (code.grants) {
         // A grant discounts nothing, so the old label rendered as a blank
         // " - " and the rule looked purposeless. Name what it adds instead.
