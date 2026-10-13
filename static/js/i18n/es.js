@@ -193,9 +193,22 @@ window.i18n.global.mergeLocaleMessage('es', {
     promo_uses_unlimited: 'Usado: {used} veces (ilimitado)',
     promo_require_ticket: 'Requiere un ID de entrada',
     promo_require_ticket_hint: 'El comprador debe ingresar un ID de entrada existente además del código. Úsalo para mejoras ("cambiar mi entrada") y ofertas de entradas adicionales ("trae un amigo a mitad de precio").',
-    promo_grants_label: 'Otorga',
+    promo_grants_toggle: 'Añade entradas en lugar de un descuento',
+    promo_grants_ticket_type: 'Entrada que añadir',
+    promo_grants_per_source: 'Entradas por persona',
+    promo_grants_per_source_hint:
+      'Se multiplica por las personas que cubre la entrada presentada ("admits" del tipo de entrada).',
     promo_grants_hint:
-      'Añade esta entrada en lugar de aplicar un descuento: {per} por persona cubierta por la entrada presentada.',
+      'No se aplica descuento: se añade la entrada anterior, {per} por persona cubierta por la entrada presentada.',
+    promo_title_label: 'Nombre de la oferta',
+    promo_title_hint:
+      'Opcional. Se muestra en la lista de promociones, para que una oferta sin código siga siendo identificable.',
+    admits_label: 'Admite (personas)',
+    admits_hint:
+      'Cuántas personas cubre una entrada de este tipo. Una entrada familiar que admite 4 desbloquea cuatro añadidos.',
+    cap_group_label: 'Grupo de límite compartido',
+    cap_group_hint:
+      'Opcional. Los tipos que comparten grupo comparten UN límite entre eventos (p. ej. un cupo de asientos).',
     promo_requires_ticket_badge: 'Necesita ID de entrada',
     promo_code_optional_hint: 'Opcional: déjalo vacío y cualquier ID de entrada válido activa esta oferta.',
     promo_code_required_hint: 'El comprador escribe este código al pagar.',

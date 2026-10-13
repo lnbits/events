@@ -194,9 +194,22 @@ window.i18n.global.mergeLocaleMessage('de', {
     promo_uses_unlimited: 'Verwendet: {used} mal (unbegrenzt)',
     promo_require_ticket: 'Ticket-ID erforderlich',
     promo_require_ticket_hint: 'Der Käufer muss zusätzlich zum Code eine bestehende Ticket-ID eingeben. Für Upgrades ("Ticket umbuchen") und Zusatzticket-Angebote ("Freund zum halben Preis mitbringen").',
-    promo_grants_label: 'Gewährt',
+    promo_grants_toggle: 'Fügt Tickets hinzu statt eines Rabatts',
+    promo_grants_ticket_type: 'Hinzuzufügendes Ticket',
+    promo_grants_per_source: 'Tickets pro Person',
+    promo_grants_per_source_hint:
+      'Wird mit der Anzahl der Personen multipliziert, die das vorgelegte Ticket abdeckt ("admits" am Tickettyp).',
     promo_grants_hint:
-      'Fügt dieses Ticket hinzu, statt einen Rabatt zu gewähren: {per} pro abgedeckter Person des vorgelegten Tickets.',
+      'Es gilt kein Rabatt: stattdessen wird das obige Ticket hinzugefügt, {per} pro abgedeckter Person des vorgelegten Tickets.',
+    promo_title_label: 'Name des Angebots',
+    promo_title_hint:
+      'Optional. Erscheint in der Promo-Liste, damit ein Angebot ohne Code erkennbar bleibt.',
+    admits_label: 'Personen pro Ticket',
+    admits_hint:
+      'Wie viele Personen ein Ticket dieses Typs abdeckt. Ein Familienticket mit 4 schaltet vier Zusatztickets frei.',
+    cap_group_label: 'Gemeinsames Limit',
+    cap_group_hint:
+      'Optional. Typen mit derselben Gruppe teilen EIN Limit über Events hinweg (z. B. ein Kontingent an Plätzen).',
     promo_requires_ticket_badge: 'Ticket-ID nötig',
     promo_code_optional_hint: 'Optional: leer lassen — jede berechtigte Ticket-ID aktiviert dieses Angebot.',
     promo_code_required_hint: 'Der Käufer gibt diesen Code beim Bezahlen ein.',

@@ -313,11 +313,13 @@ active: true,
         code.max_uses != null && code.max_uses > 0
           ? ` (${code.used_count || 0}/${code.max_uses})`
           : ''
+      // A code-less offer has no identifier of its own, so its `title` is what
+      // names it; a code wins when there is one.
+      const name = code.code ? code.code.toUpperCase() : code.title || ''
       if (code.grants) {
         // A grant discounts nothing, so the old label rendered as a blank
         // " - " and the rule looked purposeless. Name what it adds instead.
-        const prefix = code.code ? code.code.toUpperCase() + ' ' : ''
-        return `${prefix}\u2192 ${this.grantedTicketTypeName(code.grants)}${uses}`
+        return `${name ? name + ' ' : ''}\u2192 ${this.grantedTicketTypeName(code.grants)}${uses}`
       }
       const amount =
         code.discount_percent != null
@@ -325,7 +327,21 @@ active: true,
           : code.discount_fixed != null
             ? ` ${code.discount_fixed} ${currency === 'sat' ? 'sats' : currency}`
             : ''
-      return `${(code.code || '').toUpperCase()} - ${amount}${uses}`
+      return `${name} - ${amount}${uses}`
+    },
+    onPromoEffectChange(code, enabled) {
+      // A grant ADDS a ticket instead of discounting one, so it must require a
+      // source ticket and cannot carry a discount -- the API coerces the same
+      // way, but doing it here keeps the form honest as you edit it.
+      if (enabled) {
+        code.grants = code.grants || {ticket_type_id: '', per_source: 1}
+        code.source = code.source || {}
+        code.source.require_ticket = true
+        code.discount_percent = null
+        code.discount_fixed = null
+      } else {
+        delete code.grants
+      }
     },
     ticketTypeOptions(eventId) {
       const tts = this.ticketTypesByEvent?.[eventId] || []
@@ -755,7 +771,9 @@ active: true,
           sort_order: tt?.sort_order || 0,
           active: tt?.extra?.active ?? true,
           show_remaining: tt?.extra?.show_remaining ?? false,
-          remaining_threshold: tt?.extra?.remaining_threshold ?? 0
+          remaining_threshold: tt?.extra?.remaining_threshold ?? 0,
+          admits: tt?.extra?.admits ?? 1,
+          cap_group: tt?.extra?.cap_group || ''
         }
       }
     },
@@ -775,7 +793,9 @@ active: true,
           available_from: '',
           available_to: '',
           sort_order: 0,
-          active: true
+          active: true,
+          admits: 1,
+          cap_group: ''
         }
       }
     },
@@ -795,7 +815,13 @@ active: true,
           ...this.ticketTypeDialog.data.extra,
           active: this.ticketTypeDialog.data.active,
           show_remaining: this.ticketTypeDialog.data.show_remaining,
-          remaining_threshold: this.ticketTypeDialog.data.remaining_threshold
+          remaining_threshold: this.ticketTypeDialog.data.remaining_threshold,
+          // `extra` is REBUILT here, so every derived field has to be carried
+          // explicitly or saving a type silently drops it (admits, cap_group).
+          admits: Math.max(1, Number(this.ticketTypeDialog.data.admits) || 1),
+          ...(this.ticketTypeDialog.data.cap_group
+            ? {cap_group: this.ticketTypeDialog.data.cap_group.trim()}
+            : {})
         }
       }
       if (!this.ticketTypeDialog.isEdit) {

@@ -74,6 +74,10 @@ class PromoCode(BaseModel):
     """
 
     code: str = ""
+    # Human-readable name for the offer, shown in the admin and at checkout.
+    # A code-less rule (one activated by presenting a ticket) has no identifier
+    # of its own, so without this it is unidentifiable in the promo list.
+    title: str = ""
     discount_percent: float | None = None
     discount_fixed: int | None = None
     active: bool = True

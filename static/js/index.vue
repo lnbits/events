@@ -778,6 +778,23 @@
             :hint="$t('events.remaining_threshold_hint')"
             min="0"
           ></q-input>
+          <q-input
+            filled
+            dense
+            v-model.number="ticketTypeDialog.data.admits"
+            type="number"
+            :label="$t('events.admits_label')"
+            :hint="$t('events.admits_hint')"
+            min="1"
+          ></q-input>
+          <q-input
+            filled
+            dense
+            v-model.trim="ticketTypeDialog.data.cap_group"
+            type="text"
+            :label="$t('events.cap_group_label')"
+            :hint="$t('events.cap_group_hint')"
+          ></q-input>
           <div class="row q-mt-lg">
             <q-btn
               v-if="ticketTypeDialog.isEdit"
@@ -827,7 +844,7 @@
               <div class="row items-center">
                 <div class="col">
                   <div class="row items-center q-gutter-x-sm">
-                    <span class="text-h6 text-weight-medium">{{ code.code || $t('events.promo_source_ticket_badge') }}</span>
+                    <span class="text-h6 text-weight-medium">{{ code.code || code.title || $t('events.promo_source_ticket_badge') }}</span>
                     <q-badge
                       v-if="code.source?.require_ticket"
                       color="primary"
@@ -864,17 +881,6 @@
                 v-text="$t('events.promo_require_ticket_hint')"
               ></div>
 
-              <div v-if="code.grants" class="q-mb-sm">
-                <q-badge
-                  color="primary"
-                  class="q-mr-xs"
-                  v-text="$t('events.promo_grants_label')"
-                ></q-badge>
-                <span
-                  class="text-caption"
-                  v-text="grantedTicketTypeName(code.grants)"
-                ></span>
-              </div>
               <div
                 v-if="code.grants"
                 class="text-caption q-mt-none q-mb-sm"
@@ -899,6 +905,63 @@
                     : $t('events.promo_code_required_hint')
                 "
               ></q-input>
+
+              <q-input
+                class="q-mt-sm"
+                filled
+                dense
+                v-model.trim="
+                  promoCodesDialog.data.extra.promo_codes[index].title
+                "
+                type="text"
+                :label="$t('events.promo_title_label')"
+                :hint="$t('events.promo_title_hint')"
+              ></q-input>
+
+              <q-toggle
+                class="q-mt-sm"
+                :model-value="
+                  !!promoCodesDialog.data.extra.promo_codes[index].grants
+                "
+                :label="$t('events.promo_grants_toggle')"
+                @update:model-value="
+                  onPromoEffectChange(
+                    promoCodesDialog.data.extra.promo_codes[index],
+                    $event
+                  )
+                "
+              ></q-toggle>
+
+              <template
+                v-if="promoCodesDialog.data.extra.promo_codes[index].grants"
+              >
+                <q-select
+                  class="q-mt-sm"
+                  filled
+                  dense
+                  emit-value
+                  map-options
+                  v-model="
+                    promoCodesDialog.data.extra.promo_codes[index].grants
+                      .ticket_type_id
+                  "
+                  :options="ticketTypeOptions(promoCodesDialog.data.id)"
+                  :label="$t('events.promo_grants_ticket_type')"
+                ></q-select>
+                <q-input
+                  class="q-mt-sm"
+                  filled
+                  dense
+                  v-model.number="
+                    promoCodesDialog.data.extra.promo_codes[index].grants
+                      .per_source
+                  "
+                  type="number"
+                  min="1"
+                  :label="$t('events.promo_grants_per_source')"
+                  :hint="$t('events.promo_grants_per_source_hint')"
+                ></q-input>
+              </template>
 
               <template
                 v-if="promoCodesDialog.data.extra.promo_codes[index].source.require_ticket"
@@ -1144,17 +1207,6 @@
             v-text="$t('events.promo_require_ticket_hint')"
           ></div>
 
-          <div v-if="editPromoCodeDialog.data.grants" class="q-mb-sm">
-            <q-badge
-              color="primary"
-              class="q-mr-xs"
-              v-text="$t('events.promo_grants_label')"
-            ></q-badge>
-            <span
-              class="text-caption"
-              v-text="grantedTicketTypeName(editPromoCodeDialog.data.grants)"
-            ></span>
-          </div>
           <div
             v-if="editPromoCodeDialog.data.grants"
             class="text-caption q-mt-none q-mb-sm"
@@ -1177,6 +1229,44 @@
                 : $t('events.promo_code_required_hint')
             "
           ></q-input>
+
+          <q-input
+            filled
+            dense
+            v-model.trim="editPromoCodeDialog.data.title"
+            type="text"
+            :label="$t('events.promo_title_label')"
+            :hint="$t('events.promo_title_hint')"
+          ></q-input>
+
+          <q-toggle
+            :model-value="!!editPromoCodeDialog.data.grants"
+            :label="$t('events.promo_grants_toggle')"
+            @update:model-value="
+              onPromoEffectChange(editPromoCodeDialog.data, $event)
+            "
+          ></q-toggle>
+
+          <template v-if="editPromoCodeDialog.data.grants">
+            <q-select
+              filled
+              dense
+              emit-value
+              map-options
+              v-model="editPromoCodeDialog.data.grants.ticket_type_id"
+              :options="ticketTypeOptions(editPromoCodeDialog.eventId)"
+              :label="$t('events.promo_grants_ticket_type')"
+            ></q-select>
+            <q-input
+              filled
+              dense
+              v-model.number="editPromoCodeDialog.data.grants.per_source"
+              type="number"
+              min="1"
+              :label="$t('events.promo_grants_per_source')"
+              :hint="$t('events.promo_grants_per_source_hint')"
+            ></q-input>
+          </template>
 
           <template v-if="editPromoCodeDialog.data.source.require_ticket">
             <q-select

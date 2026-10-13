@@ -196,9 +196,22 @@ window.i18n.global.mergeLocaleMessage('en', {
     promo_ticket_type_scope_all: 'All ticket types',
     promo_require_ticket: 'Requires a ticket ID',
     promo_require_ticket_hint: 'The buyer must enter an existing ticket ID as well as the code. Use it for upgrades ("move my ticket") and extra-ticket offers ("bring a friend half price").',
-    promo_grants_label: 'Grants',
+    promo_grants_toggle: 'Adds tickets instead of a discount',
+    promo_grants_ticket_type: 'Ticket to add',
+    promo_grants_per_source: 'Tickets per person',
+    promo_grants_per_source_hint:
+      'Multiplied by how many people the presented ticket covers ("admits" on the ticket type).',
     promo_grants_hint:
-      'Adds this ticket instead of applying a discount: {per} per person the presented ticket covers.',
+      'No discount applies: the ticket above is added instead, {per} per person the presented ticket covers.',
+    promo_title_label: 'Offer name',
+    promo_title_hint:
+      'Optional. Shown in the promo list, so a code-less offer stays identifiable.',
+    admits_label: 'Admits (people)',
+    admits_hint:
+      'How many people one ticket of this type covers. A Family ticket admitting 4 unlocks four add-ons.',
+    cap_group_label: 'Shared cap group',
+    cap_group_hint:
+      'Optional. Types sharing a group share ONE cap across events (e.g. one pool of screening seats).',
     promo_requires_ticket_badge: 'Needs a ticket ID',
     promo_code_optional_hint: 'Optional: leave blank and any eligible ticket ID activates this offer.',
     promo_code_required_hint: 'The buyer types this code at checkout.',

@@ -76,6 +76,19 @@ async def gate(ev, basket_items, presented=()):
 
 # --- model invariants -------------------------------------------------------
 
+def test_offer_title_round_trips():
+    """A code-less offer has no identifier; `title` names it in the admin."""
+    assert M.PromoCode(code="X").title == ""
+    assert M.PromoCode(code="X", title="Bitflix free seat").title == "Bitflix free seat"
+    # the case it exists for: a code-less rule (blank code needs a ticket gate)
+    codeless = M.PromoCode(
+        code="", source=M.PromoSource(require_ticket=True), title="Screening seat")
+    assert codeless.code == "" and codeless.title == "Screening seat"
+    # survives the legacy-axis migration path too
+    legacy = M.PromoCode(code="TICKETID", type="ticket", title="Old rule")
+    assert legacy.grants is None and legacy.title == "Old rule"
+
+
 def test_grant_implies_the_source_gate():
     """A stored grant with no explicit source condition still loads, and is
     read as requiring a ticket — otherwise the codeless rule is invalid and
