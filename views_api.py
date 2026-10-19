@@ -11,7 +11,6 @@ from fastapi import (
     Depends,
     HTTPException,
     Query,
-    Request,
     WebSocket,
     WebSocketDisconnect,
 )
@@ -71,6 +70,7 @@ from .services import (
     create_satspay_charge,
     fetch_watchonly_config,
     fetch_watchonly_wallets,
+    get_event_base_url,
     get_satspay_charge,
     refund_tickets,
     resend_ticket_email_notification,
@@ -408,9 +408,7 @@ async def api_ticket_qr(ticket_id: str):
 
 
 @tickets_api_router.post("/{event_id}")
-async def api_ticket_create(
-    event_id: str, data: CreateTicket, request: Request
-) -> TicketPaymentRequest:
+async def api_ticket_create(event_id: str, data: CreateTicket) -> TicketPaymentRequest:
     event = await get_event(event_id)
     if not event:
         raise HTTPException(
@@ -541,15 +539,15 @@ async def api_ticket_create(
             )
 
         ticket_id = urlsafe_short_hash()
-        base_url = str(request.base_url).rstrip("/")
         # Use internal address for webhook — SatsPay calls it server-side and
         # cannot reach the public domain from within the container.
         internal_base = f"http://{settings.host}:{settings.port}"
         webhook_url = (
             f"{internal_base}/events/api/v1/tickets/{ticket_id}/satspay-webhook"
         )
-        complete_url = f"{base_url}/events/ticket/{ticket_id}"
         try:
+            base_url = get_event_base_url()
+            complete_url = f"{base_url}/events/ticket/{ticket_id}"
             charge = await create_satspay_charge(
                 api_key=wallet_record.inkey,
                 data={
@@ -583,7 +581,6 @@ async def api_ticket_create(
                 "ticket_wave_title": selected_wave.title,
                 "refund_address": refund_address,
                 "nostr_identifier": nostr_identifier,
-                "ticket_base_url": base_url,
                 "sats_paid": onchain_amount_sat,
                 "onchain": True,
                 "satspay_charge_id": charge["id"],
@@ -621,7 +618,6 @@ async def api_ticket_create(
             "ticket_wave_title": selected_wave.title,
             "refund_address": refund_address,
             "nostr_identifier": nostr_identifier,
-            "ticket_base_url": str(request.base_url).rstrip("/"),
             "sats_paid": payment.sat,
             "onchain": False,
         },
@@ -764,7 +760,6 @@ async def api_ticket_onchain_confirm(
 @tickets_api_router.post("/{ticket_id}/resend-email", response_model=TicketResendResult)
 async def api_ticket_resend_email(
     ticket_id: str,
-    request: Request,
     wallet: WalletTypeInfo = Depends(require_admin_key),
 ) -> TicketResendResult:
     ticket = await get_ticket(ticket_id)
@@ -783,9 +778,7 @@ async def api_ticket_resend_email(
         )
 
     try:
-        return await resend_ticket_email_notification(
-            ticket, str(request.base_url).rstrip("/")
-        )
+        return await resend_ticket_email_notification(ticket)
     except ValueError as exc:
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST, detail=str(exc)

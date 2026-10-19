@@ -12,8 +12,8 @@ from lnbits.core.models import KeyType
 from lnbits.db import Database
 from lnbits.settings import settings
 
-from .. import crud, migrations, views_api
-from ..models import CreateEvent, Event, EventExtra, PromoCode
+from .. import crud, migrations, services, views_api
+from ..models import CreateEvent, Event, EventExtra, PromoCode, Ticket, TicketExtra
 
 
 @pytest.fixture
@@ -144,3 +144,79 @@ async def test_ticket_registration(app, database):
     assert result["registered"] is True
     assert result["id"] == ticket.id
     assert "email" not in result and "extra" not in result and "wallet" not in result
+
+
+def test_notification_urls(event, monkeypatch):
+    monkeypatch.setattr(settings, "lnbits_baseurl", "https://example.com")
+    ticket = Ticket(
+        id="ticket",
+        wallet="wallet",
+        event=event.id,
+        name="Buyer",
+        email="buyer@example.com",
+        registered=False,
+        paid=True,
+        time=event.time,
+        reg_timestamp=event.time,
+        extra=TicketExtra.parse_obj(
+            {
+                "ticket_base_url": "https://untrusted.example",
+                "ticket_wave_id": "primary",
+            }
+        ),
+    )
+    assert "ticket_base_url" not in ticket.extra.dict()
+    assert services._ticket_url(ticket) == "https://example.com/events/ticket/ticket"
+    event.extra.ticket_waves = services.ensure_ticket_waves(event)
+    event.extra.ticket_waves[0].use_ticket_image = True
+    assert (
+        services._ticket_image_url(ticket, event)
+        == "https://example.com/events/api/v1/qr/ticket"
+    )
+
+
+@pytest.mark.parametrize(
+    "base_url", ["", "/relative", "ftp://example.com", "https://example.com/?x=1"]
+)
+def test_event_base_url_validation(monkeypatch, base_url):
+    monkeypatch.setattr(settings, "lnbits_baseurl", base_url)
+    with pytest.raises(ValueError, match="LNBITS_BASEURL"):
+        services.get_event_base_url()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("base_url", ["", "https://tickets.example/lnbits/"])
+async def test_onchain_links_use_configuration(app, event, monkeypatch, base_url):
+    event.extra.onchain_enabled = True
+    event.extra.onchain_wallet_id = "onchain-wallet"
+    monkeypatch.setattr(settings, "lnbits_baseurl", base_url)
+    monkeypatch.setattr(views_api, "get_event", AsyncMock(return_value=event))
+    monkeypatch.setattr(
+        views_api, "get_wallet", AsyncMock(return_value=SimpleNamespace(inkey="key"))
+    )
+    charge = AsyncMock(return_value={"id": "charge"})
+    save = AsyncMock()
+    monkeypatch.setattr(views_api, "create_satspay_charge", charge)
+    monkeypatch.setattr(views_api, "create_ticket", save)
+    async with AsyncClient(
+        transport=ASGITransport(app), base_url="https://untrusted.example"
+    ) as client:
+        response = await client.post(
+            f"/events/api/v1/tickets/{event.id}",
+            json={
+                "name": "Buyer",
+                "email": "buyer@example.com",
+                "payment_method": "onchain",
+            },
+        )
+    if not base_url:
+        assert response.status_code == 400
+        assert "LNBITS_BASEURL" in response.json()["detail"]
+        charge.assert_not_awaited()
+        save.assert_not_awaited()
+    else:
+        assert response.status_code == 200
+        data = charge.call_args.kwargs["data"]
+        assert data["completelink"].startswith(base_url + "events/ticket/")
+        assert "untrusted.example" not in data["webhook"]
+        assert "ticket_base_url" not in save.call_args.kwargs["extra"]

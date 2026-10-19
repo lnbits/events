@@ -113,7 +113,6 @@ class TicketExtra(BaseModel):
     sats_paid: int | None = None
     refund_address: str | None = None
     nostr_identifier: str | None = None
-    ticket_base_url: str | None = None
     email_notification_sent: bool = False
     nostr_notification_sent: bool = False
     refunded: bool = False

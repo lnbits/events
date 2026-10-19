@@ -6,6 +6,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from html import escape
 from typing import Any
+from urllib.parse import urlsplit
 
 import httpx
 from lnbits.core.models.users import UserNotifications
@@ -121,9 +122,7 @@ async def _send_ticket_notification(ticket: Ticket) -> None:
     await _deliver_ticket_notifications(ticket, event)
 
 
-async def resend_ticket_email_notification(
-    ticket: Ticket, base_url: str | None = None
-) -> TicketResendResult:
+async def resend_ticket_email_notification(ticket: Ticket) -> TicketResendResult:
     event = await get_event(ticket.event)
     if not event:
         raise ValueError("Event does not exist.")
@@ -131,10 +130,17 @@ async def resend_ticket_email_notification(
         raise ValueError("Email notifications are not enabled.")
     if not ticket.email:
         raise ValueError("Ticket does not have an email address.")
-    if base_url:
-        ticket.extra.ticket_base_url = base_url.rstrip("/")
-
     return await _deliver_ticket_notifications(ticket, event)
+
+
+def get_event_base_url() -> str:
+    base_url = settings.lnbits_baseurl.rstrip("/")
+    parsed = urlsplit(base_url)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise ValueError("Configure LNBITS_BASEURL with an absolute HTTP or HTTPS URL.")
+    if parsed.query or parsed.fragment:
+        raise ValueError("LNBITS_BASEURL must not include a query or fragment.")
+    return base_url
 
 
 def _ticket_notification_message(ticket: Ticket, event: Event) -> tuple[str, str]:
@@ -292,7 +298,7 @@ async def _send_ticket_email_notification(
 
 
 def _ticket_url(ticket: Ticket) -> str:
-    base_url = (ticket.extra.ticket_base_url or settings.lnbits_baseurl).rstrip("/")
+    base_url = get_event_base_url()
     return f"{base_url}/events/ticket/{ticket.id}"
 
 
@@ -305,7 +311,7 @@ def _ticket_image_url(ticket: Ticket, event: Event) -> str | None:
     if not wave.use_ticket_image:
         return None
 
-    base_url = (ticket.extra.ticket_base_url or settings.lnbits_baseurl).rstrip("/")
+    base_url = get_event_base_url()
     return f"{base_url}/events/api/v1/qr/{ticket.id}"
 
 
