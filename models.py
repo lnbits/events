@@ -77,6 +77,7 @@ class Event(BaseModel):
     info: str
     closing_date: str
     canceled: bool = False
+    close_processed: bool = False
     event_start_date: str
     event_end_date: str
     currency: str
@@ -172,6 +173,12 @@ class PublicTicket(BaseModel):
 
 class TicketRegistration(PublicTicket):
     id: str
+
+
+class TicketRefund(BaseModel):
+    id: str
+    payment_request: str
+    payment_hash: str
 
 
 class TicketPaymentRequest(BaseModel):

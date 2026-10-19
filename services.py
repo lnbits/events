@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import smtplib
 from asyncio.tasks import create_task
+from datetime import datetime, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from html import escape
@@ -9,16 +10,23 @@ from typing import Any
 from urllib.parse import urlsplit
 
 import httpx
+from bolt11 import decode as bolt11_decode
+from lnbits.core.crud.payments import get_standalone_payment
 from lnbits.core.models.users import UserNotifications
+from lnbits.core.services.lnurl import get_pr_from_lnurl
 from lnbits.core.services.notifications import send_user_notification
+from lnbits.core.services.payments import pay_invoice, update_pending_payment
 from lnbits.helpers import is_valid_email_address
 from lnbits.settings import settings
-from lnurl import execute
 from loguru import logger
 
 from .crud import (
+    create_ticket_refund,
+    get_closed_events,
     get_event,
     get_event_tickets,
+    get_ticket_refund,
+    mark_event_closed,
     purge_unpaid_tickets,
     update_event,
     update_ticket,
@@ -27,6 +35,7 @@ from .models import (
     Event,
     NotificationDeliveryResult,
     Ticket,
+    TicketRefund,
     TicketResendResult,
     ensure_ticket_waves,
 )
@@ -94,6 +103,7 @@ async def set_ticket_paid(ticket: Ticket) -> Ticket:
     event = await get_event(ticket.event)
     assert event, "Couldn't get event from ticket being paid"
     event.sold += 1
+    event.close_processed = False
     ticket_waves = event.extra.ticket_waves or []
     if ticket_waves:
         selected_wave = next(
@@ -315,7 +325,7 @@ def _ticket_image_url(ticket: Ticket, event: Event) -> str | None:
     return f"{base_url}/events/api/v1/qr/{ticket.id}"
 
 
-async def refund_tickets(event_id: str):
+async def refund_tickets(event_id: str) -> bool:
     """
     Refund tickets for an event that has not met the minimum ticket requirement.
     This function should be called when the event is closed and the minimum ticket
@@ -324,19 +334,87 @@ async def refund_tickets(event_id: str):
     await purge_unpaid_tickets(event_id)
     tickets = await get_event_tickets(event_id)
 
-    if not tickets:
-        return
-
+    complete = True
     for ticket in tickets:
+        if not ticket.paid:
+            complete = False
+            continue
         if ticket.extra.refunded:
             continue
-        if ticket.paid and ticket.extra.refund_address and ticket.extra.sats_paid:
+        if ticket.extra.refund_address and ticket.extra.sats_paid:
             try:
-                res = await execute(
-                    ticket.extra.refund_address, str(ticket.extra.sats_paid)
+                refund = await get_ticket_refund(ticket.id)
+                if not refund:
+                    payment_request = await get_pr_from_lnurl(
+                        ticket.extra.refund_address, ticket.extra.sats_paid * 1000
+                    )
+                    refund = await create_ticket_refund(
+                        TicketRefund(
+                            id=ticket.id,
+                            payment_request=payment_request,
+                            payment_hash=bolt11_decode(payment_request).payment_hash,
+                        )
+                    )
+
+                # Keep the same invoice across retries, including uncertain outcomes.
+                payment = await get_standalone_payment(
+                    refund.payment_hash, wallet_id=ticket.wallet
                 )
-                if res:
+                if payment:
+                    if (
+                        not payment.is_out
+                        or payment.extra.get("ticket_id") != ticket.id
+                    ):
+                        raise ValueError("Refund payment does not match ticket.")
+                    if not payment.success:
+                        payment = await update_pending_payment(payment)
+                else:
+                    payment = await pay_invoice(
+                        wallet_id=ticket.wallet,
+                        payment_request=refund.payment_request,
+                        max_sat=ticket.extra.sats_paid,
+                        tag="events_refund",
+                        extra={"ticket_id": ticket.id},
+                    )
+                if payment.success:
                     ticket.extra.refunded = True
                     await update_ticket(ticket)
-            except Exception as e:
-                logger.error(f"Error refunding ticket {ticket.id}: {e}")
+                else:
+                    complete = False
+                    if payment.failed:
+                        logger.warning(f"Refund for ticket {ticket.id} needs review.")
+            except Exception as exc:
+                complete = False
+                logger.warning(
+                    f"Could not complete refund for ticket {ticket.id}: "
+                    f"{type(exc).__name__}: {exc}"
+                )
+    return complete
+
+
+async def close_events() -> None:
+    today = datetime.now(timezone.utc).date().isoformat()
+    for event in await get_closed_events():
+        try:
+            if (
+                not event.canceled
+                and event.closing_date < today
+                and event.extra.conditional
+                and event.sold < event.extra.min_tickets
+            ):
+                event.canceled = True
+                await update_event(event)
+            if event.canceled:
+                complete = await refund_tickets(event.id)
+            elif event.closing_date < today:
+                await purge_unpaid_tickets(event.id)
+                tickets = await get_event_tickets(event.id)
+                complete = all(ticket.paid for ticket in tickets)
+            else:
+                continue
+            if complete:
+                await mark_event_closed(event)
+        except Exception as exc:
+            logger.warning(
+                f"Could not close event {event.id}: {type(exc).__name__}: {exc}"
+            )

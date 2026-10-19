@@ -4,7 +4,7 @@ from fastapi import APIRouter
 from loguru import logger
 
 from .crud import db
-from .tasks import wait_for_paid_invoices
+from .tasks import close_expired_events, wait_for_paid_invoices
 from .views import events_generic_router
 from .views_api import events_api_router, qr_api_router, tickets_api_router
 
@@ -36,6 +36,8 @@ def events_start():
     from lnbits.tasks import create_permanent_unique_task
 
     task = create_permanent_unique_task("ext_events", wait_for_paid_invoices)
+    scheduled_tasks.append(task)
+    task = create_permanent_unique_task("ext_events_close", close_expired_events)
     scheduled_tasks.append(task)
 
 

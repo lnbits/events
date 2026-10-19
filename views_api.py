@@ -48,7 +48,6 @@ from .crud import (
     get_ticket,
     get_tickets,
     get_tickets_paginated,
-    purge_unpaid_tickets,
     register_ticket,
     update_event,
 )
@@ -181,8 +180,6 @@ async def api_get_event(event_id: str) -> Event:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND, detail="Event does not exist."
         )
-    await purge_unpaid_tickets(event_id)
-
     today = datetime.now(timezone.utc).date()
     active_waves = get_active_ticket_waves(event, today)
     is_sales_closed = today > datetime.strptime(event.closing_date, "%Y-%m-%d").date()
@@ -192,10 +189,9 @@ async def api_get_event(event_id: str) -> Event:
     if event.amount_tickets < 1:
         raise HTTPException(status_code=HTTPStatus.GONE, detail="Event is sold out.")
     if event.extra.conditional and not is_min_tickets_met and is_sales_closed:
-        event.canceled = True
-        await update_event(event)
-        await refund_tickets(event_id)
+        raise HTTPException(status_code=HTTPStatus.GONE, detail="Event canceled.")
 
+    if event.canceled:
         raise HTTPException(status_code=HTTPStatus.GONE, detail="Event canceled.")
 
     if not active_waves:
@@ -238,6 +234,7 @@ async def api_event_create(
                 "time": event.time,
                 "sold": event.sold,
                 "canceled": event.canceled,
+                "close_processed": False,
             }
         )
         event = await update_event(event)
@@ -265,6 +262,7 @@ async def api_event_cancel(
     if event.wallet != wallet.wallet.id:
         raise HTTPException(status_code=HTTPStatus.FORBIDDEN, detail="Not your event.")
     event.canceled = True
+    event.close_processed = False
     event = await update_event(event)
     await refund_tickets(event.id)
 

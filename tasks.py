@@ -6,9 +6,19 @@ from loguru import logger
 
 from .crud import get_ticket
 from .models import Ticket
-from .services import send_ticket_notification_in_background, set_ticket_paid
+from .services import (
+    close_events,
+    send_ticket_notification_in_background,
+    set_ticket_paid,
+)
 
 payment_listeners: dict[str, list[asyncio.Queue[Ticket]]] = {}
+
+
+async def close_expired_events() -> None:
+    while True:
+        await close_events()
+        await asyncio.sleep(3600)
 
 
 def register_payment_listener(payment_hash, queue: asyncio.Queue[Ticket]) -> None:
