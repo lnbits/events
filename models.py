@@ -36,16 +36,19 @@ class TicketWave(BaseModel):
     price_per_ticket: float = Field(default=0, ge=0)
 
 
-class EventExtra(BaseModel):
-    promo_codes: list[PromoCode] = Field(default_factory=list)
+class PublicEventExtra(BaseModel):
     ticket_waves: list[TicketWave] = Field(default_factory=list)
     conditional: bool = False
     min_tickets: int = 1
     email_notifications: bool = False
     nostr_notifications: bool = False
+    onchain_enabled: bool = False
+
+
+class EventExtra(PublicEventExtra):
+    promo_codes: list[PromoCode] = Field(default_factory=list)
     notification_subject: str = ""
     notification_body: str = ""
-    onchain_enabled: bool = False
     onchain_wallet_id: str | None = None
     onchain_zeroconf: bool = False
     onchain_fasttrack: bool = False
@@ -100,7 +103,7 @@ class PublicEvent(BaseModel):
     fiat_currency: str = "GBP"
     price_per_ticket: float
     banner: str | None
-    extra: EventExtra = Field(default_factory=EventExtra)
+    extra: PublicEventExtra = Field(default_factory=PublicEventExtra)
 
 
 class TicketExtra(BaseModel):
@@ -166,6 +169,10 @@ class PublicTicket(BaseModel):
     paid: bool
     time: datetime
     reg_timestamp: datetime
+
+
+class TicketRegistration(PublicTicket):
+    id: str
 
 
 class TicketPaymentRequest(BaseModel):

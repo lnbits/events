@@ -41,6 +41,23 @@ async def update_ticket(ticket: Ticket) -> Ticket:
     return ticket
 
 
+async def register_ticket(ticket: Ticket) -> bool:
+    now = datetime.now(timezone.utc)
+    result = await db.execute(
+        f"""
+        UPDATE events.ticket SET registered = true,
+            reg_timestamp = {db.timestamp_placeholder("reg_timestamp")}
+        WHERE id = :id AND paid = true AND registered = false
+        """,
+        {"id": ticket.id, "reg_timestamp": now.timestamp()},
+    )
+    if result.rowcount != 1:
+        return False
+    ticket.registered = True
+    ticket.reg_timestamp = now
+    return True
+
+
 async def get_ticket(payment_hash: str) -> Ticket | None:
     return await db.fetchone(
         "SELECT * FROM events.ticket WHERE id = :id",
