@@ -227,8 +227,8 @@ async def api_event_create(
             )
         event = Event(
             **{
-                **event.dict(),
-                **data.dict(),
+                **event.model_dump(),
+                **data.model_dump(),
                 "id": event.id,
                 "wallet": event.wallet,
                 "time": event.time,

@@ -107,7 +107,7 @@ async def purge_unpaid_tickets(event_id: str) -> None:
 
 async def create_event(data: CreateEvent) -> Event:
     event_id = urlsafe_short_hash()
-    event = Event(id=event_id, time=datetime.now(timezone.utc), **data.dict())
+    event = Event(id=event_id, time=datetime.now(timezone.utc), **data.model_dump())
     event = cast(Event, sync_event_ticket_waves(event))
     await db.insert("events.events", event)
     return event
