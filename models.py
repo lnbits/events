@@ -3,7 +3,7 @@ from uuid import uuid4
 
 from fastapi import Query
 from lnbits.db import FilterModel
-from pydantic import BaseModel, EmailStr, Field, validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class PromoCode(BaseModel):
@@ -12,11 +12,13 @@ class PromoCode(BaseModel):
     active: bool = True
 
     # make the promo code uppercase
-    @validator("code")
+    @field_validator("code")
+    @classmethod
     def uppercase_code(cls, v):
         return v.upper()
 
-    @validator("discount_percent")
+    @field_validator("discount_percent")
+    @classmethod
     def validate_discount_percent(cls, v):
         assert 0 <= v <= 100, "Discount must be between 0 and 100."
         return v
@@ -99,7 +101,7 @@ class PublicEvent(BaseModel):
     allow_fiat: bool = False
     fiat_currency: str = "GBP"
     price_per_ticket: float
-    banner: str | None
+    banner: str | None = None
     extra: EventExtra = Field(default_factory=EventExtra)
 
 
