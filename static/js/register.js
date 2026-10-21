@@ -10,12 +10,6 @@ window.PageEventsRegister = {
           field: 'name'
         },
         {
-          name: 'email',
-          align: 'left',
-          label: this.$t('email'),
-          field: 'email'
-        },
-        {
           name: 'id',
           align: 'left',
           label: this.$t('id'),
@@ -62,9 +56,21 @@ window.PageEventsRegister = {
     },
     decodeQR(res) {
       this.sendCamera.show = false
-      const value = res[0].rawValue.split('//')[1]
+      const value = res[0]?.rawValue?.match(
+        /^ticket:\/\/([A-Za-z0-9_-]+)$/
+      )?.[1]
+      if (!value) {
+        Quasar.Notify.create({
+          type: 'negative',
+          message: 'Invalid ticket QR code.'
+        })
+        return
+      }
       LNbits.api
-        .request('PUT', `/events/api/v1/tickets/register/${value}`)
+        .request(
+          'PUT',
+          `/events/api/v1/tickets/register/${value}?event_id=${encodeURIComponent(this.eventId)}`
+        )
         .then(response => {
           this.saveScannedTicket(response.data)
           this.lastScan = {success: true, ticket: response.data}

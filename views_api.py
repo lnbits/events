@@ -11,7 +11,6 @@ from fastapi import (
     Depends,
     HTTPException,
     Query,
-    Request,
     WebSocket,
     WebSocketDisconnect,
 )
@@ -19,7 +18,7 @@ from fastapi.responses import StreamingResponse
 from lnbits.core.crud import get_user
 from lnbits.core.crud.assets import get_public_asset
 from lnbits.core.crud.wallets import get_wallet
-from lnbits.core.models import WalletTypeInfo
+from lnbits.core.models import KeyType, WalletTypeInfo
 from lnbits.core.models.payments import CreateInvoice
 from lnbits.core.services import create_payment_request
 from lnbits.db import Filters, Page
@@ -49,9 +48,8 @@ from .crud import (
     get_ticket,
     get_tickets,
     get_tickets_paginated,
-    purge_unpaid_tickets,
+    register_ticket,
     update_event,
-    update_ticket,
 )
 from .models import (
     CreateEvent,
@@ -62,6 +60,7 @@ from .models import (
     Ticket,
     TicketFilters,
     TicketPaymentRequest,
+    TicketRegistration,
     TicketResendResult,
     ensure_ticket_waves,
     get_active_ticket_waves,
@@ -70,6 +69,7 @@ from .services import (
     create_satspay_charge,
     fetch_watchonly_config,
     fetch_watchonly_wallets,
+    get_event_base_url,
     get_satspay_charge,
     refund_tickets,
     resend_ticket_email_notification,
@@ -153,14 +153,17 @@ def make_qr_png(data: str, size: int = 235, border: int = 4) -> Image.Image:
 async def api_events(
     all_wallets: bool = Query(False),
     wallet: WalletTypeInfo = Depends(require_invoice_key),
-) -> list[Event]:
+) -> list[Event] | list[PublicEvent]:
     wallet_ids = [wallet.wallet.id]
 
     if all_wallets:
         user = await get_user(wallet.wallet.user)
         wallet_ids = user.wallet_ids if user else []
 
-    return await get_events(wallet_ids)
+    events = await get_events(wallet_ids)
+    if wallet.key_type == KeyType.admin:
+        return events
+    return [PublicEvent(**event.dict()) for event in events]
 
 
 @events_api_router.get("/onchain/status")
@@ -177,8 +180,6 @@ async def api_get_event(event_id: str) -> Event:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND, detail="Event does not exist."
         )
-    await purge_unpaid_tickets(event_id)
-
     today = datetime.now(timezone.utc).date()
     active_waves = get_active_ticket_waves(event, today)
     is_sales_closed = today > datetime.strptime(event.closing_date, "%Y-%m-%d").date()
@@ -188,10 +189,9 @@ async def api_get_event(event_id: str) -> Event:
     if event.amount_tickets < 1:
         raise HTTPException(status_code=HTTPStatus.GONE, detail="Event is sold out.")
     if event.extra.conditional and not is_min_tickets_met and is_sales_closed:
-        event.canceled = True
-        await update_event(event)
-        await refund_tickets(event_id)
+        raise HTTPException(status_code=HTTPStatus.GONE, detail="Event canceled.")
 
+    if event.canceled:
         raise HTTPException(status_code=HTTPStatus.GONE, detail="Event canceled.")
 
     if not active_waves:
@@ -234,10 +234,15 @@ async def api_event_create(
                 "time": event.time,
                 "sold": event.sold,
                 "canceled": event.canceled,
+                "close_processed": False,
             }
         )
         event = await update_event(event)
     else:
+        if data.wallet != wallet.wallet.id:
+            raise HTTPException(
+                status_code=HTTPStatus.FORBIDDEN, detail="Not your wallet."
+            )
         event = await create_event(data)
 
     return event
@@ -257,6 +262,7 @@ async def api_event_cancel(
     if event.wallet != wallet.wallet.id:
         raise HTTPException(status_code=HTTPStatus.FORBIDDEN, detail="Not your event.")
     event.canceled = True
+    event.close_processed = False
     event = await update_event(event)
     await refund_tickets(event.id)
 
@@ -400,9 +406,7 @@ async def api_ticket_qr(ticket_id: str):
 
 
 @tickets_api_router.post("/{event_id}")
-async def api_ticket_create(
-    event_id: str, data: CreateTicket, request: Request
-) -> TicketPaymentRequest:
+async def api_ticket_create(event_id: str, data: CreateTicket) -> TicketPaymentRequest:
     event = await get_event(event_id)
     if not event:
         raise HTTPException(
@@ -533,15 +537,15 @@ async def api_ticket_create(
             )
 
         ticket_id = urlsafe_short_hash()
-        base_url = str(request.base_url).rstrip("/")
         # Use internal address for webhook — SatsPay calls it server-side and
         # cannot reach the public domain from within the container.
         internal_base = f"http://{settings.host}:{settings.port}"
         webhook_url = (
             f"{internal_base}/events/api/v1/tickets/{ticket_id}/satspay-webhook"
         )
-        complete_url = f"{base_url}/events/ticket/{ticket_id}"
         try:
+            base_url = get_event_base_url()
+            complete_url = f"{base_url}/events/ticket/{ticket_id}"
             charge = await create_satspay_charge(
                 api_key=wallet_record.inkey,
                 data={
@@ -575,7 +579,6 @@ async def api_ticket_create(
                 "ticket_wave_title": selected_wave.title,
                 "refund_address": refund_address,
                 "nostr_identifier": nostr_identifier,
-                "ticket_base_url": base_url,
                 "sats_paid": onchain_amount_sat,
                 "onchain": True,
                 "satspay_charge_id": charge["id"],
@@ -613,7 +616,6 @@ async def api_ticket_create(
             "ticket_wave_title": selected_wave.title,
             "refund_address": refund_address,
             "nostr_identifier": nostr_identifier,
-            "ticket_base_url": str(request.base_url).rstrip("/"),
             "sats_paid": payment.sat,
             "onchain": False,
         },
@@ -756,7 +758,6 @@ async def api_ticket_onchain_confirm(
 @tickets_api_router.post("/{ticket_id}/resend-email", response_model=TicketResendResult)
 async def api_ticket_resend_email(
     ticket_id: str,
-    request: Request,
     wallet: WalletTypeInfo = Depends(require_admin_key),
 ) -> TicketResendResult:
     ticket = await get_ticket(ticket_id)
@@ -775,17 +776,17 @@ async def api_ticket_resend_email(
         )
 
     try:
-        return await resend_ticket_email_notification(
-            ticket, str(request.base_url).rstrip("/")
-        )
+        return await resend_ticket_email_notification(ticket)
     except ValueError as exc:
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST, detail=str(exc)
         ) from exc
 
 
-@tickets_api_router.put("/register/{ticket_id}")
-async def api_event_register_ticket(ticket_id) -> Ticket:
+@tickets_api_router.put("/register/{ticket_id}", response_model=TicketRegistration)
+async def api_event_register_ticket(
+    ticket_id: str, event_id: str | None = None
+) -> Ticket:
     ticket = await get_ticket(ticket_id)
 
     if not ticket:
@@ -798,12 +799,18 @@ async def api_event_register_ticket(ticket_id) -> Ticket:
             status_code=HTTPStatus.FORBIDDEN, detail="Ticket not paid for."
         )
 
-    if ticket.registered is True:
+    if event_id and ticket.event != event_id:
         raise HTTPException(
-            status_code=HTTPStatus.FORBIDDEN, detail="Ticket already registered"
+            status_code=HTTPStatus.FORBIDDEN, detail="Ticket is for another event."
         )
 
-    ticket.registered = True
-    ticket.reg_timestamp = datetime.now(timezone.utc)
-    ticket = await update_ticket(ticket)
+    if ticket.registered is True:
+        raise HTTPException(
+            status_code=HTTPStatus.CONFLICT, detail="Ticket already registered"
+        )
+
+    if not await register_ticket(ticket):
+        raise HTTPException(
+            status_code=HTTPStatus.CONFLICT, detail="Ticket already registered"
+        )
     return ticket

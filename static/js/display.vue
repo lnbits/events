@@ -9,7 +9,7 @@
         ></q-img>
         <q-card-section class="q-pa-none">
           <h3 class="q-my-none q-pa-lg" v-text="event.name"></h3>
-          <div v-html="event.info" class="q-pa-lg"></div>
+          <div v-html="formatDescription" class="q-pa-lg"></div>
         </q-card-section>
       </q-card>
       <q-card class="q-pa-lg">

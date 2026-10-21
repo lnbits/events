@@ -195,3 +195,20 @@ async def m008_add_fiat_currency(db):
         ALTER TABLE events.events
         ADD COLUMN fiat_currency TEXT NOT NULL DEFAULT 'GBP';
         """)
+
+
+async def m009_add_ticket_refunds(db):
+    await db.execute("""
+        CREATE TABLE events.refunds (
+            id TEXT PRIMARY KEY,
+            payment_request TEXT NOT NULL,
+            payment_hash TEXT NOT NULL UNIQUE
+        );
+        """)
+
+
+async def m010_add_close_processed(db):
+    await db.execute("""
+        ALTER TABLE events.events
+        ADD COLUMN close_processed BOOLEAN NOT NULL DEFAULT FALSE;
+        """)

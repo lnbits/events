@@ -35,10 +35,6 @@
               {{ lastScan.ticket.name }}
             </div>
             <div>
-              <strong v-text="$t('events.email_label')"></strong>
-              {{ lastScan.ticket.email }}
-            </div>
-            <div>
               <strong v-text="$t('events.paid_label')"></strong>
               {{ lastScan.ticket.paid }}
             </div>
