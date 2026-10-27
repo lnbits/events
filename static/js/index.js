@@ -1,6 +1,43 @@
 window.PageEvents = {
   template: '#page-events',
   computed: {
+    lightningWalletOptions() {
+      const walletIds = this.g.user.wallets
+        .filter(
+          wallet =>
+            ['lightning', 'lightning-shared'].includes(wallet.walletType) &&
+            wallet.canReceivePayments
+        )
+        .map(wallet => wallet.id)
+      return this.g.user.walletOptions.filter(wallet =>
+        walletIds.includes(wallet.value)
+      )
+    },
+    onchainWalletOptions() {
+      const core = this.coreOnchainWallets.map(wallet => ({
+        label:
+          `LNbits: ${wallet.name}` +
+          (wallet.status === 'ready'
+            ? ''
+            : ` (${this.$t('events.onchain_wallet_not_ready')})`),
+        value: `core:${wallet.id}`
+      }))
+      const watchonly = this.onchainWallets.map(wallet => ({
+        label: `Watchonly: ${wallet.title || wallet.id}`,
+        value: wallet.id
+      }))
+      return [...core, ...watchonly]
+    },
+    selectedCoreWallet() {
+      const reference = this.formDialog.data.extra?.onchain_wallet_id
+      if (!reference?.startsWith('core:')) return null
+      return (
+        this.coreOnchainWallets.find(w => w.id === reference.slice(5)) || null
+      )
+    },
+    hasCoreOnchainWallet() {
+      return this.g.user.wallets.some(wallet => wallet.walletType === 'onchain')
+    },
     eventsColumns() {
       return [
         {
@@ -150,7 +187,9 @@ window.PageEvents = {
           }
         }
       },
-      onchainWallets: []
+      onchainWallets: [],
+      coreOnchainWallets: [],
+      onchainMessages: []
     }
   },
   methods: {
@@ -175,6 +214,9 @@ window.PageEvents = {
       return value.length > 4 ? `${value.slice(0, 4)}...` : value
     },
     async loadOnchainWallets() {
+      this.onchainWallets = []
+      this.coreOnchainWallets = []
+      this.onchainMessages = []
       const wallet = _.findWhere(this.g.user.wallets, {
         id: this.formDialog.data.wallet
       })
@@ -186,9 +228,17 @@ window.PageEvents = {
           wallet.adminkey
         )
         this.onchainWallets = data.available ? data.wallets || [] : []
-      } catch {
-        this.onchainWallets = []
+        this.coreOnchainWallets = data.core_wallets || []
+        this.onchainMessages = [data.core_message, data.message].filter(Boolean)
+      } catch (error) {
+        LNbits.utils.notifyApiError(error)
       }
+    },
+    createOnchainWallet() {
+      this.g.newWalletType = 'onchain'
+    },
+    openOnchainWallet(walletId) {
+      this.$router.push({path: '/wallet', query: {wal: walletId}})
     },
     async confirmOnchainTicket(ticket) {
       const wallet = _.findWhere(this.g.user.wallets, {id: ticket.wallet})

@@ -63,10 +63,23 @@ window.i18n.global.mergeLocaleMessage('en', {
     onchain_payments: 'Onchain payments',
     onchain_desc:
       'Accept Bitcoin onchain payments. Requires the SatsPay and Watchonly extensions to be installed and enabled.',
+    onchain_sources_desc:
+      'Accept Bitcoin onchain payments through SatsPay using an LNbits onchain wallet or the Watchonly extension.',
     accept_onchain: 'Accept onchain payments',
     watchonly_wallet: 'Watchonly wallet',
     watchonly_wallet_hint:
       'Bitcoin watchonly wallet for receiving onchain payments',
+    onchain_wallet: 'Onchain wallet',
+    onchain_wallet_hint:
+      'LNbits or Watchonly wallet for receiving onchain payments',
+    onchain_wallet_not_ready: 'Not ready',
+    create_onchain_wallet: 'Create onchain wallet',
+    onchain_wallet_setup_required:
+      'Set up this onchain wallet before receiving.',
+    onchain_wallet_backup_required:
+      'Back up this onchain wallet before receiving.',
+    setup_onchain_wallet: 'Set up wallet',
+    backup_onchain_wallet: 'Back up wallet',
     onchain_zeroconf: 'Zero-conf (accept unconfirmed transactions)',
     onchain_fasttrack: 'Fasttrack (treat pending as paid)',
     update_event: 'Update Event',

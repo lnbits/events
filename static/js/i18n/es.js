@@ -67,10 +67,23 @@ window.i18n.global.mergeLocaleMessage('es', {
     onchain_payments: 'Pagos onchain',
     onchain_desc:
       'Aceptar pagos Bitcoin onchain. Requiere las extensiones SatsPay y Watchonly instaladas y habilitadas.',
+    onchain_sources_desc:
+      'Aceptar pagos Bitcoin onchain mediante SatsPay con una cartera onchain de LNbits o la extensión Watchonly.',
     accept_onchain: 'Aceptar pagos onchain',
     watchonly_wallet: 'Cartera watchonly',
     watchonly_wallet_hint:
       'Cartera Bitcoin watchonly para recibir pagos onchain',
+    onchain_wallet: 'Cartera onchain',
+    onchain_wallet_hint:
+      'Cartera de LNbits o Watchonly para recibir pagos onchain',
+    onchain_wallet_not_ready: 'No está lista',
+    create_onchain_wallet: 'Crear cartera onchain',
+    onchain_wallet_setup_required:
+      'Configura esta cartera onchain antes de recibir pagos.',
+    onchain_wallet_backup_required:
+      'Haz una copia de seguridad de esta cartera onchain antes de recibir pagos.',
+    setup_onchain_wallet: 'Configurar cartera',
+    backup_onchain_wallet: 'Respaldar cartera',
     onchain_zeroconf: 'Zero-conf (aceptar transacciones no confirmadas)',
     onchain_fasttrack: 'Fasttrack (tratar pendientes como pagados)',
     update_event: 'Actualizar evento',

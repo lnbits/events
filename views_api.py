@@ -67,6 +67,7 @@ from .models import (
 )
 from .services import (
     create_satspay_charge,
+    fetch_core_onchain_wallets,
     fetch_watchonly_config,
     fetch_watchonly_wallets,
     get_event_base_url,
@@ -89,25 +90,21 @@ tickets_filters = parse_filters(TicketFilters)
 
 
 async def _get_watchonly_status(wallet) -> dict[str, Any]:
+    unavailable = {
+        "available": False,
+        "message": "Watchonly wallets could not be loaded.",
+        "network": None,
+        "wallets": [],
+        "mempool_endpoint": None,
+    }
     try:
         config = await fetch_watchonly_config(wallet.inkey)
         network = config.get("network")
         if not network:
-            raise HTTPException(
-                status_code=HTTPStatus.BAD_REQUEST,
-                detail="Watchonly extension returned an invalid network.",
-            )
+            return unavailable
         wallets = await fetch_watchonly_wallets(wallet.inkey, network)
-    except HTTPException:
-        raise
-    except Exception as exc:
-        return {
-            "available": False,
-            "message": f"Watchonly extension is not reachable: {exc!s}",
-            "network": None,
-            "wallets": [],
-            "mempool_endpoint": None,
-        }
+    except Exception:
+        return unavailable
     return {
         "available": True,
         "message": None,
@@ -170,7 +167,16 @@ async def api_events(
 async def api_onchain_status(
     wallet: WalletTypeInfo = Depends(require_admin_key),
 ) -> dict[str, Any]:
-    return await _get_watchonly_status(wallet.wallet)
+    status = await _get_watchonly_status(wallet.wallet)
+    try:
+        status["core_wallets"] = await fetch_core_onchain_wallets(wallet.wallet.inkey)
+        status["core_message"] = None
+    except Exception:
+        status["core_wallets"] = []
+        status["core_message"] = (
+            "LNbits onchain wallets could not be loaded via SatsPay."
+        )
+    return status
 
 
 @events_api_router.get("/{event_id}", response_model=PublicEvent)
@@ -208,44 +214,56 @@ async def api_get_event(event_id: str) -> Event:
 
 
 @events_api_router.post("")
-@events_api_router.put("/{event_id}")
 async def api_event_create(
     data: CreateEvent,
     wallet: WalletTypeInfo = Depends(require_admin_key),
-    event_id: str | None = None,
 ) -> Event:
-    if event_id:
-        event = await get_event(event_id)
-        if not event:
+    user = await get_user(wallet.wallet.user)
+    if not user or data.wallet not in user.wallet_ids:
+        raise HTTPException(status_code=HTTPStatus.FORBIDDEN, detail="Not your wallet.")
+    reference = data.extra.onchain_wallet_id
+    if data.extra.onchain_enabled and reference and reference.startswith("core:"):
+        if reference[5:] not in user.wallet_ids:
             raise HTTPException(
-                status_code=HTTPStatus.NOT_FOUND, detail="Event does not exist."
+                status_code=HTTPStatus.FORBIDDEN, detail="Not your onchain wallet."
             )
+    return await create_event(data)
 
-        if event.wallet != wallet.wallet.id:
-            raise HTTPException(
-                status_code=HTTPStatus.FORBIDDEN, detail="Not your event."
-            )
-        event = Event(
-            **{
-                **event.dict(),
-                **data.dict(),
-                "id": event.id,
-                "wallet": event.wallet,
-                "time": event.time,
-                "sold": event.sold,
-                "canceled": event.canceled,
-                "close_processed": False,
-            }
+
+@events_api_router.put("/{event_id}")
+async def api_event_update(
+    event_id: str,
+    data: CreateEvent,
+    wallet: WalletTypeInfo = Depends(require_admin_key),
+) -> Event:
+    event = await get_event(event_id)
+    if not event:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail="Event does not exist."
         )
-        event = await update_event(event)
-    else:
-        if data.wallet != wallet.wallet.id:
+    user = await get_user(wallet.wallet.user)
+    if not user or event.wallet not in user.wallet_ids:
+        raise HTTPException(status_code=HTTPStatus.FORBIDDEN, detail="Not your event.")
+    if data.wallet not in user.wallet_ids:
+        raise HTTPException(status_code=HTTPStatus.FORBIDDEN, detail="Not your wallet.")
+    reference = data.extra.onchain_wallet_id
+    if data.extra.onchain_enabled and reference and reference.startswith("core:"):
+        if reference[5:] not in user.wallet_ids:
             raise HTTPException(
-                status_code=HTTPStatus.FORBIDDEN, detail="Not your wallet."
+                status_code=HTTPStatus.FORBIDDEN, detail="Not your onchain wallet."
             )
-        event = await create_event(data)
-
-    return event
+    event = Event(
+        **{
+            **event.dict(),
+            **data.dict(),
+            "id": event.id,
+            "time": event.time,
+            "sold": event.sold,
+            "canceled": event.canceled,
+            "close_processed": False,
+        }
+    )
+    return await update_event(event)
 
 
 @events_api_router.put("/{event_id}/cancel")
@@ -561,10 +579,16 @@ async def api_ticket_create(event_id: str, data: CreateTicket) -> TicketPaymentR
                     "time": 1440,
                 },
             )
-        except Exception as exc:
+        except ValueError as exc:
             raise HTTPException(
                 status_code=HTTPStatus.BAD_REQUEST,
                 detail=f"Failed to create SatsPay charge: {exc}",
+            ) from exc
+        except Exception as exc:
+            logger.warning("Could not create Events SatsPay charge.")
+            raise HTTPException(
+                status_code=HTTPStatus.BAD_REQUEST,
+                detail="Failed to create SatsPay charge. Check SatsPay is available.",
             ) from exc
 
         await create_ticket(
@@ -688,6 +712,7 @@ async def api_ticket_delete(
     await delete_ticket(ticket_id)
 
 
+@tickets_api_router.get("/{ticket_id}/satspay-webhook")
 @tickets_api_router.post("/{ticket_id}/satspay-webhook")
 async def api_ticket_satspay_webhook(ticket_id: str) -> None:
     ticket = await get_ticket(ticket_id)
