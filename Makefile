@@ -36,7 +36,7 @@ test:
 	uv run pytest
 
 test-js:
-	node --test tests/test_registration.js
+	node --test tests/test_*.js
 install-pre-commit-hook:
 	@echo "Installing pre-commit hook to git"
 	@echo "Uninstall the hook with uv run pre-commit uninstall"

@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
+import httpx
 import pytest
 import pytest_asyncio
 from fastapi import FastAPI
@@ -103,7 +104,12 @@ async def payment_database(database, monkeypatch):
 
 
 @pytest.fixture
-def app():
+def app(monkeypatch):
+    monkeypatch.setattr(
+        views_api,
+        "get_user",
+        AsyncMock(return_value=SimpleNamespace(wallet_ids=["wallet"])),
+    )
     app = FastAPI()
     app.include_router(views_api.events_api_router, prefix="/events")
     app.include_router(views_api.tickets_api_router, prefix="/events")
@@ -111,7 +117,7 @@ def app():
 
 
 def authorize(app, key_type):
-    wallet = SimpleNamespace(id="wallet", user="user")
+    wallet = SimpleNamespace(id="wallet", user="user", inkey="merchant-key")
     info = SimpleNamespace(key_type=key_type, wallet=wallet)
 
     async def get_info():
@@ -687,9 +693,12 @@ def test_event_base_url_validation(monkeypatch, base_url):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("base_url", ["", "https://tickets.example/lnbits/"])
-async def test_onchain_links_use_configuration(app, event, monkeypatch, base_url):
+@pytest.mark.parametrize("reference", ["onchain-wallet", "core:onchain-wallet"])
+async def test_onchain_links_use_configuration(
+    app, event, monkeypatch, base_url, reference
+):
     event.extra.onchain_enabled = True
-    event.extra.onchain_wallet_id = "onchain-wallet"
+    event.extra.onchain_wallet_id = reference
     monkeypatch.setattr(settings, "lnbits_baseurl", base_url)
     monkeypatch.setattr(views_api, "get_event", AsyncMock(return_value=event))
     monkeypatch.setattr(
@@ -718,6 +727,258 @@ async def test_onchain_links_use_configuration(app, event, monkeypatch, base_url
     else:
         assert response.status_code == 200
         data = charge.call_args.kwargs["data"]
+        assert data["onchainwallet"] == reference
+        assert data["zeroconf"] == event.extra.onchain_zeroconf
+        assert data["fasttrack"] == event.extra.onchain_fasttrack
         assert data["completelink"].startswith(base_url + "events/ticket/")
         assert "untrusted.example" not in data["webhook"]
         assert "ticket_base_url" not in save.call_args.kwargs["extra"]
+
+
+@pytest.mark.parametrize("reference", [None, "", "watch-id", "core:wallet_id-1"])
+def test_onchain_reference_accepts_existing_and_core_values(reference):
+    assert EventExtra(onchain_wallet_id=reference).onchain_wallet_id == reference
+
+
+@pytest.mark.parametrize(
+    "reference", ["core:", "other:id", "core:a:b", "core:a/b", "a?b", "a#b"]
+)
+def test_onchain_reference_rejects_malformed_values(reference):
+    with pytest.raises(ValueError, match="Invalid onchain wallet reference"):
+        EventExtra(onchain_wallet_id=reference)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("reference", ["watch-id", "core:core-id"])
+async def test_onchain_reference_persists(app, database, event, monkeypatch, reference):
+    authorize(app, KeyType.admin)
+    monkeypatch.setattr(
+        views_api,
+        "get_user",
+        AsyncMock(return_value=SimpleNamespace(wallet_ids=["wallet", "core-id"])),
+    )
+    discover = AsyncMock(side_effect=RuntimeError("SatsPay unavailable"))
+    monkeypatch.setattr(views_api, "fetch_core_onchain_wallets", discover)
+    payload = CreateEvent(**event.dict()).dict()
+    payload["extra"].update(onchain_enabled=True, onchain_wallet_id=reference)
+    async with AsyncClient(
+        transport=ASGITransport(app), base_url="http://test"
+    ) as client:
+        response = await client.post("/events/api/v1/events", json=payload)
+        assert response.status_code == 200, response.text
+        event_id = response.json()["id"]
+        assert response.json()["extra"]["onchain_wallet_id"] == reference
+        payload["name"] = "Updated"
+        response = await client.put(f"/events/api/v1/events/{event_id}", json=payload)
+        assert response.status_code == 200, response.text
+        response = await client.get("/events/api/v1/events")
+        assert response.json()[0]["extra"]["onchain_wallet_id"] == reference
+    discover.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method", ["POST", "PUT"])
+@pytest.mark.parametrize(
+    "reference, expected", [("core:wallet", 200), ("core:other", 403)]
+)
+async def test_core_configuration_requires_wallet_ownership(
+    app, event, monkeypatch, method, reference, expected
+):
+    authorize(app, KeyType.admin)
+    save = AsyncMock(return_value=event)
+    monkeypatch.setattr(views_api, "create_event", save)
+    monkeypatch.setattr(views_api, "update_event", save)
+    monkeypatch.setattr(views_api, "get_event", AsyncMock(return_value=event))
+    payload = CreateEvent(**event.dict()).dict()
+    payload["extra"].update(onchain_enabled=True, onchain_wallet_id=reference)
+    async with AsyncClient(
+        transport=ASGITransport(app), base_url="http://test"
+    ) as client:
+        path = "/events/api/v1/events" + ("/event" if method == "PUT" else "")
+        response = await client.request(method, path, json=payload)
+    assert response.status_code == expected
+    assert save.await_count == int(expected == 200)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failed_source", ["watchonly", "watchonly-invalid", "core"])
+async def test_onchain_sources_fail_independently(app, monkeypatch, failed_source):
+    authorize(app, KeyType.admin)
+    core = AsyncMock(return_value=[{"id": "core-id", "status": "ready"}])
+    watch = AsyncMock(return_value=[{"id": "watch-id"}])
+    config = AsyncMock(return_value={"network": "Mainnet"})
+    if failed_source == "watchonly":
+        config.side_effect = ValueError("private configuration")
+    elif failed_source == "watchonly-invalid":
+        config.return_value = {}
+    else:
+        core.side_effect = ValueError("private configuration")
+    monkeypatch.setattr(views_api, "fetch_core_onchain_wallets", core)
+    monkeypatch.setattr(views_api, "fetch_watchonly_config", config)
+    monkeypatch.setattr(views_api, "fetch_watchonly_wallets", watch)
+    async with AsyncClient(
+        transport=ASGITransport(app), base_url="http://test"
+    ) as client:
+        response = await client.get("/events/api/v1/events/onchain/status")
+    assert response.status_code == 200
+    data = response.json()
+    assert "private configuration" not in response.text
+    if failed_source.startswith("watchonly"):
+        watch.assert_not_awaited()
+        assert data["core_wallets"] == core.return_value
+        assert data["message"]
+        assert not data["wallets"]
+    else:
+        assert data["wallets"] == watch.return_value
+        assert data["core_message"]
+        assert not data["core_wallets"]
+    core.assert_awaited_with("merchant-key")
+
+
+@pytest.mark.asyncio
+async def test_core_discovery_uses_merchant_key(monkeypatch):
+    def respond(request):
+        assert request.url.path == "/satspay/api/v1/onchain-wallets"
+        assert request.headers["X-API-KEY"] == "merchant-key"
+        return httpx.Response(200, json=[{"id": "core-id", "status": "ready"}])
+
+    monkeypatch.setattr(
+        services.httpx,
+        "AsyncClient",
+        lambda: AsyncClient(transport=httpx.MockTransport(respond)),
+    )
+    assert await services.fetch_core_onchain_wallets("merchant-key") == [
+        {"id": "core-id", "status": "ready"}
+    ]
+
+
+@pytest.mark.asyncio
+async def test_satspay_charge_preserves_actionable_errors(monkeypatch):
+    def respond(request):
+        assert request.headers["X-API-KEY"] == "merchant-key"
+        assert json.loads(request.content)["onchainwallet"] == "core:core-id"
+        return httpx.Response(
+            400, json={"detail": "Onchain network mismatch. Testnet4 != Testnet"}
+        )
+
+    monkeypatch.setattr(
+        services.httpx,
+        "AsyncClient",
+        lambda: AsyncClient(transport=httpx.MockTransport(respond)),
+    )
+    with pytest.raises(ValueError, match="Onchain network mismatch"):
+        await services.create_satspay_charge(
+            "merchant-key", {"onchainwallet": "core:core-id"}
+        )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "event_id, owner, expected",
+    [(None, "other", 403), ("missing", None, 404), ("event", "other", 403)],
+)
+async def test_event_rejects_unowned_or_missing_event(
+    app, event, monkeypatch, event_id, owner, expected
+):
+    authorize(app, KeyType.admin)
+    event.wallet = owner or "wallet"
+    monkeypatch.setattr(
+        views_api, "get_event", AsyncMock(return_value=event if owner else None)
+    )
+    payload = CreateEvent(**event.dict()).dict()
+    payload["extra"].update(onchain_enabled=True, onchain_wallet_id="core:core-id")
+    async with AsyncClient(
+        transport=ASGITransport(app), base_url="http://test"
+    ) as client:
+        response = await client.request(
+            "PUT" if event_id else "POST",
+            (
+                f"/events/api/v1/events/{event_id}"
+                if event_id
+                else "/events/api/v1/events"
+            ),
+            json=payload,
+        )
+    assert response.status_code == expected
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "target, original, expected",
+    [
+        ("second", "wallet", 200),
+        ("wallet", "second", 200),
+        ("other", "wallet", 403),
+        ("wallet", "other", 403),
+    ],
+)
+async def test_edit_event_uses_account_ownership(
+    app, event, monkeypatch, target, original, expected
+):
+    authorize(app, KeyType.admin)
+    monkeypatch.setattr(
+        views_api,
+        "get_user",
+        AsyncMock(return_value=SimpleNamespace(wallet_ids=["wallet", "second"])),
+    )
+    event.wallet = original
+    monkeypatch.setattr(views_api, "get_event", AsyncMock(return_value=event))
+    save = AsyncMock(side_effect=lambda event: event)
+    monkeypatch.setattr(views_api, "update_event", save)
+    payload = CreateEvent(**event.dict()).dict()
+    payload["wallet"] = target
+    async with AsyncClient(
+        transport=ASGITransport(app), base_url="http://test"
+    ) as client:
+        response = await client.put("/events/api/v1/events/event", json=payload)
+    assert response.status_code == expected
+    if expected == 200:
+        assert response.json()["wallet"] == target
+    else:
+        save.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method", ["GET", "POST"])
+@pytest.mark.parametrize("paid", [False, True])
+async def test_satspay_webhook_verifies_charge_before_fulfilment(
+    app, database, event, monkeypatch, method, paid
+):
+    await crud.create_event(CreateEvent(**event.dict()))
+    monkeypatch.setattr(
+        views_api,
+        "get_wallet",
+        AsyncMock(return_value=SimpleNamespace(inkey="merchant-key")),
+    )
+    ticket = await crud.create_ticket(
+        "onchain-ticket",
+        "wallet",
+        event.id,
+        "Buyer",
+        "buyer@example.com",
+        {"onchain": True, "satspay_charge_id": "charge"},
+    )
+    charge = AsyncMock(return_value={"paid": paid})
+    monkeypatch.setattr(views_api, "get_satspay_charge", charge)
+    monkeypatch.setattr(services, "get_event", AsyncMock(return_value=event))
+    monkeypatch.setattr(services, "update_event", AsyncMock())
+    notify = Mock()
+    monkeypatch.setattr(views_api, "send_ticket_notification_in_background", notify)
+    async with AsyncClient(
+        transport=ASGITransport(app), base_url="http://test"
+    ) as client:
+        response = await client.request(
+            method,
+            f"/events/api/v1/tickets/{ticket.id}/satspay-webhook",
+            json={"paid": True},
+        )
+        assert response.status_code == 200
+        # A repeated callback must not fulfil the ticket twice.
+        await client.request(
+            method, f"/events/api/v1/tickets/{ticket.id}/satspay-webhook"
+        )
+    saved = await crud.get_ticket(ticket.id)
+    assert saved.paid == paid
+    assert notify.call_count == int(paid)
+    assert event.sold == int(paid)
+    charge.assert_awaited_with("merchant-key", "charge")
