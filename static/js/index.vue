@@ -374,8 +374,13 @@
                 dense
                 emit-value
                 v-model="formDialog.data.wallet"
-                :options="g.user.walletOptions"
+                :options="lightningWalletOptions"
                 :label="$t('events.wallet_label')"
+                @update:model-value="
+                  () =>
+                    formDialog.data.extra.onchain_enabled &&
+                    loadOnchainWallets()
+                "
               >
               </q-select>
             </div>
@@ -638,7 +643,7 @@
             <div class="q-mt-lg">
               <div
                 class="text-caption q-mb-md"
-                v-text="$t('events.onchain_desc')"
+                v-text="$t('events.onchain_sources_desc')"
               ></div>
               <q-toggle
                 v-model="formDialog.data.extra.onchain_enabled"
@@ -652,18 +657,55 @@
                 dense
                 class="q-mt-md"
                 v-model="formDialog.data.extra.onchain_wallet_id"
-                :label="$t('events.watchonly_wallet')"
-                :options="
-                  onchainWallets.map(w => ({
-                    label: w.title || w.id,
-                    value: w.id
-                  }))
-                "
+                :label="$t('events.onchain_wallet')"
+                :options="onchainWalletOptions"
                 emit-value
                 map-options
-                :hint="$t('events.watchonly_wallet_hint')"
+                :hint="$t('events.onchain_wallet_hint')"
               ></q-select>
               <div v-if="formDialog.data.extra.onchain_enabled" class="q-mt-md">
+                <q-btn
+                  v-if="!hasCoreOnchainWallet"
+                  flat
+                  dense
+                  color="primary"
+                  :label="$t('events.create_onchain_wallet')"
+                  @click="createOnchainWallet"
+                ></q-btn>
+                <q-banner
+                  v-for="message in onchainMessages"
+                  :key="message"
+                  dense
+                  class="bg-orange-2 text-orange-9 q-mb-sm"
+                >
+                  <span v-text="message"></span>
+                </q-banner>
+                <q-banner
+                  v-if="
+                    selectedCoreWallet && selectedCoreWallet.status !== 'ready'
+                  "
+                  dense
+                  class="bg-orange-2 text-orange-9 q-mb-sm"
+                >
+                  <div
+                    v-text="
+                      selectedCoreWallet.status === 'setup'
+                        ? $t('events.onchain_wallet_setup_required')
+                        : $t('events.onchain_wallet_backup_required')
+                    "
+                  ></div>
+                  <q-btn
+                    flat
+                    dense
+                    color="primary"
+                    :label="
+                      selectedCoreWallet.status === 'setup'
+                        ? $t('events.setup_onchain_wallet')
+                        : $t('events.backup_onchain_wallet')
+                    "
+                    @click="openOnchainWallet(selectedCoreWallet.id)"
+                  ></q-btn>
+                </q-banner>
                 <q-toggle
                   v-model="formDialog.data.extra.onchain_zeroconf"
                   :label="$t('events.onchain_zeroconf')"

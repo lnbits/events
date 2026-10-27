@@ -65,10 +65,23 @@ window.i18n.global.mergeLocaleMessage('de', {
     onchain_payments: 'Onchain-Zahlungen',
     onchain_desc:
       'Bitcoin-Onchain-Zahlungen akzeptieren. Erfordert die installierten und aktivierten Erweiterungen SatsPay und Watchonly.',
+    onchain_sources_desc:
+      'Bitcoin-Onchain-Zahlungen über SatsPay mit einer LNbits-Onchain-Wallet oder der Watchonly-Erweiterung akzeptieren.',
     accept_onchain: 'Onchain-Zahlungen akzeptieren',
     watchonly_wallet: 'Watchonly-Wallet',
     watchonly_wallet_hint:
       'Bitcoin-Watchonly-Wallet für den Empfang von Onchain-Zahlungen',
+    onchain_wallet: 'Onchain-Wallet',
+    onchain_wallet_hint:
+      'LNbits- oder Watchonly-Wallet für den Empfang von Onchain-Zahlungen',
+    onchain_wallet_not_ready: 'Nicht bereit',
+    create_onchain_wallet: 'Onchain-Wallet erstellen',
+    onchain_wallet_setup_required:
+      'Richte diese Onchain-Wallet vor dem Empfang ein.',
+    onchain_wallet_backup_required:
+      'Sichere diese Onchain-Wallet vor dem Empfang.',
+    setup_onchain_wallet: 'Wallet einrichten',
+    backup_onchain_wallet: 'Wallet sichern',
     onchain_zeroconf: 'Zero-Conf (unbestätigte Transaktionen akzeptieren)',
     onchain_fasttrack: 'Fasttrack (ausstehende als bezahlt behandeln)',
     update_event: 'Veranstaltung aktualisieren',
