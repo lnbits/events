@@ -5,7 +5,8 @@ window.PageEventsTicket = {
       ticketId: null,
       ticket: null,
       printMode: false,
-      qrSrc: ''
+      qrSrc: '',
+      paymentWebsocket: null
     }
   },
   methods: {
@@ -28,6 +29,9 @@ window.PageEventsTicket = {
       })
     }
   },
+  beforeUnmount() {
+    this.paymentWebsocket?.close()
+  },
   async created() {
     this.ticketId = this.$route.params.id
     this.qrSrc = `/api/v1/qrcode?data=${encodeURIComponent(
@@ -39,6 +43,20 @@ window.PageEventsTicket = {
         `/events/api/v1/tickets/${this.ticketId}`
       )
       this.ticket = data
+      if (!data.paid) {
+        const url = new URL(window.location)
+        url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
+        url.pathname = `/events/api/v1/tickets/ws/${this.ticketId}`
+        url.search = ''
+        url.hash = ''
+        this.paymentWebsocket = new WebSocket(url.toString())
+        this.paymentWebsocket.onmessage = event => {
+          if (JSON.parse(event.data).paid === true) {
+            this.ticket.paid = true
+            this.paymentWebsocket.close()
+          }
+        }
+      }
     } catch (error) {
       LNbits.utils.notifyApiError(error)
     }
