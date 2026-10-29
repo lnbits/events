@@ -163,7 +163,7 @@ async def api_events(
     events = await get_events(wallet_ids)
     if wallet.key_type == KeyType.admin:
         return events
-    return [PublicEvent(**event.dict()) for event in events]
+    return [PublicEvent(**event.model_dump()) for event in events]
 
 
 @events_api_router.get("/onchain/status")
@@ -227,8 +227,8 @@ async def api_event_create(
             )
         event = Event(
             **{
-                **event.dict(),
-                **data.dict(),
+                **event.model_dump(),
+                **data.model_dump(),
                 "id": event.id,
                 "wallet": event.wallet,
                 "time": event.time,

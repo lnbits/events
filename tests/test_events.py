@@ -172,7 +172,7 @@ async def test_create_wallet_binding(app, event, monkeypatch):
     authorize(app, KeyType.admin)
     create = AsyncMock(return_value=event)
     monkeypatch.setattr(views_api, "create_event", create)
-    data = CreateEvent(**event.dict()).dict()
+    data = CreateEvent(**event.model_dump()).model_dump()
     async with AsyncClient(
         transport=ASGITransport(app), base_url="http://test"
     ) as client:
@@ -430,14 +430,14 @@ def test_notification_urls(event, monkeypatch):
         paid=True,
         time=event.time,
         reg_timestamp=event.time,
-        extra=TicketExtra.parse_obj(
+        extra=TicketExtra.model_validate(
             {
                 "ticket_base_url": "https://untrusted.example",
                 "ticket_wave_id": "primary",
             }
         ),
     )
-    assert "ticket_base_url" not in ticket.extra.dict()
+    assert "ticket_base_url" not in ticket.extra.model_dump()
     assert services._ticket_url(ticket) == "https://example.com/events/ticket/ticket"
     event.extra.ticket_waves = services.ensure_ticket_waves(event)
     event.extra.ticket_waves[0].use_ticket_image = True
@@ -478,7 +478,7 @@ async def test_refund_payment_flow(payment_database, app, event, monkeypatch, in
     buyer_account = await create_account()
     buyer = await create_wallet(user_id=buyer_account.id)
     await update_wallet_balance(buyer, 2000)
-    data = CreateEvent(**event.dict())
+    data = CreateEvent(**event.model_dump())
     data.wallet = organiser.id
     event = await crud.create_event(data)
     async with AsyncClient(
@@ -582,7 +582,7 @@ async def test_refund_payment_flow(payment_database, app, event, monkeypatch, in
 @pytest.mark.asyncio
 async def test_close_events_isolates_failures(event, monkeypatch):
     event.canceled = True
-    following = event.copy(update={"id": "following"})
+    following = event.model_copy(update={"id": "following"})
     monkeypatch.setattr(
         services, "get_closed_events", AsyncMock(return_value=[event, following])
     )
@@ -601,7 +601,7 @@ async def test_close_events_isolates_failures(event, monkeypatch):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("conditional", [False, True])
 async def test_closed_event_cleanup(database, event, conditional):
-    data = CreateEvent(**event.dict())
+    data = CreateEvent(**event.model_dump())
     data.closing_date = "2000-01-01"
     data.extra.conditional = conditional
     data.extra.min_tickets = 1
@@ -646,7 +646,7 @@ async def test_closed_event_cleanup(database, event, conditional):
 
 @pytest.mark.asyncio
 async def test_closed_event_update_reopens_processing(database, app, event):
-    closed = await crud.create_event(CreateEvent(**event.dict()))
+    closed = await crud.create_event(CreateEvent(**event.model_dump()))
     closed.close_processed = True
     await crud.update_event(closed)
     authorize(app, KeyType.admin)
@@ -655,7 +655,7 @@ async def test_closed_event_update_reopens_processing(database, app, event):
     ) as client:
         response = await client.put(
             f"/events/api/v1/events/{closed.id}",
-            json=CreateEvent(**closed.dict()).dict(),
+            json=CreateEvent(**closed.model_dump()).model_dump(),
         )
     assert response.status_code == 200
     stored = await crud.get_event(closed.id)
