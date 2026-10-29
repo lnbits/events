@@ -436,7 +436,7 @@ window.PageEvents = {
         .request(
           'GET',
           '/events/api/v1/events?all_wallets=true',
-          this.g.user.wallets[0].inkey
+          this.g.user.wallets[0].adminkey
         )
         .then(response => {
           this.events = response.data

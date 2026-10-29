@@ -3,6 +3,7 @@ from typing import cast
 
 from lnbits.db import Database, Filters, Page
 from lnbits.helpers import urlsafe_short_hash
+from sqlalchemy.exc import IntegrityError  # type: ignore[import-untyped]
 
 from .models import (
     CreateEvent,
@@ -10,6 +11,7 @@ from .models import (
     Ticket,
     TicketExtra,
     TicketFilters,
+    TicketRefund,
     sync_event_ticket_waves,
 )
 
@@ -39,6 +41,40 @@ async def create_ticket(
 async def update_ticket(ticket: Ticket) -> Ticket:
     await db.update("events.ticket", ticket)
     return ticket
+
+
+async def register_ticket(ticket: Ticket) -> bool:
+    now = datetime.now(timezone.utc)
+    result = await db.execute(
+        f"""
+        UPDATE events.ticket SET registered = true,
+            reg_timestamp = {db.timestamp_placeholder("reg_timestamp")}
+        WHERE id = :id AND paid = true AND registered = false
+        """,
+        {"id": ticket.id, "reg_timestamp": now.timestamp()},
+    )
+    if result.rowcount != 1:
+        return False
+    ticket.registered = True
+    ticket.reg_timestamp = now
+    return True
+
+
+async def get_ticket_refund(ticket_id: str) -> TicketRefund | None:
+    return await db.fetchone(
+        "SELECT * FROM events.refunds WHERE id = :id", {"id": ticket_id}, TicketRefund
+    )
+
+
+async def create_ticket_refund(refund: TicketRefund) -> TicketRefund:
+    try:
+        await db.insert("events.refunds", refund)
+    except IntegrityError:
+        existing = await get_ticket_refund(refund.id)
+        if not existing:
+            raise ValueError("Refund invoice is already assigned.") from None
+        return existing
+    return refund
 
 
 async def get_ticket(payment_hash: str) -> Ticket | None:
@@ -137,6 +173,33 @@ async def get_events(wallet_ids: str | list[str]) -> list[Event]:
         model=Event,
     )
     return [cast(Event, sync_event_ticket_waves(event)) for event in events]
+
+
+async def get_closed_events() -> list[Event]:
+    return await db.fetchall(
+        """
+        SELECT * FROM events.events WHERE close_processed = false
+        AND (canceled = true OR closing_date < :today)
+        """,
+        {"today": datetime.now(timezone.utc).date().isoformat()},
+        Event,
+    )
+
+
+async def mark_event_closed(event: Event) -> None:
+    await db.execute(
+        """
+        UPDATE events.events SET close_processed = true
+        WHERE id = :id AND sold = :sold AND canceled = :canceled
+        AND closing_date = :closing_date
+        """,
+        {
+            "id": event.id,
+            "sold": event.sold,
+            "canceled": event.canceled,
+            "closing_date": event.closing_date,
+        },
+    )
 
 
 async def delete_event(event_id: str) -> None:
