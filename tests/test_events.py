@@ -107,6 +107,11 @@ async def payment_database(database, monkeypatch):
 def app(monkeypatch):
     monkeypatch.setattr(
         views_api,
+        "get_user_active_extensions_ids",
+        AsyncMock(return_value=["watchonly"]),
+    )
+    monkeypatch.setattr(
+        views_api,
         "get_user",
         AsyncMock(return_value=SimpleNamespace(wallet_ids=["wallet"])),
     )
@@ -801,6 +806,31 @@ async def test_core_configuration_requires_wallet_ownership(
 
 
 @pytest.mark.asyncio
+async def test_onchain_status_skips_disabled_watchonly(app, monkeypatch):
+    authorize(app, KeyType.admin)
+    monkeypatch.setattr(
+        views_api, "get_user_active_extensions_ids", AsyncMock(return_value=[])
+    )
+    config = AsyncMock(side_effect=RuntimeError("Watchonly is not installed"))
+    watch = AsyncMock()
+    core = AsyncMock(return_value=[{"id": "core-id", "status": "ready"}])
+    monkeypatch.setattr(views_api, "fetch_watchonly_config", config)
+    monkeypatch.setattr(views_api, "fetch_watchonly_wallets", watch)
+    monkeypatch.setattr(views_api, "fetch_core_onchain_wallets", core)
+    async with AsyncClient(
+        transport=ASGITransport(app), base_url="http://test"
+    ) as client:
+        response = await client.get("/events/api/v1/events/onchain/status")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["core_wallets"] == core.return_value
+    assert data["message"] is None
+    assert not data["available"] and not data["wallets"]
+    config.assert_not_awaited()
+    watch.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("failed_source", ["watchonly", "watchonly-invalid", "core"])
 async def test_onchain_sources_fail_independently(app, monkeypatch, failed_source):
     authorize(app, KeyType.admin)
@@ -978,7 +1008,7 @@ async def test_satspay_webhook_verifies_charge_before_fulfilment(
             method, f"/events/api/v1/tickets/{ticket.id}/satspay-webhook"
         )
     saved = await crud.get_ticket(ticket.id)
-    assert saved.paid == paid
+    assert saved and saved.paid == paid
     assert notify.call_count == int(paid)
     assert event.sold == int(paid)
     charge.assert_awaited_with("merchant-key", "charge")

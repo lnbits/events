@@ -56,7 +56,8 @@ class EventExtra(PublicEventExtra):
     onchain_zeroconf: bool = False
     onchain_fasttrack: bool = False
 
-    @validator("onchain_wallet_id")
+    @field_validator("onchain_wallet_id")
+    @classmethod
     def validate_onchain_wallet_id(cls, value):
         if value and not re.fullmatch(r"(?:core:)?[a-zA-Z0-9_-]+", value):
             raise ValueError("Invalid onchain wallet reference")

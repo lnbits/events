@@ -78,7 +78,7 @@ test('watchonly failure leaves core choices available without auto-selecting', a
   component.methods.openOnchainWallet.call(state, 'core-id')
 })
 
-test('invoice wallet choices exclude non-Lightning and receive-disabled wallets', () => {
+test('invoice wallet choices respect core options and receive permissions', () => {
   const {component, state} = page({})
   state.g.user.wallets = [
     {id: 'ln', walletType: 'lightning', canReceivePayments: true},
@@ -87,9 +87,11 @@ test('invoice wallet choices exclude non-Lightning and receive-disabled wallets'
     {id: 'chain', walletType: 'onchain', canReceivePayments: true},
     {id: 'fiat', walletType: 'fiat', canReceivePayments: true}
   ]
-  state.g.user.walletOptions = state.g.user.wallets.map(wallet => ({
-    value: wallet.id
-  }))
+  state.g.user.walletOptions = [
+    {value: 'ln'},
+    {value: 'shared'},
+    {value: 'readonly'}
+  ]
   const choices = component.computed.lightningWalletOptions.call(state)
   assert.deepEqual(
     choices.map(wallet => wallet.value),

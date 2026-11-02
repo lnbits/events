@@ -15,7 +15,7 @@ from fastapi import (
     WebSocketDisconnect,
 )
 from fastapi.responses import StreamingResponse
-from lnbits.core.crud import get_user
+from lnbits.core.crud import get_user, get_user_active_extensions_ids
 from lnbits.core.crud.assets import get_public_asset
 from lnbits.core.crud.wallets import get_wallet
 from lnbits.core.models import KeyType, WalletTypeInfo
@@ -98,6 +98,8 @@ async def _get_watchonly_status(wallet) -> dict[str, Any]:
         "mempool_endpoint": None,
     }
     try:
+        if "watchonly" not in await get_user_active_extensions_ids(wallet.user):
+            return {**unavailable, "message": None}
         config = await fetch_watchonly_config(wallet.inkey)
         network = config.get("network")
         if not network:

@@ -3,11 +3,7 @@ window.PageEvents = {
   computed: {
     lightningWalletOptions() {
       const walletIds = this.g.user.wallets
-        .filter(
-          wallet =>
-            ['lightning', 'lightning-shared'].includes(wallet.walletType) &&
-            wallet.canReceivePayments
-        )
+        .filter(wallet => wallet.canReceivePayments)
         .map(wallet => wallet.id)
       return this.g.user.walletOptions.filter(wallet =>
         walletIds.includes(wallet.value)
