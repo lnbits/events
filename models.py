@@ -1,3 +1,4 @@
+import re
 from datetime import date, datetime
 from uuid import uuid4
 
@@ -54,6 +55,13 @@ class EventExtra(PublicEventExtra):
     onchain_wallet_id: str | None = None
     onchain_zeroconf: bool = False
     onchain_fasttrack: bool = False
+
+    @field_validator("onchain_wallet_id")
+    @classmethod
+    def validate_onchain_wallet_id(cls, value):
+        if value and not re.fullmatch(r"(?:core:)?[a-zA-Z0-9_-]+", value):
+            raise ValueError("Invalid onchain wallet reference")
+        return value
 
 
 class CreateEvent(BaseModel):

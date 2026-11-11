@@ -82,6 +82,16 @@ async def get_satspay_charge(api_key: str, charge_id: str) -> dict[str, Any]:
         return resp.json()
 
 
+async def fetch_core_onchain_wallets(api_key: str) -> list[dict[str, Any]]:
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            url=f"http://{settings.host}:{settings.port}/satspay/api/v1/onchain-wallets",
+            headers={"X-API-KEY": api_key},
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+
 async def create_satspay_charge(api_key: str, data: dict) -> dict[str, Any]:
     async with httpx.AsyncClient() as client:
         resp = await client.post(
@@ -89,6 +99,8 @@ async def create_satspay_charge(api_key: str, data: dict) -> dict[str, Any]:
             headers={"X-API-KEY": api_key},
             json=data,
         )
+        if resp.status_code == 400:
+            raise ValueError(resp.json().get("detail", "Cannot create SatsPay charge."))
         resp.raise_for_status()
         return resp.json()
 
