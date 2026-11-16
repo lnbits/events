@@ -51,26 +51,50 @@
       this.printMode = true
       await this.$nextTick()
       await this.waitForPrintAssets()
-      setTimeout(() => window.print(), 50)
+      // rAF, not a timer: the sheet must be laid out before the print snapshot.
+      requestAnimationFrame(() => window.print())
     },
     async waitForPrintAssets() {
-      await this.$nextTick()
       const img = document.querySelector('.ticket-print-qr')
       if (!img) return
-      if (img.complete && img.naturalWidth > 0) return
-      await new Promise(resolve => {
-        const done = () => resolve()
-        img.addEventListener('load', done, {once: true})
-        img.addEventListener('error', done, {once: true})
-        setTimeout(done, 500)
-      })
+      if (!(img.complete && img.naturalWidth > 0)) {
+        await new Promise(resolve => {
+          const done = () => resolve()
+          img.addEventListener('load', done, {once: true})
+          img.addEventListener('error', done, {once: true})
+          // A print must never wait forever, but it must not print first
+          // either: this was 500ms, which a phone on 4G can exceed.
+          setTimeout(done, 3000)
+        })
+      }
+      // `load` means fetched, not decoded; an undecoded image prints blank.
+      try {
+        await img.decode()
+      } catch (error) {
+        // older browsers, or an already-broken image: print as-is
+      }
+    },
+    async loadQr() {
+      // Inline the QR at page load instead of fetching it at print time. The
+      // print sheet is created by the click, so a URL src starts its request
+      // then and the print engine races it -- the blank-QR-on-some-PDFs report.
+      const payload = `ticket://${this.ticketId}`
+      this.qrSrc = `/api/v1/qrcode?data=${encodeURIComponent(payload)}`
+      try {
+        const response = await fetch(this.qrSrc)
+        if (!response.ok) return
+        const svg = await response.text()
+        // Only inline what is really an SVG; otherwise keep the URL fallback.
+        if (!svg.includes('<svg')) return
+        this.qrSrc = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+      } catch (error) {
+        // offline or blocked: the <img> keeps the URL and still tries
+      }
     }
   },
   async created() {
     this.ticketId = this.$route.params.id
-    this.qrSrc = `/api/v1/qrcode?data=${encodeURIComponent(
-      `ticket://${this.ticketId}`
-    )}`
+    this.loadQr()
     try {
       const {data} = await LNbits.api.request(
         'GET',

@@ -95,7 +95,14 @@
     <div class="ticket-print-sheet" v-if="printMode">
       <h3 class="ticket-print-event" v-text="eventName"></h3>
       <h5 v-if="ticketTypeName" class="ticket-print-type" v-text="ticketTypeName"></h5>
-      <img class="ticket-print-qr" :src="qrSrc" alt="Ticket QR" v-if="qrSrc" />
+      <img
+        class="ticket-print-qr"
+        :src="qrSrc"
+        alt="Ticket QR"
+        width="320"
+        height="320"
+        v-if="qrSrc"
+      />
     </div>
   </Teleport>
 </template>
