@@ -48,7 +48,14 @@
 
   <Teleport to="body">
     <div class="ticket-print-sheet" v-if="printMode">
-      <img class="ticket-print-qr" :src="qrSrc" alt="Ticket QR" v-if="qrSrc" />
+      <img
+        class="ticket-print-qr"
+        :src="qrSrc"
+        alt="Ticket QR"
+        width="320"
+        height="320"
+        v-if="qrSrc"
+      />
     </div>
   </Teleport>
 </template>
