@@ -1,4 +1,5 @@
 <template id="page-events-register">
+  <div class="register-page">
   <div class="row q-col-gutter-md justify-center">
     <div class="col-12 col-md-7 col-lg-6 q-gutter-y-md">
       <q-card class="q-pa-lg">
@@ -55,7 +56,7 @@
                 unelevated
                 color="positive"
                 class="full-width"
-                :loading="busy"
+                :disable="busy"
                 @click="confirmCheckin"
                 v-text="$t('events.checkin_confirm')"
               ></q-btn>
@@ -128,10 +129,11 @@
         </q-card-section>
         <q-card-actions align="right">
           <q-btn flat color="grey" v-text="$t('cancel')" @click="overrideOpen = false"></q-btn>
-          <q-btn unelevated color="primary" :loading="busy" @click="saveOverride" v-text="$t('events.checkin_save')"></q-btn>
+          <q-btn unelevated color="primary" :disable="busy" @click="saveOverride" v-text="$t('events.checkin_save')"></q-btn>
         </q-card-actions>
       </q-card>
     </q-dialog>
+  </div>
   </div>
 </template>
 

@@ -14,7 +14,8 @@
     },
     statusClass() {
       if (!this.lastScan || this.lastScan.error) return 'bad'
-      return this.lastScan.already_checked_in ? 'warn' : 'ok'
+      // Already checked in is a STOP, not a caution: red, like an error.
+      return this.lastScan.already_checked_in ? 'bad' : 'ok'
     },
     statusText() {
       if (!this.lastScan) return ''
@@ -109,8 +110,10 @@
       // show, not the receipt for this one.
       //
       // Clear the card FIRST: the hand-over is already recorded on the server,
-      // so a failure in the local history or the toast must never leave a card
-      // standing that says otherwise.
+      // so a failure in the toast must never leave a card standing that says
+      // otherwise. `busy` must already be false -- unmounting a QBtn that is
+      // still loading throws in Vue's patch and the card never goes away.
+      this.busy = false
       this.lastScan = null
       try {
         const bands = (scan.bands || []).map(b => b.name.toUpperCase()).join(' + ')
@@ -135,13 +138,16 @@
           null,
           {k: this.token}
         )
+        this.busy = false
         this.finishHandover(data)
       } catch (error) {
+        // Clear the spinner BEFORE replacing the card: unmounting a Quasar
+        // QBtn while `loading` is still on throws inside Vue's patch, which
+        // leaves the old card on screen.
+        this.busy = false
         this.lastScan = {
           error: error.response?.data?.detail || error.message || 'Unknown error'
         }
-      } finally {
-        this.busy = false
       }
     },
     openOverride() {
@@ -164,13 +170,13 @@
           {k: this.token, bands: this.overrideBands}
         )
         this.overrideOpen = false
+        this.busy = false
         this.finishHandover(data)
       } catch (error) {
+        this.busy = false
         this.lastScan = {
           error: error.response?.data?.detail || error.message || 'Unknown error'
         }
-      } finally {
-        this.busy = false
       }
     }
   },
