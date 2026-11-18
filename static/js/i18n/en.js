@@ -268,7 +268,7 @@ window.i18n.global.mergeLocaleMessage('en', {
     checkin_give: 'Give',
     checkin_save: 'Save bands',
     checkin_done: 'Handed over: {bands}',
-    checkin_scanned: 'Scanned',
+    checkin_scanned: 'Checked in',
     checkin_bad_token: 'Scanner link is not valid — ask for a fresh one.',
     checkin_override: 'Bands to hand over',
     checkin_at: 'Checked in',

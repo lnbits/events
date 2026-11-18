@@ -43,25 +43,26 @@
       busy: false,
       overrideOpen: false,
       overrideBands: [],
-      tickets: [],
+      recent: [],
+      pollTimer: null,
       sendCamera: {show: false, camera: 'auto'}
     }
   },
   methods: {
-    storageKey() {
-      return `events_scanned_${this.eventId}`
-    },
-    loadScannedTickets() {
-      this.tickets = Quasar.LocalStorage.getItem(this.storageKey()) || []
-    },
-    saveScannedTicket(scan) {
-      const row = {
-        id: scan.ticket.id,
-        name: scan.ticket.name,
-        bands: (scan.bands || []).map(b => b.name.toUpperCase())
+    async loadRecent() {
+      // The door is staffed by several people at once, so the list of recent
+      // check-ins lives on the server: one phone's localStorage is invisible to
+      // every other phone there, and dies with the tab.
+      if (!this.token) return
+      try {
+        const {data} = await LNbits.api.request(
+          'GET',
+          `/events/api/v1/checkins/${this.eventId}?k=${encodeURIComponent(this.token)}`
+        )
+        this.recent = Array.isArray(data) ? data : []
+      } catch (error) {
+        // a stale feed must never break the scanner itself
       }
-      this.tickets = [row, ...this.tickets.filter(t => t.id !== row.id)].slice(0, 50)
-      Quasar.LocalStorage.set(this.storageKey(), this.tickets)
     },
     closeCamera() {
       this.sendCamera.show = false
@@ -74,6 +75,11 @@
       if (hex.length !== 6) return true
       const [r, g, b] = [0, 2, 4].map(i => parseInt(hex.slice(i, i + 2), 16))
       return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.6
+    },
+    recentLine(t) {
+      const bands = (t.bands || []).map(b => b.name.toUpperCase()).join(' + ')
+      const when = this.shortTime(t.checked_in_at)
+      return when ? `${bands} · ${when}` : bands
     },
     shortTime(value) {
       if (!value) return ''
@@ -114,7 +120,6 @@
       // standing that says otherwise.
       this.lastScan = null
       try {
-        this.saveScannedTicket(scan)
         const bands = (scan.bands || []).map(b => b.name.toUpperCase()).join(' + ')
         if (bands) {
           this.$q.notify({
@@ -123,8 +128,9 @@
           })
         }
       } catch (error) {
-        // history/toast are conveniences; the check-in itself is done
+        // the toast is a convenience; the check-in itself is done
       }
+      this.loadRecent()
     },
     async confirmCheckin() {
       if (!this.lastScan?.ticket) return
@@ -175,11 +181,16 @@
       }
     }
   },
+  beforeUnmount() {
+    if (this.pollTimer) clearInterval(this.pollTimer)
+  },
   async created() {
     this.eventId = this.$route.params.id
     // The scanner link carries the event's token: the page is public, the
     // hand-over endpoint is not.
     this.token = (this.$route.query && this.$route.query.k) || ''
-    this.loadScannedTickets()
+    this.loadRecent()
+    // Keep the shared list fresh while the phone sits at the door.
+    this.pollTimer = setInterval(() => this.loadRecent(), 30000)
   }
 }

@@ -374,3 +374,28 @@ def test_every_weekday_can_be_named():
 def test_the_default_clock_is_the_servers_local_time():
     """No hardcoded UTC: an unqualified scan uses astimezone()."""
     assert S._checkin_day() == S.WEEKDAY_NAMES[datetime.now().astimezone().weekday()]
+
+
+def test_the_recent_checkins_feed_is_shared_state():
+    """The list every phone at the door reads: server-side, newest first."""
+    async def run():
+        await make_event()
+        first = await make_ticket("K1", WEEKEND, extra=M.TicketExtra(bands_issued=["white"]))
+        first.registered = True
+        first.reg_timestamp = datetime(2026, 11, 20, 18, 0, tzinfo=timezone.utc)
+        await crud.update_ticket(first)
+        second = await make_ticket("K2", WEEKEND, extra=M.TicketExtra(bands_issued=["white", "yellow"]))
+        second.registered = True
+        second.reg_timestamp = datetime(2026, 11, 20, 19, 0, tzinfo=timezone.utc)
+        await crud.update_ticket(second)
+        await make_ticket("K3", WEEKEND)  # never checked in
+
+        with pytest.raises(PermissionError):
+            await S.recent_checkins("EVB", "wrong-token")
+
+        rows = await S.recent_checkins("EVB", "tok123")
+        assert [r.id for r in rows] == ["K2", "K1"], "newest first, unchecked omitted"
+        assert [b.name for b in rows[0].bands] == ["White", "Yellow"]
+        assert rows[0].ticket_type_name == "Single - Weekend"
+        assert len(await S.recent_checkins("EVB", "tok123", limit=1)) == 1
+    asyncio.run(run())

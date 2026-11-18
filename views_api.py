@@ -55,6 +55,7 @@ from .models import (
     BasketTotals,
     CheckinBand,
     CheckinRequest,
+    CheckinRow,
     CheckinView,
     CreateBasket,
     CreateEvent,
@@ -73,6 +74,7 @@ from .services import (
     WEEKDAY_NAMES,
     CheckinError,
     checkin_view,
+    recent_checkins,
     seed_bands,
     calculate_basket_total,
     create_basket_with_charge,
@@ -917,6 +919,19 @@ async def api_event_scanner(
         "bands": len(event.extra.bands),
         "rules": len(event.extra.band_rules),
     }
+
+
+@events_api_router.get("/checkins/{event_id}", response_model=list[CheckinRow])
+async def api_recent_checkins(
+    event_id: str, k: str = "", limit: int = 25
+) -> list[CheckinRow]:
+    """Recent hand-overs for this event, for every phone at the door."""
+    try:
+        return await recent_checkins(event_id, k, max(1, min(limit, 100)))
+    except PermissionError as exc:
+        raise HTTPException(status_code=HTTPStatus.FORBIDDEN, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=HTTPStatus.NOT_FOUND, detail=str(exc))
 
 
 @events_api_router.post("/maintenance/seed-bands/{event_id}")

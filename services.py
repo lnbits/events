@@ -48,6 +48,7 @@ from .models import (
     BasketGrant,
     BasketTotals,
     CheckinBand,
+    CheckinRow,
     CheckinView,
     CreateBasket,
     Event,
@@ -1983,6 +1984,43 @@ def default_band_rules(event: Event, ticket_types: list[TicketType]) -> list[Ban
         BandRule(band_ids=["black"], per="redemption", promo_codes=["VOLUNTEER"])
     )
     return rules
+
+
+async def recent_checkins(
+    event_id: str, token: str = "", limit: int = 25
+) -> list[CheckinRow]:
+    """What has been handed over at this event, newest first.
+
+    The door is staffed by several people at once; a list kept in one browser's
+    localStorage is invisible to everyone else and dies with the tab, so the
+    record of the last hand-overs is read back from the tickets themselves.
+    """
+    event = await get_event(event_id)
+    if not event:
+        raise ValueError("Event not found.")
+    if not event.extra.scanner_token or token != event.extra.scanner_token:
+        raise PermissionError("Invalid scanner link.")
+
+    bands = {b.id: b for b in event.extra.bands}
+    types = {t.id: t.name for t in await get_ticket_types(event_id)}
+    rows: list[CheckinRow] = []
+    for ticket in await get_event_tickets(event_id):
+        if not ticket.extra.bands_issued:
+            continue
+        rows.append(
+            CheckinRow(
+                id=ticket.id,
+                name=ticket.name or "",
+                ticket_type_name=types.get(ticket.ticket_type_id, ""),
+                bands=[
+                    CheckinBand(id=b.id, name=b.name, label=b.label, colour=b.colour)
+                    for b in (bands[i] for i in ticket.extra.bands_issued if i in bands)
+                ],
+                checked_in_at=ticket.reg_timestamp,
+            )
+        )
+    rows.sort(key=lambda r: r.checked_in_at or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+    return rows[:limit]
 
 
 async def seed_bands(event: Event, *, force: bool = False) -> Event:

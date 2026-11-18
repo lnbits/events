@@ -440,6 +440,16 @@ class CheckinView(BaseModel):
     token_ok: bool = True
 
 
+class CheckinRow(BaseModel):
+    """One hand-over, as every phone at the door should see it."""
+
+    id: str
+    name: str = ""
+    ticket_type_name: str = ""
+    bands: list[CheckinBand] = []
+    checked_in_at: datetime | None = None
+
+
 class BandSetup(BaseModel):
     """The event's whole band scheme, saved in one go from the admin UI."""
 

@@ -82,12 +82,12 @@
         </q-card-section>
       </q-card>
 
-      <q-card v-if="tickets.length">
+      <q-card v-if="recent.length">
         <q-card-section>
           <div class="text-caption text-grey-6 q-mb-sm" v-text="$t('events.checkin_scanned')"></div>
-          <div v-for="t in tickets" :key="t.id" class="scan-row">
+          <div v-for="t in recent" :key="t.id" class="scan-row">
             <span class="scan-name" v-text="t.name || $t('events.anon')"></span>
-            <span class="text-grey-6" v-text="(t.bands || []).join(' + ')"></span>
+            <span class="text-grey-6" v-text="recentLine(t)"></span>
           </div>
         </q-card-section>
       </q-card>
