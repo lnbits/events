@@ -68,7 +68,7 @@
     recentLine(t) {
       const bands = (t.bands || []).map(b => b.name.toUpperCase()).join(' + ')
       const when = this.shortTime(t.checked_in_at)
-      return when ? `${bands} · ${when}` : bands
+      return [bands, when].filter(Boolean).join(' · ')
     },
     shortTime(value) {
       if (!value) return ''
@@ -112,12 +112,12 @@
       this.lastScan = null
       try {
         const bands = (scan.bands || []).map(b => b.name.toUpperCase()).join(' + ')
-        if (bands) {
-          this.$q.notify({
-            message: this.$t('events.checkin_done', {bands: bands}),
-            type: 'positive'
-          })
-        }
+        this.$q.notify({
+          message: bands
+            ? this.$t('events.checkin_done', {bands: bands})
+            : this.$t('events.checkin_done_noband'),
+          type: 'positive'
+        })
       } catch (error) {
         // the toast is a convenience; the check-in itself is done
       }

@@ -260,6 +260,7 @@ window.i18n.global.mergeLocaleMessage('es', {
     checkin_already: 'Ya registrada',
     checkin_confirm: 'Confirmar y entregar',
     checkin_done: 'Entregado: {bands}',
+    checkin_done_noband: 'Registrada',
     checkin_scanned: 'Registradas',
     checkin_bad_token: 'El enlace del escáner no es válido: pide uno nuevo.',
     checkin_at: 'Registrada',
@@ -326,7 +327,7 @@ window.i18n.global.mergeLocaleMessage('es', {
     band_saved: 'Guardado: {bands} bandas, {rules} reglas',
     band_save_failed: 'No se pudo guardar el esquema de bandas.',
     band_load_failed: 'No se pudo cargar el esquema de bandas.',
-    checkin_no_bands: 'Ninguna regla coincide con esta entrada: avisa al organizador.',
+    checkin_no_bands: 'Sin banda para esta entrada.',
 
     registered_success: 'Registrado',
 

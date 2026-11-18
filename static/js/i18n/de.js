@@ -261,6 +261,7 @@ window.i18n.global.mergeLocaleMessage('de', {
     checkin_already: 'Bereits eingecheckt',
     checkin_confirm: 'Bestätigen & aushändigen',
     checkin_done: 'Ausgehändigt: {bands}',
+    checkin_done_noband: 'Eingecheckt',
     checkin_scanned: 'Eingecheckt',
     checkin_bad_token: 'Scanner-Link ist ungültig – bitte einen neuen anfordern.',
     checkin_at: 'Eingecheckt',
@@ -327,7 +328,7 @@ window.i18n.global.mergeLocaleMessage('de', {
     band_saved: 'Gespeichert: {bands} Bänder, {rules} Regeln',
     band_save_failed: 'Das Bandschema konnte nicht gespeichert werden.',
     band_load_failed: 'Das Bandschema konnte nicht geladen werden.',
-    checkin_no_bands: 'Keine Bandregel passt zu diesem Ticket – bitte das Orga-Team rufen.',
+    checkin_no_bands: 'Kein Band für dieses Ticket.',
 
     registered_success: 'Registriert',
 

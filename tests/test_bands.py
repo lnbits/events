@@ -304,16 +304,29 @@ def test_two_codes_on_one_ticket_keep_both_role_bands():
     asyncio.run(run())
 
 
-def test_override_is_validated_and_must_not_be_empty():
+def test_a_check_in_without_bands_is_still_a_check_in():
+    """Not every event bands its guests: the arrival is the record that matters."""
     async def run():
         ev = await make_event()
         await make_ticket("F1", WEEKEND)
+        view = await S.checkin_view("F1", "tok123", [], commit=True)
+        assert view.already_checked_in is True
+        assert view.ticket.extra.bands_issued == []
+        assert view.bands == []
+
+        await make_ticket("F2", WEEKEND)
         with pytest.raises(S.CheckinError):
-            await S.checkin_view("F1", "tok123", [], commit=True)
-        with pytest.raises(S.CheckinError):
-            await S.checkin_view("F1", "tok123", ["ghost"], commit=True)
-        ok = await S.checkin_view("F1", "tok123", ["purple"], commit=True)
-        assert ok.ticket.extra.bands_issued == ["purple"]
+            await S.checkin_view("F2", "tok123", ["ghost"], commit=True)
+
+        # an event that defines no bands and no rules at all
+        ev.extra.bands = []
+        ev.extra.band_rules = []
+        await crud.update_event(ev)
+        await make_ticket("F3", WEEKEND)
+        bandless = await S.checkin_view("F3", "tok123", commit=True)
+        assert bandless.bands == []
+        assert bandless.already_checked_in is True
+        assert bandless.ticket.extra.bands_issued == []
     asyncio.run(run())
 
 

@@ -46,7 +46,7 @@
             </div>
           </div>
 
-          <div v-if="!shownBands.length" class="door-note" v-text="$t('events.checkin_no_bands')"></div>
+          <div v-if="!shownBands.length" class="bandless-note" v-text="$t('events.checkin_no_bands')"></div>
           <div v-if="lastScan.checkin_text" class="door-msg" v-text="lastScan.checkin_text"></div>
           <div v-if="lastScan.note" class="door-note" v-text="lastScan.note"></div>
 
@@ -143,6 +143,7 @@
     margin-right: 6px;
   }
   .door-note { margin-top: 8px; font-size: 12px; color: #fbbf24; }
+  .bandless-note { margin-top: 8px; font-size: 12px; opacity: 0.6; }
   .scan-row { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0; font-size: 12px; }
   .scan-name { font-weight: 600; }
 

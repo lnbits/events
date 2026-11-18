@@ -2193,8 +2193,9 @@ async def _checkin_impl(
     if commit:
         by_band = {b.id: b for b in event.extra.bands}
         if bands is not None:
-            if not bands:
-                raise CheckinError("Choose at least one band to hand over.")
+            # An empty list is legitimate: not every event bands its guests, and
+            # a ticket type can have no band by design. The check-in still
+            # records WHO arrived, which is the part the door needs.
             unknown = [b for b in bands if b not in by_band]
             if unknown:
                 raise CheckinError(f"Unknown band: {', '.join(unknown)}.")
@@ -2209,7 +2210,9 @@ async def _checkin_impl(
             await update_ticket(ticket)
 
     by_id = {b.id: b for b in event.extra.bands}
-    if ticket.extra.bands_issued:
+    if ticket.registered:
+        # Show what was RECORDED, even when that is nothing: an empty record is
+        # a real answer ("checked in, no band"), not "we have not asked yet".
         shown = [by_id[b] for b in ticket.extra.bands_issued if b in by_id]
     else:
         shown = suggested
