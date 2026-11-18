@@ -265,7 +265,6 @@ window.i18n.global.mergeLocaleMessage('en', {
     checkin_already: 'Already checked in',
     checkin_confirm: 'Confirm & hand over',
     checkin_bands: 'Bands…',
-    checkin_give: 'Give',
     checkin_save: 'Save bands',
     checkin_done: 'Handed over: {bands}',
     checkin_scanned: 'Checked in',

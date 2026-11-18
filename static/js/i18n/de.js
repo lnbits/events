@@ -261,7 +261,6 @@ window.i18n.global.mergeLocaleMessage('de', {
     checkin_already: 'Bereits eingecheckt',
     checkin_confirm: 'Bestätigen & aushändigen',
     checkin_bands: 'Bänder…',
-    checkin_give: 'Aushändigen',
     checkin_save: 'Bänder speichern',
     checkin_done: 'Ausgehändigt: {bands}',
     checkin_scanned: 'Eingecheckt',

@@ -46,10 +46,6 @@
           </div>
 
           <div v-if="!shownBands.length" class="door-note" v-text="$t('events.checkin_no_bands')"></div>
-          <div v-if="giveText" class="door-msg">
-            <span class="door-label" v-text="$t('events.checkin_give')"></span>
-            <span v-text="giveText"></span>
-          </div>
           <div v-if="lastScan.checkin_text" class="door-msg" v-text="lastScan.checkin_text"></div>
           <div v-if="lastScan.note" class="door-note" v-text="lastScan.note"></div>
 

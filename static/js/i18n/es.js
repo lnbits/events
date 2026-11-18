@@ -260,7 +260,6 @@ window.i18n.global.mergeLocaleMessage('es', {
     checkin_already: 'Ya registrada',
     checkin_confirm: 'Confirmar y entregar',
     checkin_bands: 'Bandas…',
-    checkin_give: 'Entregar',
     checkin_save: 'Guardar bandas',
     checkin_done: 'Entregado: {bands}',
     checkin_scanned: 'Registradas',

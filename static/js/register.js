@@ -12,13 +12,6 @@
     allBands() {
       return (this.lastScan && this.lastScan.all_bands) || []
     },
-    giveText() {
-      // The hand-over instruction, straight from the resolved bands: the door
-      // reads "Give WHITE + YELLOW" and does exactly that.
-      return this.shownBands
-        .map(b => b.name.toUpperCase())
-        .join(' + ')
-    },
     statusClass() {
       if (!this.lastScan || this.lastScan.error) return 'bad'
       return this.lastScan.already_checked_in ? 'warn' : 'ok'
