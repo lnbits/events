@@ -108,15 +108,23 @@
       // "already checked in" card up reads as a failed scan on the very phone
       // the staff member just used -- that card is what a LATER scan should
       // show, not the receipt for this one.
-      this.saveScannedTicket(scan)
-      const bands = (scan.bands || []).map(b => b.name.toUpperCase()).join(' + ')
-      if (bands) {
-        this.$q.notify({
-          message: this.$t('events.checkin_done', {bands: bands}),
-          type: 'positive'
-        })
-      }
+      //
+      // Clear the card FIRST: the hand-over is already recorded on the server,
+      // so a failure in the local history or the toast must never leave a card
+      // standing that says otherwise.
       this.lastScan = null
+      try {
+        this.saveScannedTicket(scan)
+        const bands = (scan.bands || []).map(b => b.name.toUpperCase()).join(' + ')
+        if (bands) {
+          this.$q.notify({
+            message: this.$t('events.checkin_done', {bands: bands}),
+            type: 'positive'
+          })
+        }
+      } catch (error) {
+        // history/toast are conveniences; the check-in itself is done
+      }
     },
     async confirmCheckin() {
       if (!this.lastScan?.ticket) return
