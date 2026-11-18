@@ -103,6 +103,21 @@
         }
       }
     },
+    finishHandover(scan) {
+      // A successful hand-over returns to the scanner. Leaving the amber
+      // "already checked in" card up reads as a failed scan on the very phone
+      // the staff member just used -- that card is what a LATER scan should
+      // show, not the receipt for this one.
+      this.saveScannedTicket(scan)
+      const bands = (scan.bands || []).map(b => b.name.toUpperCase()).join(' + ')
+      if (bands) {
+        this.$q.notify({
+          message: this.$t('events.checkin_done', {bands: bands}),
+          type: 'positive'
+        })
+      }
+      this.lastScan = null
+    },
     async confirmCheckin() {
       if (!this.lastScan?.ticket) return
       this.busy = true
@@ -113,8 +128,7 @@
           null,
           {k: this.token}
         )
-        this.lastScan = data
-        this.saveScannedTicket(data)
+        this.finishHandover(data)
       } catch (error) {
         this.lastScan = {
           error: error.response?.data?.detail || error.message || 'Unknown error'
@@ -142,9 +156,8 @@
           null,
           {k: this.token, bands: this.overrideBands}
         )
-        this.lastScan = data
         this.overrideOpen = false
-        this.saveScannedTicket(data)
+        this.finishHandover(data)
       } catch (error) {
         this.lastScan = {
           error: error.response?.data?.detail || error.message || 'Unknown error'

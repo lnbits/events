@@ -263,6 +263,7 @@ window.i18n.global.mergeLocaleMessage('de', {
     checkin_bands: 'Bänder…',
     checkin_give: 'Aushändigen',
     checkin_save: 'Bänder speichern',
+    checkin_done: 'Ausgehändigt: {bands}',
     checkin_scanned: 'Gescannt',
     checkin_bad_token: 'Scanner-Link ist ungültig – bitte einen neuen anfordern.',
     checkin_override: 'Auszuhändigende Bänder',

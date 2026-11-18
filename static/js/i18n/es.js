@@ -262,6 +262,7 @@ window.i18n.global.mergeLocaleMessage('es', {
     checkin_bands: 'Bandas…',
     checkin_give: 'Entregar',
     checkin_save: 'Guardar bandas',
+    checkin_done: 'Entregado: {bands}',
     checkin_scanned: 'Escaneadas',
     checkin_bad_token: 'El enlace del escáner no es válido: pide uno nuevo.',
     checkin_override: 'Bandas a entregar',
