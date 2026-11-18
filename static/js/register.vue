@@ -50,26 +50,15 @@
           <div v-if="lastScan.checkin_text" class="door-msg" v-text="lastScan.checkin_text"></div>
           <div v-if="lastScan.note" class="door-note" v-text="lastScan.note"></div>
 
-          <div class="row q-col-gutter-sm q-mt-md">
-            <div v-if="!lastScan.already_checked_in" class="col-12 col-sm-6">
-              <q-btn
-                unelevated
-                color="positive"
-                class="full-width"
-                :disable="busy"
-                @click="confirmCheckin"
-                v-text="$t('events.checkin_confirm')"
-              ></q-btn>
-            </div>
-            <div class="col-12 col-sm-6">
-              <q-btn
-                outline
-                color="grey"
-                class="full-width"
-                @click="openOverride"
-                v-text="$t('events.checkin_bands')"
-              ></q-btn>
-            </div>
+          <div v-if="!lastScan.already_checked_in" class="q-mt-md">
+            <q-btn
+              unelevated
+              color="positive"
+              class="full-width"
+              :disable="busy"
+              @click="confirmCheckin"
+              v-text="$t('events.checkin_confirm')"
+            ></q-btn>
           </div>
           <div
             v-if="lastScan.already_checked_in && lastScan.checked_in_at"
@@ -101,38 +90,6 @@
       </q-card>
     </q-dialog>
 
-    <q-dialog v-model="overrideOpen">
-      <q-card style="width: 360px; max-width: 92vw">
-        <q-card-section>
-          <div class="text-subtitle1 text-weight-medium" v-text="$t('events.checkin_override')"></div>
-        </q-card-section>
-        <q-card-section class="q-pt-none">
-          <div
-            v-for="band in allBands"
-            :key="band.id"
-            class="band-opt"
-            :aria-pressed="String(overrideBands.includes(band.id))"
-            @click="toggleBand(band.id)"
-          >
-            <span class="band-sw" :style="{background: band.colour}"></span>
-            <span>
-              <span class="band-opt-name" v-text="band.name"></span>
-              <span class="band-opt-label" v-text="band.label"></span>
-            </span>
-            <q-icon
-              v-if="overrideBands.includes(band.id)"
-              name="check"
-              color="positive"
-              class="q-ml-auto"
-            ></q-icon>
-          </div>
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat color="grey" v-text="$t('cancel')" @click="overrideOpen = false"></q-btn>
-          <q-btn unelevated color="primary" :disable="busy" @click="saveOverride" v-text="$t('events.checkin_save')"></q-btn>
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
   </div>
   </div>
 </template>
@@ -183,24 +140,5 @@
   .door-note { margin-top: 8px; font-size: 12px; color: #fbbf24; }
   .scan-row { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0; font-size: 12px; }
   .scan-name { font-weight: 600; }
-  .band-opt {
-    display: flex;
-    align-items: center;
-    gap: 11px;
-    padding: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    border-radius: 10px;
-    margin-bottom: 6px;
-    cursor: pointer;
-  }
-  .band-opt[aria-pressed="true"] { border-color: #fff; }
-  .band-sw {
-    width: 28px;
-    height: 28px;
-    border-radius: 7px;
-    border: 1px solid rgba(0, 0, 0, 0.4);
-    flex: 0 0 auto;
-  }
-  .band-opt-name { display: block; font-size: 14px; font-weight: 700; }
-  .band-opt-label { display: block; font-size: 11px; opacity: 0.65; }
+
 </style>

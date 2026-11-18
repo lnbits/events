@@ -264,12 +264,9 @@ window.i18n.global.mergeLocaleMessage('en', {
     checkin_valid: 'Valid — check in',
     checkin_already: 'Already checked in',
     checkin_confirm: 'Confirm & hand over',
-    checkin_bands: 'Bands…',
-    checkin_save: 'Save bands',
     checkin_done: 'Handed over: {bands}',
     checkin_scanned: 'Checked in',
     checkin_bad_token: 'Scanner link is not valid — ask for a fresh one.',
-    checkin_override: 'Bands to hand over',
     checkin_at: 'Checked in',
     checkin_setup: 'Check-in scanner',
     checkin_setup_hint: 'Open this link on the door staff’s phone. The band list and link are created on first use; ‘New link’ revokes the old one.',
@@ -333,7 +330,7 @@ window.i18n.global.mergeLocaleMessage('en', {
     band_saved: 'Saved: {bands} bands, {rules} rules',
     band_save_failed: 'Could not save the band scheme.',
     band_load_failed: 'Could not load the band scheme.',
-    checkin_no_bands: 'No band rule matches this ticket — choose the bands below.',
+    checkin_no_bands: 'No band rule matches this ticket — tell the organiser.',
 
     registered_success: 'Registered',
 

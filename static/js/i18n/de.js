@@ -260,12 +260,9 @@ window.i18n.global.mergeLocaleMessage('de', {
     checkin_valid: 'Gültig — einchecken',
     checkin_already: 'Bereits eingecheckt',
     checkin_confirm: 'Bestätigen & aushändigen',
-    checkin_bands: 'Bänder…',
-    checkin_save: 'Bänder speichern',
     checkin_done: 'Ausgehändigt: {bands}',
     checkin_scanned: 'Eingecheckt',
     checkin_bad_token: 'Scanner-Link ist ungültig – bitte einen neuen anfordern.',
-    checkin_override: 'Auszuhändigende Bänder',
     checkin_at: 'Eingecheckt',
     checkin_setup: 'Check-in-Scanner',
     checkin_setup_hint: 'Diesen Link auf dem Handy des Türpersonals öffnen. Bandliste und Link entstehen beim ersten Aufruf; „Neuer Link“ macht den alten ungültig.',
@@ -330,7 +327,7 @@ window.i18n.global.mergeLocaleMessage('de', {
     band_saved: 'Gespeichert: {bands} Bänder, {rules} Regeln',
     band_save_failed: 'Das Bandschema konnte nicht gespeichert werden.',
     band_load_failed: 'Das Bandschema konnte nicht geladen werden.',
-    checkin_no_bands: 'Keine Bandregel passt zu diesem Ticket – Bänder unten wählen.',
+    checkin_no_bands: 'Keine Bandregel passt zu diesem Ticket – bitte das Orga-Team rufen.',
 
     registered_success: 'Registriert',
 

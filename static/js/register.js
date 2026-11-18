@@ -9,9 +9,6 @@
     shownBands() {
       return (this.lastScan && this.lastScan.bands) || []
     },
-    allBands() {
-      return (this.lastScan && this.lastScan.all_bands) || []
-    },
     statusClass() {
       if (!this.lastScan || this.lastScan.error) return 'bad'
       // Already checked in is a STOP, not a caution: red, like an error.
@@ -35,8 +32,6 @@
       token: '',
       lastScan: null,
       busy: false,
-      overrideOpen: false,
-      overrideBands: [],
       recent: [],
       pollTimer: null,
       sendCamera: {show: false, camera: 'auto'}
@@ -150,35 +145,6 @@
         }
       }
     },
-    openOverride() {
-      this.overrideBands = this.shownBands.map(b => b.id)
-      this.overrideOpen = true
-    },
-    toggleBand(id) {
-      this.overrideBands = this.overrideBands.includes(id)
-        ? this.overrideBands.filter(b => b !== id)
-        : [...this.overrideBands, id]
-    },
-    async saveOverride() {
-      if (!this.lastScan?.ticket) return
-      this.busy = true
-      try {
-        const {data} = await LNbits.api.request(
-          'POST',
-          `/events/api/v1/checkin/${this.lastScan.ticket.id}`,
-          null,
-          {k: this.token, bands: this.overrideBands}
-        )
-        this.overrideOpen = false
-        this.busy = false
-        this.finishHandover(data)
-      } catch (error) {
-        this.busy = false
-        this.lastScan = {
-          error: error.response?.data?.detail || error.message || 'Unknown error'
-        }
-      }
-    }
   },
   beforeUnmount() {
     if (this.pollTimer) clearInterval(this.pollTimer)
