@@ -2104,21 +2104,33 @@ def resolve_bands(
     out: list[Band] = []
     note = ""
     seen: set[str] = set()
-    for rule in event.extra.band_rules:
-        if not _band_rule_matches(rule, ticket, day):
-            continue
-        if rule.per == "redemption" and issued_elsewhere.intersection(rule.band_ids):
-            names = ", ".join(
-                by_id[b].name for b in rule.band_ids if b in by_id
-            )
-            if names:
-                note = f"{names} already issued (one per code)."
-            continue
+
+    def add(rule) -> None:
         for bid in rule.band_ids:
             band = by_id.get(bid)
             if band and bid not in seen:
                 out.append(band)
                 seen.add(bid)
+
+    # ACCESS first: a band is an admission. A ticket that admits nobody (a
+    # screening add-on, an unknown type) may still be checked in, but it must
+    # not collect a ROLE band on the way through -- 11 of the 50 Bitflix tickets
+    # carry a speaker code, and a guest holding one would walk in with Yellow.
+    for rule in event.extra.band_rules:
+        if rule.per == "redemption" or not _band_rule_matches(rule, ticket, day):
+            continue
+        add(rule)
+
+    if out:
+        for rule in event.extra.band_rules:
+            if rule.per != "redemption" or not _band_rule_matches(rule, ticket, day):
+                continue
+            if issued_elsewhere.intersection(rule.band_ids):
+                names = ", ".join(by_id[b].name for b in rule.band_ids if b in by_id)
+                if names:
+                    note = f"{names} already issued (one per code)."
+                continue
+            add(rule)
     return out, note
 
 

@@ -412,3 +412,36 @@ def test_the_recent_checkins_feed_is_shared_state():
         assert rows[0].ticket_type_name == "Single - Weekend"
         assert len(await S.recent_checkins("EVB", "tok123", limit=1)) == 1
     asyncio.run(run())
+
+
+def test_a_role_band_needs_an_access_band():
+    """A code alone must not band someone: an add-on with a speaker code used to
+    hand out Yellow with no admission behind it (and a guest could hold it)."""
+    async def run():
+        ev = await make_event()
+        # a type with no rule at all, bought with a speaker code
+        await crud.create_ticket_type(
+            M.TicketType(id="ADDON", event_id="EVB", name="Screening seat", price=0,
+                         max_tickets=50, available_from=TODAY, available_to="2026-12-31",
+                         sort_order=0, extra={})
+        )
+        addon = await make_ticket(
+            "L1", "ADDON", extra=M.TicketExtra(applied_promo_code="SPK-AAAAAA")
+        )
+        assert S.resolve_bands(ev, addon, [], FRI)[0] == [], "no admission, no bands"
+
+        # the same code on a ticket that DOES admit still yields both
+        weekend = await make_ticket(
+            "L2", WEEKEND, extra=M.TicketExtra(applied_promo_code="SPK-AAAAAA")
+        )
+        assert [b.id for b in S.resolve_bands(ev, weekend, [], FRI)[0]] == ["white", "yellow"]
+
+        # and an add-on attached to a weekend order still gives nothing on its own
+        ev.extra.band_rules.append(
+            M.BandRule(band_ids=["black"], per="redemption", promo_codes=["VOLUNTEER"])
+        )
+        crew_addon = await make_ticket(
+            "L3", "ADDON", extra=M.TicketExtra(applied_promo_code="VOLUNTEER")
+        )
+        assert S.resolve_bands(ev, crew_addon, [], FRI)[0] == []
+    asyncio.run(run())
