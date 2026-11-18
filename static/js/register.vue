@@ -22,7 +22,7 @@
       </q-card>
 
       <!-- what this ticket gets at the door -->
-      <q-card v-if="lastScan">
+      <q-card v-if="lastScan" class="checkin-card">
         <div class="checkin-status" :class="statusClass">
           <q-icon :name="statusIcon" size="18px"></q-icon>
           <span v-text="statusText"></span>
@@ -98,16 +98,21 @@
   .checkin-status {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
-    padding: 10px 16px;
+    padding: 11px 16px;
     font-size: 13px;
     font-weight: 700;
     letter-spacing: 0.4px;
+    text-align: center;
     text-transform: uppercase;
+    color: #fff;
   }
-  .checkin-status.ok { background: rgba(22, 163, 74, 0.18); color: #4ade80; }
-  .checkin-status.warn { background: rgba(245, 158, 11, 0.18); color: #fbbf24; }
-  .checkin-status.bad { background: rgba(220, 38, 38, 0.18); color: #f87171; }
+  /* The head says one thing: go (green) or stop (red). */
+  .checkin-status.ok { background: #16a34a; }
+  .checkin-status.warn { background: #d97706; }
+  .checkin-status.bad { background: #dc2626; }
+  .checkin-card { overflow: hidden; }
   .band-list { display: flex; flex-direction: column; gap: 8px; }
   .band {
     display: flex;
