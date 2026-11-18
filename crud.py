@@ -155,6 +155,16 @@ async def get_event(event_id: str) -> Event | None:
     return event
 
 
+async def get_all_events() -> list[Event]:
+    """Every event on this instance (used to resolve a shared door token)."""
+    events = await db.fetchall("SELECT * FROM events.events", model=Event)
+    result = []
+    for event in events:
+        ticket_types = await get_ticket_types(event.id)
+        result.append(cast(Event, sync_event_from_ticket_types(event, ticket_types)))
+    return result
+
+
 async def get_events(wallet_ids: str | list[str]) -> list[Event]:
     if isinstance(wallet_ids, str):
         wallet_ids = [wallet_ids]

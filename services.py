@@ -25,6 +25,7 @@ from .crud import (
     create_basket,
     create_ticket,
     get_basket,
+    get_all_events,
     get_basket_tickets,
     get_event_tickets,
     get_event,
@@ -58,6 +59,7 @@ from .models import (
     PromoRejection,
     PromoRequirement,
     PromoSource,
+    ScannerGroup,
     Ticket,
     TicketType,
     TicketResendResult,
@@ -1986,6 +1988,88 @@ def default_band_rules(event: Event, ticket_types: list[TicketType]) -> list[Ban
     return rules
 
 
+def _event_tokens(event: Event) -> set[str]:
+    """Every token that opens this event's door: its own, plus any it shares."""
+    tokens = {event.extra.scanner_token} if event.extra.scanner_token else set()
+    tokens |= {g.token for g in event.extra.scanner_groups if g.token}
+    return tokens
+
+
+def token_opens(event: Event, token: str) -> bool:
+    return bool(token) and token in _event_tokens(event)
+
+
+def _sort_checkins(rows: list[CheckinRow], limit: int) -> list[CheckinRow]:
+    rows.sort(
+        key=lambda r: r.checked_in_at or datetime.min.replace(tzinfo=timezone.utc),
+        reverse=True,
+    )
+    return rows[:limit]
+
+
+async def _checkin_rows(event: Event) -> list[CheckinRow]:
+    bands = {b.id: b for b in event.extra.bands}
+    types = {t.id: t.name for t in await get_ticket_types(event.id)}
+    rows: list[CheckinRow] = []
+    for ticket in await get_event_tickets(event.id):
+        if not ticket.extra.bands_issued and not ticket.registered:
+            continue
+        rows.append(
+            CheckinRow(
+                id=ticket.id,
+                event_name=event.name or "",
+                name=ticket.name or "",
+                ticket_type_name=types.get(ticket.ticket_type_id, ""),
+                bands=[
+                    CheckinBand(id=b.id, name=b.name, label=b.label, colour=b.colour)
+                    for b in (bands[i] for i in ticket.extra.bands_issued if i in bands)
+                ],
+                checked_in_at=ticket.reg_timestamp,
+            )
+        )
+    return rows
+
+
+async def recent_checkins_for_token(
+    token: str = "", limit: int = 25
+) -> list[CheckinRow]:
+    """Every check-in this door link may see, across the events it covers.
+
+    A ticket belongs to exactly one event, so the door link needs no event in
+    its URL: the scan resolves the event, and this feed is simply every event
+    that carries the same token.
+    """
+    if not token:
+        raise PermissionError("Invalid scanner link.")
+    events = [e for e in await get_all_events() if token_opens(e, token)]
+    if not events:
+        raise PermissionError("Invalid scanner link.")
+    rows: list[CheckinRow] = []
+    for event in events:
+        rows.extend(await _checkin_rows(event))
+    return _sort_checkins(rows, limit)
+
+
+async def link_door(events: list[Event], name: str, *, rotate: bool = False) -> str:
+    """Give these events one shared door token, and return it."""
+    if not events:
+        raise ValueError("Pick at least one event.")
+    token = None
+    if not rotate:
+        shared = None
+        for event in events:
+            mine = {g.token for g in event.extra.scanner_groups}
+            shared = mine if shared is None else (shared & mine)
+        token = next(iter(shared), None)
+    if not token:
+        token = urlsafe_short_hash()
+    for event in events:
+        if not any(g.token == token for g in event.extra.scanner_groups):
+            event.extra.scanner_groups.append(ScannerGroup(token=token, name=name))
+            await update_event(event)
+    return token
+
+
 async def recent_checkins(
     event_id: str, token: str = "", limit: int = 25
 ) -> list[CheckinRow]:
@@ -1998,29 +2082,9 @@ async def recent_checkins(
     event = await get_event(event_id)
     if not event:
         raise ValueError("Event not found.")
-    if not event.extra.scanner_token or token != event.extra.scanner_token:
+    if not token_opens(event, token):
         raise PermissionError("Invalid scanner link.")
-
-    bands = {b.id: b for b in event.extra.bands}
-    types = {t.id: t.name for t in await get_ticket_types(event_id)}
-    rows: list[CheckinRow] = []
-    for ticket in await get_event_tickets(event_id):
-        if not ticket.extra.bands_issued:
-            continue
-        rows.append(
-            CheckinRow(
-                id=ticket.id,
-                name=ticket.name or "",
-                ticket_type_name=types.get(ticket.ticket_type_id, ""),
-                bands=[
-                    CheckinBand(id=b.id, name=b.name, label=b.label, colour=b.colour)
-                    for b in (bands[i] for i in ticket.extra.bands_issued if i in bands)
-                ],
-                checked_in_at=ticket.reg_timestamp,
-            )
-        )
-    rows.sort(key=lambda r: r.checked_in_at or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
-    return rows[:limit]
+    return _sort_checkins(await _checkin_rows(event), limit)
 
 
 async def seed_bands(event: Event, *, force: bool = False) -> Event:
@@ -2172,7 +2236,7 @@ async def _checkin_impl(
     event = await get_event(ticket.event)
     if not event:
         raise ValueError("Event not found.")
-    if not event.extra.scanner_token or token != event.extra.scanner_token:
+    if not token_opens(event, token):
         raise PermissionError("Invalid scanner link.")
     if not ticket.paid:
         raise ValueError("Ticket not paid for.")

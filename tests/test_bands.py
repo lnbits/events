@@ -445,3 +445,95 @@ def test_a_role_band_needs_an_access_band():
         )
         assert S.resolve_bands(ev, crew_addon, [], FRI)[0] == []
     asyncio.run(run())
+
+
+def _second_event():
+    return M.Event(
+        id="EVC", wallet="w2", name="Freedom Fest 2026", info="", canceled=False,
+        event_start_date="2026-01-01", event_end_date="2026-12-31",
+        currency="GBP", admin_email=None, allow_fiat=False, fiat_currency="GBP",
+        amount_tickets=100, price_per_ticket=50, time=datetime.now(timezone.utc),
+        sold=0, banner=None,
+        extra=M.EventExtra(
+            bands=[M.Band(id="green", name="Green", label="Freedom Fest", colour="#15803d")],
+            band_rules=[M.BandRule(band_ids=["green"], ticket_type_ids=["FF1"])],
+            scanner_groups=[M.ScannerGroup(token="DOOR-TOKEN", name="Door")],
+        ),
+    )
+
+
+def test_a_door_token_opens_every_event_in_its_group(monkeypatch):
+    """One link, several doors: the token is checked against the ticket's event."""
+    async def run():
+        ev = await make_event()
+        ev.extra.scanner_groups = [M.ScannerGroup(token="DOOR-TOKEN", name="Door")]
+        await crud.update_event(ev)
+        assert S.token_opens(ev, "DOOR-TOKEN")
+        assert S.token_opens(ev, ev.extra.scanner_token), "the event's own link still works"
+        assert not S.token_opens(ev, "nope")
+
+        await make_ticket("M1", WEEKEND)
+        view = await S.checkin_view("M1", "DOOR-TOKEN")
+        assert [b.id for b in view.bands] == ["white"]
+
+        with pytest.raises(PermissionError):
+            await S.checkin_view("M1", "nope")
+    asyncio.run(run())
+
+
+def test_the_door_feed_spans_every_event_the_token_covers(monkeypatch):
+    async def run():
+        ev = await make_event()
+        ev.extra.scanner_groups = [M.ScannerGroup(token="DOOR-TOKEN", name="Door")]
+        await crud.update_event(ev)
+        other = _second_event()
+        await crud.create_event(other)
+        await crud.create_ticket_type(
+            M.TicketType(id="FF1", event_id="EVC", name="Freedom Fest", price=50,
+                         max_tickets=100, available_from=TODAY, available_to="2026-12-31",
+                         sort_order=0, extra={})
+        )
+        mine = await make_ticket("N1", WEEKEND, extra=M.TicketExtra(bands_issued=["white"]))
+        mine.registered = True
+        mine.reg_timestamp = datetime(2026, 11, 20, 18, 0, tzinfo=timezone.utc)
+        await crud.update_ticket(mine)
+        theirs = M.Ticket(
+            id="N2", wallet="w2", event="EVC", name="FF Person", email="ff@x.y",
+            registered=True, paid=True, time=datetime.now(timezone.utc),
+            reg_timestamp=datetime(2026, 11, 21, 12, 0, tzinfo=timezone.utc),
+            ticket_type_id="FF1", basket_id=None,
+            extra=M.TicketExtra(bands_issued=["green"]),
+        )
+        await crud.update_ticket(theirs)
+
+        async def fake_all():
+            return [ev, other]
+
+        monkeypatch.setattr(S, "get_all_events", fake_all)
+        rows = await S.recent_checkins_for_token("DOOR-TOKEN")
+        assert [r.id for r in rows] == ["N2", "N1"], "newest first, both events"
+        assert [r.event_name for r in rows] == ["Freedom Fest 2026", "Bitfest"]
+        assert [b.name for b in rows[0].bands] == ["Green"]
+
+        with pytest.raises(PermissionError):
+            await S.recent_checkins_for_token("")
+    asyncio.run(run())
+
+
+def test_link_door_mints_one_token_for_several_events(monkeypatch):
+    async def run():
+        a = await make_event()
+        b = _second_event()
+        b.extra.scanner_groups = []
+        monkeypatch.setattr(S, "update_event", lambda e: _done(e))
+        token = await S.link_door([a, b], "Door")
+        assert token and len(token) >= 8, 'same generator as the per-event token'
+        assert [g.token for g in a.extra.scanner_groups] == [token]
+        assert [g.token for g in b.extra.scanner_groups] == [token]
+        again = await S.link_door([a, b], "Door")
+        assert again == token, "reuses the shared token instead of minting another"
+    asyncio.run(run())
+
+
+async def _done(event):
+    return event

@@ -138,6 +138,10 @@ async def get_events(*a, **k):
     return list(_STORE["events"].values())
 
 
+async def get_all_events():
+    return list(_STORE["events"].values())
+
+
 # --- baskets ---
 async def create_basket(basket):
     _STORE["baskets"][basket.id] = basket

@@ -259,6 +259,13 @@ class BandRule(BaseModel):
     day: str | None = None  # 'fri' | 'sat'
 
 
+class ScannerGroup(BaseModel):
+    """A door link: one token that works on several events at once."""
+
+    token: str
+    name: str = ""
+
+
 class EventExtra(BaseModel):
     promo_codes: list[PromoCode] = Field(default_factory=list)
     # Check-in: the bands this event hands out, the rules that pick them, and
@@ -266,6 +273,8 @@ class EventExtra(BaseModel):
     bands: list[Band] = Field(default_factory=list)
     band_rules: list[BandRule] = Field(default_factory=list)
     scanner_token: str | None = None
+    # Tokens shared with other events, so one link opens every door.
+    scanner_groups: list[ScannerGroup] = Field(default_factory=list)
     conditional: bool = False
     min_tickets: int = 1
     email_notifications: bool = False
@@ -444,10 +453,19 @@ class CheckinRow(BaseModel):
     """One hand-over, as every phone at the door should see it."""
 
     id: str
+    event_name: str = ""
     name: str = ""
     ticket_type_name: str = ""
     bands: list[CheckinBand] = []
     checked_in_at: datetime | None = None
+
+
+class DoorLinkRequest(BaseModel):
+    """Mint one link that opens several events' doors."""
+
+    event_ids: list[str] = []
+    name: str = "Door"
+    rotate: bool = False
 
 
 class BandSetup(BaseModel):

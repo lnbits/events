@@ -56,6 +56,7 @@ from .models import (
     CheckinBand,
     CheckinRequest,
     CheckinRow,
+    DoorLinkRequest,
     CheckinView,
     CreateBasket,
     CreateEvent,
@@ -74,7 +75,9 @@ from .services import (
     WEEKDAY_NAMES,
     CheckinError,
     checkin_view,
+    link_door,
     recent_checkins,
+    recent_checkins_for_token,
     seed_bands,
     calculate_basket_total,
     create_basket_with_charge,
@@ -918,6 +921,49 @@ async def api_event_scanner(
         "token": event.extra.scanner_token,
         "bands": len(event.extra.bands),
         "rules": len(event.extra.band_rules),
+    }
+
+
+@events_api_router.get("/checkins", response_model=list[CheckinRow])
+async def api_recent_checkins_all(k: str = "", limit: int = 25) -> list[CheckinRow]:
+    """Recent hand-overs across every event this door link covers."""
+    try:
+        return await recent_checkins_for_token(k, max(1, min(limit, 100)))
+    except PermissionError as exc:
+        raise HTTPException(status_code=HTTPStatus.FORBIDDEN, detail=str(exc))
+
+
+@events_api_router.post("/door-link")
+async def api_door_link(
+    data: DoorLinkRequest, wallet: WalletTypeInfo = Depends(require_admin_key)
+) -> dict:
+    """Give several events one shared door token (one URL, every door)."""
+    from lnbits.core.crud.wallets import get_wallet
+
+    events = []
+    for event_id in data.event_ids:
+        event = await get_event(event_id)
+        if not event:
+            raise HTTPException(
+                status_code=HTTPStatus.NOT_FOUND, detail=f"Event {event_id} does not exist."
+            )
+        if event.wallet != wallet.wallet.id:
+            # One person can own several wallets: Bitfest and Freedom Fest do,
+            # and the door they staff is the same door.
+            owner = await get_wallet(event.wallet)
+            if not owner or owner.user != wallet.wallet.user:
+                raise HTTPException(
+                    status_code=HTTPStatus.FORBIDDEN, detail="Not your event."
+                )
+        events.append(event)
+    try:
+        token = await link_door(events, data.name, rotate=data.rotate)
+    except ValueError as exc:
+        raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail=str(exc))
+    return {
+        "token": token,
+        "event_ids": [e.id for e in events],
+        "url": f"/events/register?k={token}",
     }
 
 

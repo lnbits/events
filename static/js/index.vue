@@ -257,6 +257,30 @@
                 <q-input filled dense readonly :model-value="scannerDialog.link" @focus="$event.target.select()"></q-input>
                 <div class="text-caption text-grey-6 q-mt-sm" v-text="$t('events.checkin_setup_counts', {bands: scannerDialog.bands, rules: scannerDialog.rules})"></div>
               </q-card-section>
+              <q-card-section>
+                <div class="text-caption text-grey-6 q-mb-xs" v-text="$t('events.door_link_title')"></div>
+                <q-select
+                  dense
+                  filled
+                  multiple
+                  use-chips
+                  emit-value
+                  map-options
+                  v-model="scannerDialog.eventIds"
+                  :options="doorLinkOptions"
+                  option-value="value"
+                  option-label="label"
+                ></q-select>
+                <q-btn
+                  class="q-mt-sm full-width"
+                  outline
+                  color="primary"
+                  :disable="scannerDialog.eventIds.length < 2"
+                  :loading="scannerDialog.linking"
+                  @click="createDoorLink"
+                  v-text="$t('events.door_link_create')"
+                ></q-btn>
+              </q-card-section>
               <q-card-actions align="right">
                 <q-btn flat color="grey" v-text="$t('cancel')" @click="scannerDialog.show = false"></q-btn>
                 <q-btn flat color="primary" icon="how_to_reg" v-text="$t('events.checkin_edit_bands')" @click="openBandEditor"></q-btn>

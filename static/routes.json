@@ -33,5 +33,12 @@
     "template": "/events/static/js/register.vue",
     "component": "/events/static/js/register.js",
     "i18n": "/events/static/js/i18n"
+  },
+  {
+    "path": "/events/register",
+    "name": "PageEventsRegister",
+    "template": "/events/static/js/register.vue",
+    "component": "/events/static/js/register.js",
+    "i18n": "/events/static/js/i18n"
   }
 ]

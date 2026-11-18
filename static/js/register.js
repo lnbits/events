@@ -44,10 +44,10 @@
       // every other phone there, and dies with the tab.
       if (!this.token) return
       try {
-        const {data} = await LNbits.api.request(
-          'GET',
-          `/events/api/v1/checkins/${this.eventId}?k=${encodeURIComponent(this.token)}`
-        )
+        const url = this.eventId
+          ? `/events/api/v1/checkins/${this.eventId}?k=${encodeURIComponent(this.token)}`
+          : `/events/api/v1/checkins?k=${encodeURIComponent(this.token)}`
+        const {data} = await LNbits.api.request('GET', url)
         this.recent = Array.isArray(data) ? data : []
       } catch (error) {
         // a stale feed must never break the scanner itself
@@ -150,7 +150,8 @@
     if (this.pollTimer) clearInterval(this.pollTimer)
   },
   async created() {
-    this.eventId = this.$route.params.id
+    // A door link carries no event id: the ticket's own event decides.
+    this.eventId = this.$route.params.id || null
     // The scanner link carries the event's token: the page is public, the
     // hand-over endpoint is not.
     this.token = (this.$route.query && this.$route.query.k) || ''

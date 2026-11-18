@@ -51,6 +51,9 @@ window.PageEvents = {
         value: tt.id
       }))
     },
+    doorLinkOptions() {
+      return (this.events || []).map(ev => ({label: ev.name, value: ev.id}))
+    },
     bandEditDayOptions() {
       // '' (not null) so the select can display the "any day" label: Quasar
       // treats null as "nothing selected" and would show the placeholder.
@@ -252,7 +255,9 @@ active: true,
         link: '',
         bands: 0,
         rules: 0,
-        loading: false
+        loading: false,
+        eventIds: [],
+        linking: false
       },
       bandEditDialog: {
         show: false,
@@ -306,11 +311,41 @@ active: true,
         this.scannerDialog.bands = data.bands
         this.scannerDialog.rules = data.rules
         this.scannerDialog.link = `${window.location.origin}/events/register/${eventId}?k=${data.token}`
+        if (!this.scannerDialog.eventIds.length) {
+          this.scannerDialog.eventIds = [eventId]
+        }
         this.scannerDialog.show = true
       } catch (error) {
         LNbits.utils.notifyApiError(error)
       } finally {
         this.scannerDialog.loading = false
+      }
+    },
+    async createDoorLink() {
+      // One token across several events: the scan names the event, so the link
+      // needs none of them.
+      const wallet = this.bandEditWallet(this.scannerDialog.eventId)
+      if (!wallet) {
+        LNbits.utils.notifyApiError(new Error('No wallet for this event'))
+        return
+      }
+      this.scannerDialog.linking = true
+      try {
+        const {data} = await LNbits.api.request(
+          'POST',
+          '/events/api/v1/door-link',
+          wallet.adminkey,
+          {event_ids: this.scannerDialog.eventIds, name: 'Door'}
+        )
+        this.scannerDialog.link = `${window.location.origin}${data.url}`
+        Quasar.Notify.create({
+          message: this.$t('events.door_link_created', {count: data.event_ids.length}),
+          type: 'positive'
+        })
+      } catch (error) {
+        LNbits.utils.notifyApiError(error)
+      } finally {
+        this.scannerDialog.linking = false
       }
     },
     copyScannerLink() {
