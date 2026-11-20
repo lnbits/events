@@ -46,10 +46,13 @@
       // every other phone there, and dies with the tab.
       if (!this.token) return
       try {
-        const url = this.eventId
-          ? `/events/api/v1/checkins/${this.eventId}?k=${encodeURIComponent(this.token)}`
-          : `/events/api/v1/checkins?k=${encodeURIComponent(this.token)}`
-        const {data} = await LNbits.api.request('GET', url)
+        // Always the token's feed: a per-event token returns that event, a
+        // door token returns every event it covers. The event id in the URL
+        // (if any) is only there to satisfy older route tables.
+        const {data} = await LNbits.api.request(
+          'GET',
+          `/events/api/v1/checkins?k=${encodeURIComponent(this.token)}`
+        )
         this.recent = Array.isArray(data) ? data : []
       } catch (error) {
         // a stale feed must never break the scanner itself

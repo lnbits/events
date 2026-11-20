@@ -963,7 +963,10 @@ async def api_door_link(
     return {
         "token": token,
         "event_ids": [e.id for e in events],
-        "url": f"/events/register?k={token}",
+        # Keep an event id in the path: /events/register/<id> is a route every
+        # client already has, whereas /events/register (no id) needs a fresh
+        # routes.json and 404s as "event unavailable" on a cached one.
+        "url": f"/events/register/{events[0].id}?k={token}",
     }
 
 
