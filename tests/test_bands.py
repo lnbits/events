@@ -537,3 +537,27 @@ def test_link_door_mints_one_token_for_several_events(monkeypatch):
 
 async def _done(event):
     return event
+
+
+def test_search_tickets_by_name(monkeypatch):
+    """The door's fallback when a QR will not scan."""
+    async def run():
+        ev = await make_event()
+        ev.extra.scanner_groups = [M.ScannerGroup(token="DOOR", name="Door")]
+        await crud.update_event(ev)
+        await make_ticket("S1", WEEKEND)
+
+        async def fake_all():
+            return [ev]
+
+        monkeypatch.setattr(S, "get_all_events", fake_all)
+        rows = await S.search_tickets("DOOR", "hold")
+        assert [r.id for r in rows] == ["S1"]
+        assert rows[0].registered is False and rows[0].paid is True
+        assert rows[0].event_name == "Bitfest"
+
+        assert await S.search_tickets("DOOR", "nobody") == []
+        assert await S.search_tickets("DOOR", "h") == [], "one letter is not a search"
+        with pytest.raises(PermissionError):
+            await S.search_tickets("wrong-token", "hold")
+    asyncio.run(run())

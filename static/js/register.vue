@@ -34,6 +34,16 @@
               @click="lookupManual"
               v-text="$t('events.checkin_manual_go')"
             ></q-btn>
+            <div v-if="matches.length" class="match-list">
+              <div v-for="m in matches" :key="m.id" class="match" @click="pickMatch(m)">
+                <div class="match-name">
+                  <span v-text="m.name || $t('events.anon')"></span>
+                  <q-badge v-if="m.registered" color="red" v-text="$t('events.checkin_already_short')"></q-badge>
+                </div>
+                <div class="match-meta text-grey-6" v-text="matchLine(m)"></div>
+              </div>
+            </div>
+            <div v-if="searched && !matches.length" class="text-caption text-grey-6 q-mt-sm" v-text="$t('events.checkin_no_matches')"></div>
           </div>
           <div v-if="!token" class="text-negative" v-text="$t('events.checkin_bad_token')"></div>
         </q-card-section>
@@ -168,6 +178,12 @@
   .door-note { margin-top: 8px; font-size: 12px; color: #fbbf24; }
   .bandless-note { margin-top: 8px; font-size: 12px; opacity: 0.6; }
   .manual-entry { margin-top: 6px; }
+  .match-list { margin-top: 6px; border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 8px; overflow: hidden; }
+  .match { padding: 9px 11px; cursor: pointer; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+  .match:last-child { border-bottom: none; }
+  .match:active { background: rgba(255, 255, 255, 0.06); }
+  .match-name { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; }
+  .match-meta { font-size: 11px; }
   .scan-row { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0; font-size: 12px; }
   .scan-name { font-weight: 600; }
 

@@ -78,6 +78,7 @@ from .services import (
     link_door,
     recent_checkins,
     recent_checkins_for_token,
+    search_tickets,
     seed_bands,
     calculate_basket_total,
     create_basket_with_charge,
@@ -922,6 +923,17 @@ async def api_event_scanner(
         "bands": len(event.extra.bands),
         "rules": len(event.extra.band_rules),
     }
+
+
+@events_api_router.get("/checkin-lookup", response_model=list[CheckinRow])
+async def api_checkin_lookup(
+    k: str = "", q: str = "", limit: int = 10
+) -> list[CheckinRow]:
+    """Find a ticket by holder name, for when the QR will not scan."""
+    try:
+        return await search_tickets(k, q, max(1, min(limit, 25)))
+    except PermissionError as exc:
+        raise HTTPException(status_code=HTTPStatus.FORBIDDEN, detail=str(exc))
 
 
 @events_api_router.get("/checkins", response_model=list[CheckinRow])

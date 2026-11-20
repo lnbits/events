@@ -35,6 +35,8 @@
       recent: [],
       pollTimer: null,
       manualId: '',
+      matches: [],
+      searched: false,
       cameraError: '',
       sendCamera: {show: false, camera: 'auto'}
     }
@@ -91,10 +93,36 @@
             ? this.$t('events.checkin_camera_missing')
             : this.$t('events.checkin_camera_failed')
     },
-    lookupManual() {
-      const id = (this.manualId || '').trim()
-      if (!id) return
-      this.scan(id)
+    async lookupManual() {
+      const q = (this.manualId || '').trim()
+      if (!q || !this.token) return
+      // A pasted id is unambiguous; anything with a space is a person's name.
+      const looksLikeId = !/\s/.test(q) && q.length >= 16
+      this.searched = false
+      if (looksLikeId) {
+        this.matches = []
+        this.scan(q)
+        return
+      }
+      try {
+        const {data} = await LNbits.api.request(
+          'GET',
+          `/events/api/v1/checkin-lookup?k=${encodeURIComponent(this.token)}&q=${encodeURIComponent(q)}`
+        )
+        this.matches = Array.isArray(data) ? data : []
+      } catch (error) {
+        this.matches = []
+      }
+      this.searched = true
+    },
+    pickMatch(match) {
+      this.matches = []
+      this.searched = false
+      this.manualId = ''
+      this.scan(match.id)
+    },
+    matchLine(m) {
+      return [m.ticket_type_name, m.event_name].filter(Boolean).join(' · ')
     },
     decodeQR(res) {
       this.sendCamera.show = false

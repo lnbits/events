@@ -458,6 +458,8 @@ class CheckinRow(BaseModel):
     ticket_type_name: str = ""
     bands: list[CheckinBand] = []
     checked_in_at: datetime | None = None
+    paid: bool = True
+    registered: bool = False
 
 
 class DoorLinkRequest(BaseModel):

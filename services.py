@@ -2025,6 +2025,8 @@ async def _checkin_rows(event: Event) -> list[CheckinRow]:
                     for b in (bands[i] for i in ticket.extra.bands_issued if i in bands)
                 ],
                 checked_in_at=ticket.reg_timestamp,
+                paid=ticket.paid,
+                registered=bool(ticket.registered),
             )
         )
     return rows
@@ -2048,6 +2050,80 @@ async def recent_checkins_for_token(
     for event in events:
         rows.extend(await _checkin_rows(event))
     return _sort_checkins(rows, limit)
+
+
+async def search_tickets(
+    token: str, query: str, limit: int = 10
+) -> list[CheckinRow]:
+    """Find tickets by holder name (or email) across the events this link covers.
+
+    The door needs this when a QR will not scan and there is no printed id to
+    type. Paid tickets only: an unpaid one cannot be admitted anyway.
+    """
+    q = (query or "").strip().lower()
+    if len(q) < 2:
+        return []
+    if not token:
+        raise PermissionError("Invalid scanner link.")
+    events = [e for e in await get_all_events() if token_opens(e, token)]
+    if not events:
+        raise PermissionError("Invalid scanner link.")
+
+    hits: list[tuple[int, CheckinRow]] = []
+
+    def rank(name: str) -> int:
+        # Exact beats prefix beats anywhere; "Nathan" must not surface
+        # "Jonathan" before the person standing at the door.
+        return 0 if name == q else 1 if name.startswith(q) else 2
+    for event in events:
+        bands = {b.id: b for b in event.extra.bands}
+        types = {t.id: t.name for t in await get_ticket_types(event.id)}
+        # A type that an ACCESS rule names is someone's ticket; add-ons (a
+        # screening seat, a Bitflix comp) are never what the door wants first.
+        access_types = {
+            tid
+            for rule in event.extra.band_rules
+            if rule.per == "ticket"
+            for tid in (rule.ticket_type_ids or [])
+        }
+        for ticket in await get_event_tickets(event.id):
+            if not ticket.paid:
+                continue
+            name = (ticket.name or "").lower()
+            email = (ticket.email or "").lower()
+            if q not in name and q not in email:
+                continue
+            hits.append(
+                (
+                    rank(name) if q in name else 3,
+                    0 if ticket.ticket_type_id in access_types else 1,
+                    CheckinRow(
+                    id=ticket.id,
+                    event_name=event.name or "",
+                    name=ticket.name or "",
+                    ticket_type_name=types.get(ticket.ticket_type_id, ""),
+                    bands=[
+                        CheckinBand(id=b.id, name=b.name, label=b.label, colour=b.colour)
+                        for b in (
+                            bands[i] for i in ticket.extra.bands_issued if i in bands
+                        )
+                    ],
+                    checked_in_at=ticket.reg_timestamp,
+                    paid=ticket.paid,
+                    registered=bool(ticket.registered),
+                ))
+            )
+            if len(hits) >= limit * 3:
+                break
+    hits.sort(
+        key=lambda item: (
+            item[0],             # exact, then prefix, then anywhere
+            item[1],             # real ticket before add-on
+            item[2].registered,  # not-yet-in before already-in
+            item[2].name.lower(),
+        )
+    )
+    return [row for _, _, row in hits[:limit]]
 
 
 async def link_door(events: list[Event], name: str, *, rotate: bool = False) -> str:
