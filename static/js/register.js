@@ -34,6 +34,8 @@
       busy: false,
       recent: [],
       pollTimer: null,
+      manualId: '',
+      cameraError: '',
       sendCamera: {show: false, camera: 'auto'}
     }
   },
@@ -75,6 +77,22 @@
       const d = new Date(value)
       return isNaN(d) ? '' : d.toTimeString().slice(0, 5)
     },
+    onCameraError(error) {
+      // A blocked camera (in-app browsers do this, and so does a denied
+      // permission) used to leave a black dialog with no explanation.
+      const name = (error && (error.name || error.message)) || 'unknown'
+      this.cameraError =
+        name === 'NotAllowedError'
+          ? this.$t('events.checkin_camera_denied')
+          : name === 'NotFoundError'
+            ? this.$t('events.checkin_camera_missing')
+            : this.$t('events.checkin_camera_failed')
+    },
+    lookupManual() {
+      const id = (this.manualId || '').trim()
+      if (!id) return
+      this.scan(id)
+    },
     decodeQR(res) {
       this.sendCamera.show = false
       const raw = (res && res[0] && res[0].rawValue) || ''
@@ -86,6 +104,7 @@
     },
     async scan(ticketId) {
       if (!ticketId) return
+      this.sendCamera.show = false // a manual lookup must close the camera sheet
       try {
         const {data} = await LNbits.api.request(
           'GET',

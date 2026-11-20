@@ -17,6 +17,24 @@
             <q-icon left name="qr_code_scanner" size="lg"></q-icon>
             <span v-text="$t('events.scan_ticket')"></span>
           </q-btn>
+          <div class="manual-entry">
+            <q-input
+              v-model="manualId"
+              dense
+              outlined
+              clearable
+              :label="$t('events.checkin_manual_label')"
+              @keyup.enter="lookupManual"
+            ></q-input>
+            <q-btn
+              class="q-mt-sm full-width"
+              outline
+              color="primary"
+              :disable="!manualId || !token"
+              @click="lookupManual"
+              v-text="$t('events.checkin_manual_go')"
+            ></q-btn>
+          </div>
           <div v-if="!token" class="text-negative" v-text="$t('events.checkin_bad_token')"></div>
         </q-card-section>
       </q-card>
@@ -82,7 +100,12 @@
     <q-dialog v-model="sendCamera.show" position="top">
       <q-card class="q-pa-lg q-pt-xl">
         <div class="text-center q-mb-lg">
-          <qrcode-stream @detect="decodeQR" class="rounded-borders"></qrcode-stream>
+          <qrcode-stream
+            @detect="decodeQR"
+            @error="onCameraError"
+            class="rounded-borders"
+          ></qrcode-stream>
+          <div v-if="cameraError" class="text-negative q-mt-md" v-text="cameraError"></div>
         </div>
         <div class="row q-mt-lg">
           <q-btn @click="closeCamera" flat color="grey" class="q-ml-auto" v-text="$t('cancel')"></q-btn>
@@ -144,6 +167,7 @@
   }
   .door-note { margin-top: 8px; font-size: 12px; color: #fbbf24; }
   .bandless-note { margin-top: 8px; font-size: 12px; opacity: 0.6; }
+  .manual-entry { margin-top: 6px; }
   .scan-row { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0; font-size: 12px; }
   .scan-name { font-weight: 600; }
 
