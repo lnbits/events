@@ -260,7 +260,7 @@ window.i18n.global.mergeLocaleMessage('de', {
     checkin_valid: 'Gültig — einchecken',
     checkin_already: 'Bereits eingecheckt',
     checkin_confirm: 'Bestätigen & aushändigen',
-    checkin_manual_label: 'Ticket-ID oder Name',
+    checkin_manual_label: 'Name, E-Mail, Code oder ID suchen',
     checkin_manual_go: 'Suchen',
     checkin_already_short: 'Eingecheckt',
     checkin_no_matches: 'Keine Tickets gefunden.',

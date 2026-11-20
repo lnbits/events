@@ -561,3 +561,34 @@ def test_search_tickets_by_name(monkeypatch):
         with pytest.raises(PermissionError):
             await S.search_tickets("wrong-token", "hold")
     asyncio.run(run())
+
+
+def test_search_is_omni(monkeypatch):
+    """Staff know different things: a name, an email, "the weekend ticket"."""
+    async def run():
+        ev = await make_event()
+        ev.extra.scanner_groups = [M.ScannerGroup(token="DOOR", name="Door")]
+        await crud.update_event(ev)
+        await make_ticket("A1", WEEKEND)
+
+        async def fake_all():
+            return [ev]
+
+        monkeypatch.setattr(S, "get_all_events", fake_all)
+
+        async def ids(q):
+            return [r.id for r in await S.search_tickets("DOOR", q)]
+
+        assert await ids("a@b.c") == ["A1"], "email"
+        assert await ids("holder a@b.c") == [], "terms must share one field"
+        assert await ids("single - weekend") == ["A1"], "multi-word type"
+        assert await ids("weekend") == ["A1"], "ticket type name"
+        assert await ids("bitfest") == ["A1"], "event name"
+        assert await ids("A1") == ["A1"], "ticket id"
+        assert await ids("holder zzz") == [], "one term that matches nothing"
+
+        rows = await S.search_tickets("DOOR", "a@b.c")
+        assert rows[0].matched == "a@b.c", "say why a row matched"
+        name_rows = await S.search_tickets("DOOR", "holder")
+        assert name_rows[0].matched == "", "a name match needs no explanation"
+    asyncio.run(run())

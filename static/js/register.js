@@ -122,7 +122,9 @@
       this.scan(match.id)
     },
     matchLine(m) {
-      return [m.ticket_type_name, m.event_name].filter(Boolean).join(' · ')
+      const parts = [m.ticket_type_name, m.event_name].filter(Boolean)
+      if (m.matched) parts.push(m.matched)
+      return parts.join(' · ')
     },
     decodeQR(res) {
       this.sendCamera.show = false

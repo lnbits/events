@@ -264,7 +264,7 @@ window.i18n.global.mergeLocaleMessage('en', {
     checkin_valid: 'Valid — check in',
     checkin_already: 'Already checked in',
     checkin_confirm: 'Confirm & hand over',
-    checkin_manual_label: 'Ticket ID or name',
+    checkin_manual_label: 'Search name, email, code or id',
     checkin_manual_go: 'Look up',
     checkin_already_short: 'Checked in',
     checkin_no_matches: 'No tickets found.',

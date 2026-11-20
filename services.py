@@ -2055,31 +2055,32 @@ async def recent_checkins_for_token(
 async def search_tickets(
     token: str, query: str, limit: int = 10
 ) -> list[CheckinRow]:
-    """Find tickets by holder name (or email) across the events this link covers.
+    """Omni-search the door: name, email, ticket id, ticket type, event, code.
 
     The door needs this when a QR will not scan and there is no printed id to
-    type. Paid tickets only: an unpaid one cannot be admitted anyway.
+    type -- and staff know different things: a name, an email, "the family
+    ticket", or the offer code someone bought with. Every whitespace-separated
+    term must match somewhere on the ticket, so "nathan day" is narrower than
+    "nathan".
+
+    Paid tickets only: an unpaid one cannot be admitted anyway.
     """
-    q = (query or "").strip().lower()
-    if len(q) < 2:
+    terms = [part for part in (query or "").lower().split() if part]
+    if not terms or len("".join(terms)) < 2:
         return []
     if not token:
         raise PermissionError("Invalid scanner link.")
     events = [e for e in await get_all_events() if token_opens(e, token)]
     if not events:
         raise PermissionError("Invalid scanner link.")
+    needle = " ".join(terms)
 
-    hits: list[tuple[int, CheckinRow]] = []
-
-    def rank(name: str) -> int:
-        # Exact beats prefix beats anywhere; "Nathan" must not surface
-        # "Jonathan" before the person standing at the door.
-        return 0 if name == q else 1 if name.startswith(q) else 2
+    hits: list[tuple[int, int, CheckinRow]] = []
     for event in events:
         bands = {b.id: b for b in event.extra.bands}
         types = {t.id: t.name for t in await get_ticket_types(event.id)}
-        # A type that an ACCESS rule names is someone's ticket; add-ons (a
-        # screening seat, a Bitflix comp) are never what the door wants first.
+        # A type an ACCESS rule names is someone's ticket; add-ons (a screening
+        # seat, a Bitflix comp) are never what the door wants first.
         access_types = {
             tid
             for rule in event.extra.band_rules
@@ -2089,35 +2090,77 @@ async def search_tickets(
         for ticket in await get_event_tickets(event.id):
             if not ticket.paid:
                 continue
-            name = (ticket.name or "").lower()
-            email = (ticket.email or "").lower()
-            if q not in name and q not in email:
+            name = ticket.name or ""
+            email = ticket.email or ""
+            code = ticket.extra.applied_promo_code or ""
+            type_name = types.get(ticket.ticket_type_id, "")
+            fields = {
+                "name": name,
+                "email": email,
+                "id": ticket.id,
+                "type": type_name,
+                "event": event.name or "",
+                "code": code,
+                "basket": ticket.basket_id or "",
+            }
+            # Every term must sit inside ONE field: "nathan day" is a name, not
+            # a name plus a ticket type that happens to say "One Day Pass".
+            matched_field = next(
+                (
+                    value
+                    for value in fields.values()
+                    if all(term in (value or "").lower() for term in terms)
+                ),
+                None,
+            )
+            if matched_field is None:
                 continue
+
+            lname = name.lower()
+            if lname == needle:
+                tier = 0
+            elif lname.startswith(needle):
+                tier = 1
+            elif needle in lname:
+                tier = 2
+            elif ticket.id.lower().startswith(needle):
+                tier = 3
+            else:
+                tier = 4
+
+            # Say WHY a row matched when it was not the name, so the door can
+            # tell "David" from "david@cy-matics.co.uk" at a glance.
+            matched = ""
+            if tier >= 3:
+                matched = matched_field if matched_field != name else ""
+
             hits.append(
                 (
-                    rank(name) if q in name else 3,
+                    tier,
                     0 if ticket.ticket_type_id in access_types else 1,
                     CheckinRow(
-                    id=ticket.id,
-                    event_name=event.name or "",
-                    name=ticket.name or "",
-                    ticket_type_name=types.get(ticket.ticket_type_id, ""),
-                    bands=[
-                        CheckinBand(id=b.id, name=b.name, label=b.label, colour=b.colour)
-                        for b in (
-                            bands[i] for i in ticket.extra.bands_issued if i in bands
-                        )
-                    ],
-                    checked_in_at=ticket.reg_timestamp,
-                    paid=ticket.paid,
-                    registered=bool(ticket.registered),
-                ))
+                        id=ticket.id,
+                        event_name=event.name or "",
+                        name=name,
+                        ticket_type_name=type_name,
+                        bands=[
+                            CheckinBand(id=b.id, name=b.name, label=b.label, colour=b.colour)
+                            for b in (
+                                bands[i] for i in ticket.extra.bands_issued if i in bands
+                            )
+                        ],
+                        checked_in_at=ticket.reg_timestamp,
+                        paid=ticket.paid,
+                        registered=bool(ticket.registered),
+                        matched=matched,
+                    ),
+                )
             )
-            if len(hits) >= limit * 3:
+            if len(hits) >= limit * 5:
                 break
     hits.sort(
         key=lambda item: (
-            item[0],             # exact, then prefix, then anywhere
+            item[0],             # name, id, then everything else
             item[1],             # real ticket before add-on
             item[2].registered,  # not-yet-in before already-in
             item[2].name.lower(),

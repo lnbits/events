@@ -259,7 +259,7 @@ window.i18n.global.mergeLocaleMessage('es', {
     checkin_valid: 'Válida — registrar',
     checkin_already: 'Ya registrada',
     checkin_confirm: 'Confirmar y entregar',
-    checkin_manual_label: 'ID de entrada o nombre',
+    checkin_manual_label: 'Buscar nombre, correo, código o ID',
     checkin_manual_go: 'Buscar',
     checkin_already_short: 'Registrada',
     checkin_no_matches: 'No se encontraron entradas.',

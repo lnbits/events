@@ -460,6 +460,8 @@ class CheckinRow(BaseModel):
     checked_in_at: datetime | None = None
     paid: bool = True
     registered: bool = False
+    # Only set when the row matched on something other than the holder's name.
+    matched: str = ""
 
 
 class DoorLinkRequest(BaseModel):
